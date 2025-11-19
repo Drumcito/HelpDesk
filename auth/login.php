@@ -36,17 +36,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Redirección automática según el rol guardado en la BD
             switch ((int)$user['rol']) {
                 case 1:
-                    header('Location: ../dashboard/sa.php');
+                    header('Location: ../modules/dashboard/sa.php');
                     break;
                 case 2:
-                    header('Location: ../dashboard/admin.php');
+                    header('Location: ../modules/dashboard/admin.php');
                     break;
                 case 3:
-                    header('Location: ../dashboard/analista.php');
+                    header('Location: ../modules/dashboard/analist.php');
                     break;
                 case 4:
                 default:
-                    header('Location: ../dashboard/usuario.php');
+                    header('Location: ../modules/dashboard/user.php');
                     break;
             }
             exit;
