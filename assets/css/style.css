@@ -229,3 +229,395 @@ body {
     transform: translateY(0);
     box-shadow: none;
 }
+/* ---------------------------------------
+|Menú pastilla lateral 
+-----------------------------------------*/
+.sidebar-pill {
+    position: fixed;
+    top: 50%;
+    left: 18px;
+    transform: translateY(-50%);
+    z-index: 30;
+}
+
+.sidebar-pill-menu {
+    background-color: rgba(20, 55, 138, 0.2);
+    border-radius: 999px;
+    padding: 10px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.pill-item {
+    width: 38px;
+    height: 38px;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    background-color: transparent;
+    transition: background-color 0.15s ease, transform 0.08s ease, box-shadow 0.12s ease;
+}
+
+.pill-icon {
+    font-size: 1.1rem;
+    color: #ffffff;
+}
+
+.pill-item:hover {
+    background-color: rgba(255, 255, 255, 0.25);
+    transform: translateY(-1px);
+}
+
+.pill-item.active {
+    background: linear-gradient(135deg, var(--eqf-blue), var(--eqf-red));
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.25);
+}
+
+/* Para que el contenido no quede debajo del menú */
+.sa-main {
+    padding: 20px 26px;
+    padding-left: 110px; /* deja espacio del menú pastilla */
+}
+/* ============================
+   DIRECTORIO · ESTILO
+============================ */
+
+/* Fondo gris como en el mockup */
+.directory-body {
+    min-height: 100vh;
+    background-color: #dcdcdc;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+/* MAIN con margen para el menú pastilla */
+.directory-main {
+    padding: 20px 26px;
+    padding-left: 120px; /* espacio para menú lateral */
+}
+
+.directory-header-main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 18px;
+}
+
+.directory-header-main h1 {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #111827;
+}
+
+.directory-subtitle {
+    font-size: 0.85rem;
+    color: #6b7280;
+}
+
+/* Menú pastilla (columna blanca + pill interna) */
+
+.sidebar-pill {
+    position: fixed;
+    top: 50%;
+    left: 24px;
+    transform: translateY(-50%);
+    width: 56px;
+    background-color: #f3f4f6;
+    border-radius: 10px;
+    padding: 10px 0;
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.15);
+    display: flex;
+    justify-content: center;
+    z-index: 30;
+}
+
+.sidebar-pill-inner {
+    background: linear-gradient(180deg, #4b5563, #9ca3af);
+    border-radius: 999px;
+    padding: 10px 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.pill-item {
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    transition: background-color 0.15s ease, transform 0.08s ease, box-shadow 0.12s ease;
+}
+
+.pill-icon {
+    font-size: 1rem;
+    color: #ffffff;
+}
+
+.pill-item:hover {
+    background-color: rgba(255, 255, 255, 0.25);
+    transform: translateY(-1px);
+}
+
+.pill-item.active {
+    background: #ffffff;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.25);
+}
+
+.pill-item.active .pill-icon {
+    color: #4b5563;
+}
+
+/* BARRA DE BÚSQUEDA GRANDE */
+
+.directory-search-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.search-input-wrap {
+    flex: 1;
+}
+
+.search-big {
+    width: 100%;
+    border-radius: 999px;
+    border: 1px solid #d1d5db;
+    padding: 10px 18px;
+    font-size: 0.9rem;
+    outline: none;
+    background-color: #f9fafb;
+}
+
+.search-big::placeholder {
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #9ca3af;
+    font-size: 0.8rem;
+}
+
+.search-big:focus {
+    border-color: var(--eqf-blue);
+    box-shadow: 0 0 0 2px rgba(20, 55, 138, 0.15);
+}
+
+.btn-search-big {
+    border-radius: 6px;
+    border: 1px solid #d1d5db;
+    background-color: #ffffff;
+    padding: 9px 18px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    transition: background-color 0.1s ease, box-shadow 0.1s ease;
+}
+
+.btn-search-big:hover {
+    background-color: #f3f4f6;
+    box-shadow: 0 6px 14px rgba(15, 23, 42, 0.15);
+}
+
+/* TABLA + ACCIONES LATERALES */
+
+.directory-table-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 16px;
+}
+
+.directory-table-wrapper {
+    background-color: #ffffff;
+    border-radius: 14px;
+    border: 1px solid #e5e7eb;
+    padding: 12px;
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.10);
+}
+
+.directory-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.directory-table th,
+.directory-table td {
+    border: 1px solid #e5e7eb;
+    padding: 6px 8px;
+    font-size: 0.8rem;
+}
+
+.directory-table thead {
+    background-color: #f9fafb;
+}
+
+.directory-table tbody tr:hover {
+    background-color: #f3f4f6;
+    cursor: pointer;
+}
+
+/* Fila seleccionada */
+.row-selected {
+    background-color: rgba(20, 55, 138, 0.1) !important;
+}
+
+/* Panel de acciones (botones de colores) */
+
+.directory-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    justify-content: center;
+}
+
+.action-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-size: 1.4rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 10px 20px rgba(15, 23, 42, 0.25);
+    color: #000000;
+}
+
+/* Verde alta */
+.action-add {
+    background-color: #4ade80; /* verde */
+}
+
+/* Rojo eliminar */
+.action-delete {
+    background-color: #f97373; /* rojo */
+}
+
+/* Amarillo actualizar */
+.action-edit {
+    background-color: #facc15; /* amarillo */
+}
+/* Chips de filtro */
+.directory-filter-chips {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.chip-filter {
+    padding: 6px 16px;
+    border-radius: 999px;
+    border: 1px solid #cfcfcf;
+    background-color: #fff;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #333;
+    transition: all 0.15s ease;
+}
+
+.chip-filter:hover {
+    box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+}
+
+.chip-filter.chip-active {
+    background: linear-gradient(90deg, var(--eqf-blue), var(--eqf-red));
+    color: #fff;
+    border-color: transparent;
+}
+/* ===== MODAL OVERLAY ===== */
+
+.modal-backdrop {
+    position: fixed;
+    inset: 0; /* top:0; right:0; bottom:0; left:0 */
+    background-color: rgba(15, 23, 42, 0.35);
+    display: none;              /* 🔹 IMPORTANTE: oculto por defecto */
+    align-items: center;
+    justify-content: center;
+    z-index: 999;               /* por encima de la tabla y todo */
+}
+
+.modal-backdrop.show {
+    display: flex;              /* 🔹 Cuando se agrega .show, aparece como overlay */
+}
+
+.modal-card {
+    background-color: #ffffff;
+    border-radius: 18px;
+    padding: 18px 20px;
+    width: 100%;
+    max-width: 640px;
+    box-shadow: 0 25px 60px rgba(15, 23, 42, 0.25);
+    border: 1px solid #e5e7eb;
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
+.modal-header h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #111827;
+}
+
+.modal-close {
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 1rem;
+    color: #6b7280;
+}
+
+.modal-description {
+    font-size: 0.8rem;
+    color: #6b7280;
+    margin-bottom: 10px;
+}
+
+.modal-form .modal-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 12px;
+}
+
+.modal-form .form-group label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #4b5563;
+    margin-bottom: 4px;
+    display: block;
+}
+
+.modal-form .form-group input,
+.modal-form .form-group select {
+    width: 100%;
+    border-radius: 10px;
+    border: 1px solid #d1d5db;
+    padding: 8px 10px;
+    font-size: 0.85rem;
+    outline: none;
+}
+
+.modal-form .form-group input:focus,
+.modal-form .form-group select:focus {
+    border-color: var(--eqf-blue);
+    box-shadow: 0 0 0 2px rgba(20, 55, 138, 0.15);
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 14px;
+}
