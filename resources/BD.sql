@@ -78,6 +78,8 @@ CREATE TABLE IF NOT EXISTS `eqfmxn_help_desk`.`users_support` (
   `lastname` VARCHAR(45) NOT NULL,
   `email` VARCHAR(45) NOT NULL,
   `password` VARCHAR(45) NOT NULL,
+  `must_change_password` tinyint(1) NOT NULL DEFAULT 1, -- Linea agregada
+  `register` timestamp NOT NULL DEFAULT current_timestamp(), -- Linea agregada
   `phone` INT NULL,
   `status` TINYINT NOT NULL,
   `id_positions` INT NOT NULL,
