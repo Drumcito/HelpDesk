@@ -27,8 +27,9 @@ function rolLabel(int $rol): string {
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Directorio | Mesa de Ayuda EQF</title>
+    <title>Directorio | HELP DESK EQF</title>
     <link rel="stylesheet" href="../../assets/css/style.css">
+
 </head>
 <body class="directory-body">
 
@@ -52,15 +53,38 @@ function rolLabel(int $rol): string {
             </a>
         </div>
     </aside>
+        <!-- ALERTAS -->
+
+            <?php
+$alerts = [];
+
+if (isset($_GET['created'])) {
+    $alerts[] = ['type' => 'success', 'text' => 'Usuario registrado exitosamente.'];
+}
+if (isset($_GET['updated'])) {
+    $alerts[] = ['type' => 'info', 'text' => 'Usuario actualizado exitosamente.'];
+}
+if (isset($_GET['deleted'])) {
+    $alerts[] = ['type' => 'danger', 'text' => 'Usuario eliminado exitosamente.'];
+}
+?>
+
+<?php if (!empty($alerts)): ?>
+    <div id="eqf-alert-container">
+        <?php foreach ($alerts as $a): ?>
+            <div class="eqf-alert eqf-alert-<?php echo $a['type']; ?>">
+                <?php echo htmlspecialchars($a['text'], ENT_QUOTES, 'UTF-8'); ?>
+            </div>
+        <?php endforeach; ?>
+    </div>
+<?php endif; ?>
 
     <!-- CONTENIDO PRINCIPAL -->
     <main class="directory-main">
         <header class="directory-header-main">
+
             <div>
                 <h1>Directorio de Usuarios</h1>
-                <p class="directory-subtitle">
-                    Busca, filtra y administra usuarios de todas las áreas.
-                </p>
             </div>
             <div class="dashboard-user-pill">
                 <span><?php echo htmlspecialchars($nombreCompleto, ENT_QUOTES, 'UTF-8'); ?></span>
@@ -78,12 +102,9 @@ function rolLabel(int $rol): string {
                     autocomplete="off"
                 >
             </div>
-            <button type="button" class="btn-search-big" onclick="triggerSearch()">
-                BUSCAR
-            </button>
         </section>
 
-        <!-- CHIPS DE FILTRO -->
+        <!-- FILTRO -->
         <div class="directory-filter-chips">
             <button class="chip-filter chip-active" data-area="ALL">Todos</button>
             <button class="chip-filter" data-area="TI">TI</button>
@@ -140,7 +161,7 @@ function rolLabel(int $rol): string {
             <!-- BOTONES DE ACCIÓN (VERDE, ROJO, AMARILLO) -->
             <div class="directory-actions">
                 <button type="button" class="action-btn action-add" title="Agregar usuario" onclick="openModal('modal-create-user')">
-                    ➕
+                    +
                 </button>
                 <button type="button" class="action-btn action-delete" title="Eliminar usuario" onclick="handleDeleteUser()">
                     🗑
@@ -163,7 +184,9 @@ function rolLabel(int $rol): string {
                     el sistema le pedirá al usuario que la cambie.
                 </p>
 
-                <form method="POST" action="../../auth/users.php" class="modal-form">
+                    <form method="POST" action="../../auth/users.php" class="modal-form">
+                            <input type="hidden" name="action" value="create">
+
                     <div class="modal-grid">
                         <div class="form-group">
                             <label>No. SAP</label>
@@ -183,13 +206,28 @@ function rolLabel(int $rol): string {
                         </div>
                         <div class="form-group">
                             <label>Área</label>
-                            <input type="text" name="area" required>
+                             <select name="area" required>
+                                <option value="">Selecciona...</option>
+                                <option value="1">TI</option>
+                                <option value="2">MKT</option>
+                                <option value="3">SAP</option>
+                                <option value="4">Planificacion</option>  
+                                <option value="5">Inventarios</option>  
+                                <option value="6">Direccion</option>  
+                                <option value="7">Contabilidad</option>  
+                                <option value="8">Juridico</option>  
+                                <option value="9">Insumos</option>  
+                                <option value="10">Logisitica</option>  
+                                <option value="11">RRHH</option>  
+                                <option value="12">Proyectos</option>  
+                                <option value="13">Normatividad</option>    
+                            </select>
                         </div>
                         <div class="form-group">
                             <label>Rol</label>
                             <select name="rol" required>
                                 <option value="">Selecciona...</option>
-                                <option value="1">Super Administrador</option>
+                                <option value="1">SA</option>
                                 <option value="2">Administrador</option>
                                 <option value="3">Analista</option>
                                 <option value="4">Usuario</option>
@@ -223,9 +261,9 @@ function rolLabel(int $rol): string {
                 <p class="modal-description">
                     Actualiza los datos del usuario seleccionado.
                 </p>
-
-                <form method="POST" action="../../auth/users.php" class="modal-form">
-                    <input type="hidden" name="id" id="edit_id">
+<form method="POST" action="../../auth/users.php" class="modal-form">
+    <input type="hidden" name="action" value="update">
+    <input type="hidden" name="id" id="edit_id">
 
                     <div class="modal-grid">
                         <div class="form-group">
@@ -272,119 +310,13 @@ function rolLabel(int $rol): string {
         </div>
 
         <!-- FORMULARIO OCULTO PARA ELIMINAR -->
-        <form id="deleteForm" method="POST" action="../../auth/users.php" style="display:none;">
-            <input type="hidden" name="id" id="delete_id">
-        </form>
-
+       <form id="deleteForm" method="POST" action="../../auth/users.php" style="display:none;">
+    <input type="hidden" name="action" value="delete">
+    <input type="hidden" name="id" id="delete_id">
+</form>
     </main>
 
-    <script>
-        // --- selección de fila ---
-        let selectedRow = null;
-
-        const rows = document.querySelectorAll('.directory-row');
-        rows.forEach(row => {
-            row.addEventListener('click', () => {
-                if (selectedRow) {
-                    selectedRow.classList.remove('row-selected');
-                }
-                selectedRow = row;
-                row.classList.add('row-selected');
-            });
-        });
-
-        // --- búsqueda + filtro combinados ---
-        const searchInput = document.getElementById('searchUser');
-        const filterChips = document.querySelectorAll('.chip-filter');
-        let currentArea = 'ALL';
-
-        function applyFilter() {
-            const term = (searchInput.value || '').trim().toLowerCase();
-
-            document.querySelectorAll('.directory-row').forEach(row => {
-                const sap  = row.dataset.sap.toLowerCase();
-                const name = row.dataset.name.toLowerCase();
-                const last = row.dataset.last.toLowerCase();
-                const area = row.dataset.area.toLowerCase();
-
-                const matchTerm =
-                    term === '' ||
-                    sap.includes(term) ||
-                    name.includes(term) ||
-                    last.includes(term);
-
-                const matchArea =
-                    currentArea === 'ALL' ||
-                    area === currentArea.toLowerCase();
-
-                row.style.display = (matchTerm && matchArea) ? '' : 'none';
-            });
-        }
-
-        function triggerSearch() {
-            applyFilter();
-        }
-
-        if (searchInput) {
-            searchInput.addEventListener('input', applyFilter);
-        }
-
-        // --- filtro por chips ---
-        filterChips.forEach(chip => {
-            chip.addEventListener('click', () => {
-                filterChips.forEach(c => c.classList.remove('chip-active'));
-                chip.classList.add('chip-active');
-                currentArea = chip.dataset.area || 'ALL';
-                selectedRow = null;
-                applyFilter();
-            });
-        });
-
-        // --- modales ---
-        function openModal(id) {
-            const el = document.getElementById(id);
-            if (el) el.classList.add('show');
-        }
-
-        function closeModal(id) {
-            const el = document.getElementById(id);
-            if (el) el.classList.remove('show');
-        }
-
-        // --- eliminar usuario ---
-        function handleDeleteUser() {
-            if (!selectedRow) {
-                alert('Primero selecciona un usuario en la tabla.');
-                return;
-            }
-            const name = selectedRow.dataset.name + ' ' + selectedRow.dataset.last;
-            if (!confirm('¿Eliminar al usuario: ' + name + '?')) {
-                return;
-            }
-            const id = selectedRow.dataset.id;
-            const deleteInput = document.getElementById('delete_id');
-            deleteInput.value = id;
-            document.getElementById('deleteForm').submit();
-        }
-
-        // --- editar usuario ---
-        function openEditModal() {
-            if (!selectedRow) {
-                alert('Primero selecciona un usuario en la tabla.');
-                return;
-            }
-            document.getElementById('edit_id').value   = selectedRow.dataset.id;
-            document.getElementById('edit_sap').value  = selectedRow.dataset.sap;
-            document.getElementById('edit_name').value = selectedRow.dataset.name;
-            document.getElementById('edit_last').value = selectedRow.dataset.last;
-            document.getElementById('edit_area').value = selectedRow.dataset.area;
-            document.getElementById('edit_email').value = selectedRow.dataset.email;
-            document.getElementById('edit_rol').value  = selectedRow.dataset.rol;
-
-            openModal('modal-edit-user');
-        }
-    </script>
-    <script src="../../assets/js/scripts.js"></script>
+    <script src="../../assets/js/script.js"></script>
 
 </body>
 </html>

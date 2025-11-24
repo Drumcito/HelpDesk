@@ -491,17 +491,17 @@ body {
 
 /* Verde alta */
 .action-add {
-    background-color: #4ade80; /* verde */
+    background-color: #6EFF71; /* verde */
 }
 
 /* Rojo eliminar */
 .action-delete {
-    background-color: #f97373; /* rojo */
+    background-color: #FF6E6E; /* rojo */
 }
 
 /* Amarillo actualizar */
 .action-edit {
-    background-color: #facc15; /* amarillo */
+    background-color: #5961FF; /* amarillo */
 }
 /* Chips de filtro */
 .directory-filter-chips {
@@ -620,4 +620,68 @@ body {
     justify-content: flex-end;
     gap: 8px;
     margin-top: 14px;
+}
+
+/* ============================================
+   ALERTAS EQF PARA DIRECTORIO / CRUD
+============================================ */
+/* Overlay de alerta centrada */
+#eqf-alert-container {
+    position: fixed;
+    inset: 0; /* top:0,right:0,bottom:0,left:0 */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 900;
+    pointer-events: none; /* que no bloquee clicks del fondo */
+}
+
+/* Tarjeta de alerta */
+.eqf-alert {
+    pointer-events: auto;
+    background-color: #ffffff;
+    padding: 14px 40px;
+    border-radius: 4px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: 2px solid #ccc;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+    text-align: center;
+    animation: eqfAlertFadeIn 0.25s ease-out;
+}
+
+/* estado oculto con animación */
+.eqf-alert-hide {
+    opacity: 0;
+    transform: translateY(-8px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+/* Verde: registrado */
+.eqf-alert-success {
+    border-color: #70D492;
+    color: #111827;
+}
+
+/* Azul: actualizado */
+.eqf-alert-info {
+    border-color: #2563eb;
+    color: #111827;
+}
+
+/* Rojo: eliminado */
+.eqf-alert-danger {
+    border-color: #ef4444;
+    color: #111827;
+}
+
+@keyframes eqfAlertFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
