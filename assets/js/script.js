@@ -332,7 +332,7 @@ function initCrudAlerts() {
                 container.parentNode.removeChild(container);
             }
         }, 350);
-    }, 3000);
+    }, 2000);
 }
 
 /* ============================================================

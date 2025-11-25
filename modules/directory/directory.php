@@ -208,19 +208,11 @@ if (isset($_GET['deleted'])) {
                             <label>Área</label>
                              <select name="area" required>
                                 <option value="">Selecciona...</option>
-                                <option value="1">TI</option>
-                                <option value="2">MKT</option>
-                                <option value="3">SAP</option>
-                                <option value="4">Planificacion</option>  
-                                <option value="5">Inventarios</option>  
-                                <option value="6">Direccion</option>  
-                                <option value="7">Contabilidad</option>  
-                                <option value="8">Juridico</option>  
-                                <option value="9">Insumos</option>  
-                                <option value="10">Logisitica</option>  
-                                <option value="11">RRHH</option>  
-                                <option value="12">Proyectos</option>  
-                                <option value="13">Normatividad</option>    
+                                <option value="TI">TI</option>
+                                <option value="MKT">MKT</option>
+                                <option value="SAP">SAP</option>
+                                <option value="Corporativo">Corporativo</option>  
+                                <option value="Sucursal">Sucursal</option>  
                             </select>
                         </div>
                         <div class="form-group">
@@ -284,12 +276,20 @@ if (isset($_GET['deleted'])) {
                         </div>
                         <div class="form-group">
                             <label>Área</label>
-                            <input type="text" name="area" id="edit_area" required>
+                            <select name="area" id="edit_area" required>
+                                <option value="">Selecciona...</option>
+                                <option value="TI">TI</option>
+                                <option value="MKT">MKT</option>
+                                <option value="SAP">SAP</option>
+                                <option value="Corporativo">Corporativo</option>
+                                <option value="Sucursales">Sucursales</option>
+                            </select>
                         </div>
                         <div class="form-group">
                             <label>Rol</label>
-                            <select name="rol" id="edit_rol" required>
-                                <option value="1">Super Administrador</option>
+                            <select name="area" id="edit_rol" required>
+                                <option value="">Selecciona...</option>
+                                <option value="1">SA</option>
                                 <option value="2">Administrador</option>
                                 <option value="3">Analista</option>
                                 <option value="4">Usuario</option>
