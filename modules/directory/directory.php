@@ -1,7 +1,7 @@
 <?php
 session_start();
 require_once __DIR__ . '/../../config/connectionBD.php';
-
+include __DIR__ . '/../../template/header.php';
 $pdo = Database::getConnection();
 
 $nombreCompleto = $_SESSION['user_name'] . ' ' . $_SESSION['user_last'];
@@ -103,7 +103,8 @@ if (isset($_GET['deleted'])) {
                 >
             </div>
         </section>
-
+<!-- linea de botones FIltro && CRUD-->
+ <div class="directory-filter-actions-row">
         <!-- FILTRO -->
         <div class="directory-filter-chips">
             <button class="chip-filter chip-active" data-area="ALL">Todos</button>
@@ -113,18 +114,32 @@ if (isset($_GET['deleted'])) {
             <button class="chip-filter" data-area="SUCURSALES">Sucursales</button>
         </div>
 
-        <!-- TABLA + BOTONES LATERALES -->
+        <!-- BOTONES CRUD -->
+            <div class="directory-actions">
+                <button type="button" class="action-btn action-add" title="Agregar usuario" onclick="openModal('modal-create-user')">
+                    +
+                </button>
+                <button type="button" class="action-btn action-delete" title="Eliminar usuario" onclick="handleDeleteUser()">
+                    🗑
+                </button>
+                <button type="button" class="action-btn action-edit" title="Actualizar usuario" onclick="openEditModal()">
+                    ♻️
+                </button>
+            </div>
+        </div>
+
+        <!-- TABLA -->
         <section class="directory-table-row">
             <div class="directory-table-wrapper">
                 <table class="data-table directory-table" id="directoryTable">
                     <thead>
                         <tr>
-                            <th># SAP</th>
-                            <th>Nombre</th>
-                            <th>Apellido</th>
-                            <th>Área</th>
-                            <th>Rol</th>
-                            <th>Correo</th>
+                            <th style="color: white;"># SAP</th>
+                            <th style="color: white;">Nombre</th>
+                            <th style="color: white;">Apellido</th>
+                            <th style="color: white;">Área</th>
+                            <th style="color: white;">Rol</th>
+                            <th style="color: white;">Correo</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -156,19 +171,6 @@ if (isset($_GET['deleted'])) {
                     <?php endif; ?>
                     </tbody>
                 </table>
-            </div>
-
-            <!-- BOTONES DE ACCIÓN (VERDE, ROJO, AMARILLO) -->
-            <div class="directory-actions">
-                <button type="button" class="action-btn action-add" title="Agregar usuario" onclick="openModal('modal-create-user')">
-                    +
-                </button>
-                <button type="button" class="action-btn action-delete" title="Eliminar usuario" onclick="handleDeleteUser()">
-                    🗑
-                </button>
-                <button type="button" class="action-btn action-edit" title="Actualizar usuario" onclick="openEditModal()">
-                    ♻️
-                </button>
             </div>
         </section>
 

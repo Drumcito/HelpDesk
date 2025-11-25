@@ -4,6 +4,7 @@
 :root {
     --eqf-red:  #C8002D;
     --eqf-blue: #14378A;
+    --eqf-combinated: #6e1c5c;
     --eqf-bg:   #f4f6fb;
     --eqf-black: #211915;
     --eqf-card-bg: #ffffff;
@@ -424,7 +425,7 @@ body {
     box-shadow: 0 6px 14px rgba(15, 23, 42, 0.15);
 }
 
-/* TABLA + ACCIONES LATERALES */
+/* TABLA*/
 
 .directory-table-row {
     display: grid;
@@ -453,7 +454,7 @@ body {
 }
 
 .directory-table thead {
-    background-color: #f9fafb;
+    background-color: var(--eqf-blue);
 }
 
 .directory-table tbody tr:hover {
@@ -470,7 +471,8 @@ body {
 
 .directory-actions {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    align-items: center;
     gap: 12px;
     justify-content: center;
 }
@@ -489,19 +491,15 @@ body {
     color: #000000;
 }
 
-/* Verde alta */
 .action-add {
-    background-color: #6EFF71; /* verde */
+    background-color: #6EFF71; 
 }
-
-/* Rojo eliminar */
 .action-delete {
-    background-color: #FF6E6E; /* rojo */
+    background-color: #FF6E6E; 
 }
 
-/* Amarillo actualizar */
 .action-edit {
-    background-color: #5961FF; /* amarillo */
+    background-color: #5961FF; 
 }
 /* Chips de filtro */
 .directory-filter-chips {
@@ -510,6 +508,15 @@ body {
     gap: 10px;
     margin-bottom: 14px;
 }
+
+.directory-filter-actions-row {
+    display: flex;
+    justify-content: space-between; /* chips izquierda / CRUD derecha */
+    align-items: center;            /* ALINEA VERTICALMENTE 👈 */
+    width: 100%;
+    margin: 10px 0 15px 0;
+}
+
 
 .chip-filter {
     padding: 6px 16px;
@@ -528,7 +535,7 @@ body {
 }
 
 .chip-filter.chip-active {
-    background: linear-gradient(90deg, var(--eqf-blue), var(--eqf-red));
+    background: var(--eqf-red);
     color: #fff;
     border-color: transparent;
 }
@@ -684,4 +691,41 @@ body {
         opacity: 1;
         transform: translateY(0);
     }
+}
+/*----------------------------------
+        HEADER
+----------------------------------*/
+.eqf-header {
+    width: 100%;
+    padding: 10px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--eqf-card-bg);
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.eqf-header-left img,
+.eqf-header-right img {
+    height: 60px;
+}
+
+.eqf-header-title {
+    flex: 1;
+    text-align: center;
+}
+
+.eqf-header-title h1 {
+    margin: 0;
+    font-size: 1.6rem;
+    color: #333;
+}
+
+.header-icon {
+    height: 55px;
+}
+
+.header-logo {
+    height: 65px;
 }
