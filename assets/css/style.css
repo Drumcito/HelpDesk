@@ -4,8 +4,10 @@
 :root {
     --eqf-red:  #C8002D;
     --eqf-blue: #14378A;
+    --eqf-green: #1E8A4F;
     --eqf-combinated: #6e1c5c;
     --eqf-bg:   #f4f6fb;
+    --eqf-bg-header: #EBEEF2 ;
     --eqf-black: #211915;
     --eqf-card-bg: #ffffff;
     --eqf-text: #1f2933;
@@ -289,7 +291,7 @@ body {
 /* Fondo gris como en el mockup */
 .directory-body {
     min-height: 100vh;
-    background-color: #dcdcdc;
+    background-color: var(--eqf-bg);
     font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -492,14 +494,14 @@ body {
 }
 
 .action-add {
-    background-color: #6EFF71; 
+    background-color: var(--eqf-green); 
 }
 .action-delete {
-    background-color: #FF6E6E; 
+    background-color: var(--eqf-red); 
 }
 
 .action-edit {
-    background-color: #5961FF; 
+    background-color: var(--eqf-blue); 
 }
 /* Chips de filtro */
 .directory-filter-chips {
@@ -701,7 +703,7 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: var(--eqf-card-bg);
+    background: var(--eqf-bg-header);
     border-radius: 8px;
     margin-bottom: 20px;
 }
@@ -716,16 +718,10 @@ body {
     text-align: center;
 }
 
-.eqf-header-title h1 {
-    margin: 0;
-    font-size: 1.6rem;
-    color: #333;
-}
-
 .header-icon {
-    height: 55px;
+    height:45px;
 }
 
 .header-logo {
-    height: 65px;
+    height: 45px;
 }
