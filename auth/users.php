@@ -12,72 +12,96 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $action = $_POST['action'] ?? '';
 
 try {
-    /* ========== CREAR USUARIO ========== */
-    if ($action === 'create') {
-        $sap   = trim($_POST['number_sap'] ?? '');
-        $name  = trim($_POST['name'] ?? '');
-        $last  = trim($_POST['last_name'] ?? '');
-        $email = trim($_POST['email'] ?? '');
-        $area  = trim($_POST['area'] ?? '');
-        $rol   = (int)($_POST['rol'] ?? 0);
-        $tempPassword = $_POST['temp_password'] ?? '';
+/* ========== CREAR USUARIO ========== */
+if ($action === 'create') {
+    $sap   = trim($_POST['number_sap'] ?? '');
+    $name  = trim($_POST['name'] ?? '');
+    $last  = trim($_POST['last_name'] ?? '');
+    $email = trim($_POST['email'] ?? '');
+    $area  = trim($_POST['area'] ?? '');
+    $rol   = (int)($_POST['rol'] ?? 0);
 
-        if (
-            $sap === '' || $name === '' || $last === '' ||
-            $email === '' || $area === '' || $rol === 0 ||
-            $tempPassword === ''
-        ) {
-            
-            header('Location: ../modules/directory/directory.php?error=datos');
-            exit;
-        }
+    $assignPassword = isset($_POST['assign_password']);
 
-        $hash = password_hash($tempPassword, PASSWORD_DEFAULT);
-
-        // SIN must_change_password, solo las columnas que ya tienes
-        $stmt = $pdo->prepare('
-            INSERT INTO users (
-                number_sap, name, last_name,
-                email, password, rol, area
-            ) VALUES (
-                :sap, :name, :last,
-                :email, :pass, :rol, :area
-            )
-        ');
-
-        $stmt->execute([
-            ':sap'   => $sap,
-            ':name'  => $name,
-            ':last'  => $last,
-            ':email' => $email,
-            ':pass'  => $hash,
-            ':rol'   => $rol,
-            ':area'  => $area,
-        ]);
-
-header('Location: ../modules/directory/directory.php?created=1');
+    if (
+        $sap === '' || $name === '' || $last === '' ||
+        $email === '' || $area === '' || $rol === 0 || !$assignPassword
+    ) {
+        header('Location: ../modules/directory/directory.php?error=datos');
         exit;
     }
 
+    $tempPassword = '12345a';
+    $hash = password_hash($tempPassword, PASSWORD_DEFAULT);
+
+    $stmt = $pdo->prepare('
+        INSERT INTO users (number_sap, name, last_name, email, 
+        password, rol, area, must_change_password)
+        VALUES (:sap, :name, :last, :email, :password, :rol, :area, 1)
+    ');
+
+    $stmt->execute([
+        ':sap'      => $sap,
+        ':name'     => $name,
+        ':last'     => $last,
+        ':email'    => $email,
+        ':password' => $hash,
+        ':rol'      => $rol,
+        ':area'     => $area,
+    ]);
+
+    header('Location: ../modules/directory/directory.php?created=1');
+    exit;
+}
+
     /* ========== ACTUALIZAR USUARIO ========== */
     if ($action === 'update') {
-        $id    = (int)($_POST['id'] ?? 0);
-        $sap   = trim($_POST['number_sap'] ?? '');
-        $name  = trim($_POST['name'] ?? '');
-        $last  = trim($_POST['last_name'] ?? '');
-        $email = trim($_POST['email'] ?? '');
-        $area  = trim($_POST['area'] ?? '');
-        $rol   = (int)($_POST['rol'] ?? 0);
+    $id         = (int)($_POST['id'] ?? 0);
+    $number_sap = trim($_POST['number_sap'] ?? '');
+    $name       = trim($_POST['name'] ?? '');
+    $last_name  = trim($_POST['last_name'] ?? '');
+    $email      = trim($_POST['email'] ?? '');
+    $area       = trim($_POST['area'] ?? '');
+    $rol        = (int)($_POST['rol'] ?? 0);
 
-        if (
-            $id <= 0 || $sap === '' || $name === '' || $last === '' ||
-            $email === '' || $area === '' || $rol === 0
-        ) {
-            header('Location: ../modules/directory/directory.php?error=datos_update');
-            exit;
-        }
+    // Checkbox de reinicio de contraseña
+    $resetPassword = !empty($_POST['reset_password']) && $_POST['reset_password'] === '1';
 
-        $stmt = $pdo->prepare('
+    if ($id <= 0) {
+        header('Location: /HelpDesk_EQF/modules/directory/directory.php?error=1');
+        exit;
+    }
+
+    if ($resetPassword) {
+        $newPlain = '12345a';
+        $newHash  = password_hash($newPlain, PASSWORD_DEFAULT);
+
+        $sql = '
+            UPDATE users
+            SET number_sap = :sap,
+                name       = :name,
+                last_name  = :last,
+                email      = :email,
+                area       = :area,
+                rol        = :rol,
+                password   = :pwd,
+                must_change_password = 1
+            WHERE id = :id
+        ';
+
+        $params = [
+            ':sap'  => $number_sap,
+            ':name' => $name,
+            ':last' => $last_name,
+            ':email'=> $email,
+            ':area' => $area,
+            ':rol'  => $rol,
+            ':pwd'  => $newHash,
+            ':id'   => $id,
+        ];
+    } else {
+        // Actualización normal, sin tocar contraseña
+        $sql = '
             UPDATE users
             SET number_sap = :sap,
                 name       = :name,
@@ -86,21 +110,27 @@ header('Location: ../modules/directory/directory.php?created=1');
                 area       = :area,
                 rol        = :rol
             WHERE id = :id
-        ');
+        ';
 
-        $stmt->execute([
-            ':sap'   => $sap,
-            ':name'  => $name,
-            ':last'  => $last,
-            ':email' => $email,
-            ':area'  => $area,
-            ':rol'   => $rol,
-            ':id'    => $id,
-        ]);
-
-header('Location: ../modules/directory/directory.php?updated=1');
-        exit;
+        $params = [
+            ':sap'  => $number_sap,
+            ':name' => $name,
+            ':last' => $last_name,
+            ':email'=> $email,
+            ':area' => $area,
+            ':rol'  => $rol,
+            ':id'   => $id,
+        ];
     }
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+
+    // Redirigir de regreso al directorio con alerta
+    // Puedes diferenciar si quieres, pero por ahora usamos updated
+    header('Location: /HelpDesk_EQF/modules/directory/directory.php?updated=1');
+    exit;
+}
 
     /* ========== ELIMINAR USUARIO ========== */
     if ($action === 'delete') {

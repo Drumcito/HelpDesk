@@ -14,10 +14,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($email === '' || $password === '') {
         $error = 'Por favor, completa todos los campos.';
     } else {
-        $stmt = $pdo->prepare('SELECT id, number_sap, name, last_name, email, password, rol, area
-                               FROM users
-                               WHERE email = :email
-                               LIMIT 1');
+        $stmt = $pdo->prepare('
+    SELECT id, number_sap, name, last_name, email, password, rol, area, must_change_password
+    FROM users
+    WHERE email = :email
+    LIMIT 1
+');
         $stmt->execute([':email' => $email]);
         $user = $stmt->fetch();
 
@@ -33,6 +35,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['user_area']  = $user['area'];
             $_SESSION['number_sap'] = $user['number_sap'];
 
+ // "Mantener sesión iniciada"
+    if (!empty($_POST['session_open']) && $_POST['session_open'] === '1') {
+        $params = session_get_cookie_params();
+
+        setcookie(
+            session_name(),
+            session_id(),
+            [
+                'expires'  => time() + 60 * 60 * 24 * 30, // 30 días
+                'path'     => $params['path'],
+                'domain'   => $params['domain'],
+                'secure'   => !empty($_SERVER['HTTPS']), // true si usas https
+                'httponly' => true,
+                'samesite' => 'Lax',
+            ]
+        );
+    }
+
+
+    if ((int)$user['must_change_password'] === 1) {
+    header('Location: /HelpDesk_EQF/auth/change_password.php');
+    exit;
+}
             // Redirección automática según el rol guardado en la BD
             switch ((int)$user['rol']) {
                 case 1:

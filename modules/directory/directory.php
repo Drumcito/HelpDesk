@@ -5,6 +5,20 @@ include __DIR__ . '/../../template/header.php';
 $activePage = 'directorio';
 include __DIR__ . '/../../template/navbar.php'; 
 
+
+# 1) Validar que haya sesión
+if (!isset($_SESSION['user_id'])) {
+    header('Location: /HelpDesk_EQF/auth/login.php');
+    exit;
+}
+
+# 2) Validar rol (solo SA = 1; ajusta si quieres permitir más)
+$rol = (int)($_SESSION['user_rol'] ?? 0);
+if ($rol !== 1) {
+    // Aquí puedes mandar a un "no autorizado" o al dashboard que le toca
+    header('Location: /HelpDesk_EQF/modules/dashboard/sa.php');
+    exit;
+}
 $pdo = Database::getConnection();
 
 $nombreCompleto = $_SESSION['user_name'] . ' ' . $_SESSION['user_last'];
@@ -234,9 +248,10 @@ if (isset($_GET['updated'])) {
                                 <option value="4">Usuario</option>
                             </select>
                         </div>
-                        <div class="form-group">
-                            <label>Contraseña temporal</label>
-                            <input type="text" name="temp_password" required>
+                        <div style="display:flex; align-items:center; gap:8px; margin-top: 15px;">
+                            <input type="checkbox" name="assign_password" id="assign_password"
+                             style="width: 18px; height: 18px; margin: 0; cursor: pointer;" checked>
+                            <label for="assign_password" style="cursor: pointer;">Asignar contraseña</label>
                         </div>
                     </div>
 
@@ -304,8 +319,13 @@ if (isset($_GET['updated'])) {
                                 <option value="4">Usuario</option>
                             </select>
                         </div>
+                            <div style="display:flex; align-items:center; gap:8px; margin-top: 15px;">
+                                <input type="checkbox" name="reset_password" id="reset"
+                                        style="width: 18px; height: 18px; margin: 0; cursor: pointer;">
+                                    <label for="reset" style="cursor: pointer;">Reiniciar contraseña</label>
+                            </div>
                     </div>
-
+                    
                     <div class="modal-actions">
                         <button type="button" class="btn-secondary" onclick="closeModal('modal-edit-user')">
                             Cancelar

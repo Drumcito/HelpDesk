@@ -2,126 +2,160 @@
 session_start();
 require_once __DIR__ . '/../config/connectionBD.php';
 
+$pdo = Database::getConnection();
+
+/* 1) Solo usuarios logueados pueden estar aquí */
 if (!isset($_SESSION['user_id'])) {
-    header('Location: login.php');
+    header('Location: /HelpDesk_EQF/auth/login.php');
     exit;
 }
 
-$pdo = Database::getConnection();
+$userId   = (int)$_SESSION['user_id'];
+$fullName = trim(($_SESSION['user_name'] ?? '') . ' ' . ($_SESSION['user_last'] ?? ''));
+
 $error = '';
-$success = '';
 
-// Procesar formulario
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $newPass = $_POST['new_password'] ?? '';
-    $newPass2 = $_POST['new_password_confirm'] ?? '';
+    $pass1 = $_POST['new_password'] ?? '';
+    $pass2 = $_POST['new_password_confirm'] ?? '';
 
-    if ($newPass === '' || $newPass2 === '') {
-        $error = 'Por favor, llena ambos campos.';
-    } elseif ($newPass !== $newPass2) {
+    if ($pass1 === '' || $pass2 === '') {
+        $error = 'Por favor, completa ambos campos.';
+    } elseif ($pass1 !== $pass2) {
         $error = 'Las contraseñas no coinciden.';
-    } elseif (strlen($newPass) < 6) {
-        $error = 'La nueva contraseña debe tener al menos 6 caracteres.';
+    } elseif (strlen($pass1) < 8) {
+        $error = 'La contraseña debe tener al menos 8 caracteres.';
     } else {
-        $hash = password_hash($newPass, PASSWORD_DEFAULT);
+        // Actualizar password en BD y limpiar el flag
+        $hash = password_hash($pass1, PASSWORD_DEFAULT);
+
         $stmt = $pdo->prepare('
             UPDATE users
-            SET password = :password, must_change_password = 0
+            SET password = :pwd, must_change_password = 0
             WHERE id = :id
         ');
         $stmt->execute([
-            ':password' => $hash,
-            ':id'       => $_SESSION['user_id'],
+            ':pwd' => $hash,
+            ':id'  => $userId,
         ]);
 
-        $success = 'Contraseña actualizada correctamente. Redirigiendo a tu panel...';
-
-        // Redireccionar según el rol después de unos segundos
-        $rol = (int)($_SESSION['user_rol'] ?? 4);
-
-        switch ($rol) {
-            case 1:
-                $redirect = '../modules/dashboard/sa.php';
-                break;
-            case 2:
-                $redirect = '../modules/dashboard/admin.php';
-                break;
-            case 3:
-                $redirect = '../modules/dashboard/analista.php';
-                break;
-            case 4:
-            default:
-                $redirect = '../modules/dashboard/usuario.php';
-                break;
+        // Cerrar sesión para obligar a login con contraseña nueva
+        $_SESSION = [];
+        if (session_id()) {
+            session_destroy();
         }
 
-        header("Refresh: 2; URL={$redirect}");
+        if (isset($_COOKIE[session_name()])) {
+            $params = session_get_cookie_params();
+            setcookie(
+                session_name(),
+                '',
+                time() - 3600,
+                $params['path'],
+                $params['domain'],
+                $params['secure'],
+                $params['httponly']
+            );
+        }
+
+        // Redirigir al login con mensaje de éxito
+        header('Location: /HelpDesk_EQF/auth/login.php?pwd_changed=1');
+        exit;
     }
 }
-
-$userName = $_SESSION['user_name'] ?? 'Usuario';
-$userLast = $_SESSION['user_last'] ?? '';
-$nombreCompleto = trim($userName . ' ' . $userLast);
 ?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Cambiar contraseña | Mesa de Ayuda EQF</title>
-    <link rel="stylesheet" href="../assets/css/style.css">
+    <title>Cambiar contraseña | HELP DESK EQF</title>
+    <link rel="stylesheet" href="/HelpDesk_EQF/assets/css/style.css">
 </head>
-<body class="login-body">
-    <div class="login-wrapper">
-        <div class="login-card">
-            <div class="login-title">
-                <p class="login-subtitle">ACTUALIZA TU CONTRASEÑA</p>
-                <p class="login-brand">
-                    <span class="eqf-e">E</span><span class="eqf-q">Q</span><span class="eqf-f">F</span>
+<body class="change-pass-body">
+
+<div class="change-pass-wrapper">
+    <div class="change-pass-card">
+        <div class="change-pass-header">
+            <h2>Actualizar contraseña</h2>
+            <?php if ($fullName !== ''): ?>
+                <p class="change-pass-user">
+                    <?php echo htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8'); ?>
                 </p>
-                <p style="font-size:0.8rem;color:#6b7280;margin-top:6px;">
-                    Hola <?php echo htmlspecialchars($nombreCompleto, ENT_QUOTES, 'UTF-8'); ?>,
-                    por seguridad necesitas registrar una nueva contraseña personal.
-                </p>
+            <?php endif; ?>
+        </div>
+
+        <?php if ($error): ?>
+            <div class="change-pass-error">
+                <?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?>
+            </div>
+        <?php endif; ?>
+
+        <form method="POST" class="change-pass-form" autocomplete="off">
+            <!-- Nueva contraseña -->
+            <div class="change-pass-field">
+                <label for="new_password">Nueva contraseña</label>
+                <div class="change-pass-input-wrap">
+                    <input
+                        type="password"
+                        id="new_password"
+                        name="new_password"
+                        required
+                    >
+                    <button type="button"
+                            class="change-pass-toggle"
+                            data-target="new_password"
+                            aria-label="Mostrar u ocultar contraseña">
+                        👁
+                    </button>
+                </div>
             </div>
 
-            <?php if ($error): ?>
-                <div class="alert alert-error">
-                    <?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?>
-                </div>
-            <?php endif; ?>
-
-            <?php if ($success): ?>
-                <div class="alert alert-info">
-                    <?php echo htmlspecialchars($success, ENT_QUOTES, 'UTF-8'); ?>
-                </div>
-            <?php endif; ?>
-
-            <form method="POST" class="login-form" autocomplete="off">
-                <div class="form-group input-line">
-                    <span class="input-icon">&#128273;</span>
+            <!-- Repetir contraseña -->
+            <div class="change-pass-field">
+                <label for="new_password_confirm">Repetir contraseña</label>
+                <div class="change-pass-input-wrap">
                     <input
                         type="password"
-                        name="new_password"
-                        placeholder="Nueva contraseña"
-                        required
-                    >
-                </div>
-
-                <div class="form-group input-line">
-                    <span class="input-icon">&#128273;</span>
-                    <input
-                        type="password"
+                        id="new_password_confirm"
                         name="new_password_confirm"
-                        placeholder="Repite tu nueva contraseña"
                         required
                     >
+                    <button type="button"
+                            class="change-pass-toggle"
+                            data-target="new_password_confirm"
+                            aria-label="Mostrar u ocultar contraseña">
+                        👁
+                    </button>
                 </div>
+            </div>
 
-                <button type="submit" class="btn-login">
-                    Guardar nueva contraseña
+            <div class="change-pass-actions">
+                <button type="submit" class="btn-change-pass">
+                    actualizar
                 </button>
-            </form>
-        </div>
+            </div>
+        </form>
     </div>
+</div>
+
+<script>
+// Mostrar / ocultar contraseña (ojito)
+document.querySelectorAll('.change-pass-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const targetId = btn.dataset.target;
+        const input    = document.getElementById(targetId);
+        if (!input) return;
+
+        if (input.type === 'password') {
+            input.type = 'text';
+            btn.textContent = '👁️‍🗨️';
+        } else {
+            input.type = 'password';
+            btn.textContent = '👁️';
+        }
+    });
+});
+</script>
+
 </body>
 </html>
