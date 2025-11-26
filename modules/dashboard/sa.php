@@ -1,6 +1,9 @@
 <?php
 session_start();
 require_once __DIR__ . '/../../config/connectionBD.php';
+include __DIR__ . '/../../template/header.php';
+$activePage = 'inicio';
+include __DIR__ . '/../../template/navbar.php'; 
 
 $pdo = Database::getConnection();
 
@@ -15,26 +18,6 @@ $nombreCompleto = $_SESSION['user_name'] . ' ' . $_SESSION['user_last'];
 </head>
 <body class="dashboard-body">
 
-    <!-- MENÚ PASTILLA LATERAL -->
-    <aside class="sidebar-pill">
-        <nav class="sidebar-pill-menu">
-            <a href="sa.php" class="pill-item active" title="Inicio">
-                <span class="pill-icon">🏠</span>
-            </a>
-            <a href="../directory/directory.php" class="pill-item" title="Directorio">
-                <span class="pill-icon">👥</span>
-            </a>
-            <a href="#" class="pill-item" title="Soporte (próx.)">
-                <span class="pill-icon">💻</span>
-            </a>
-            <a href="#" class="pill-item" title="Tickets (próx.)">
-                <span class="pill-icon">🎫</span>
-            </a>
-            <a href="../../auth/logout.php" class="pill-item" title="Cerrar sesión">
-                <span class="pill-icon">⏻</span>
-            </a>
-        </nav>
-    </aside>
 
     <!-- CONTENIDO PRINCIPAL -->
     <main class="sa-main">

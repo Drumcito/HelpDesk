@@ -2,6 +2,9 @@
 session_start();
 require_once __DIR__ . '/../../config/connectionBD.php';
 include __DIR__ . '/../../template/header.php';
+$activePage = 'directorio';
+include __DIR__ . '/../../template/navbar.php'; 
+
 $pdo = Database::getConnection();
 
 $nombreCompleto = $_SESSION['user_name'] . ' ' . $_SESSION['user_last'];
@@ -28,38 +31,18 @@ function rolLabel(int $rol): string {
 <head>
     <meta charset="UTF-8">
     <title>Directorio | HELP DESK EQF</title>
-    <link rel="stylesheet" href="../../assets/css/style.css">
+    <link rel="stylesheet" href="/HelpDesk_EQF/assets/css/style.css">
 
 </head>
 <body class="directory-body">
 
-    <!-- MENÚ PASTILLA LATERAL -->
-    <aside class="sidebar-pill">
-        <div class="sidebar-pill-inner">
-            <a href="../dashboard/sa.php" class="pill-item" title="Inicio">
-                <span class="pill-icon">🏠</span>
-            </a>
-            <a href="directory.php" class="pill-item active" title="Directorio">
-                <span class="pill-icon">👥</span>
-            </a>
-            <a href="#" class="pill-item" title="Soporte (próx.)">
-                <span class="pill-icon">💻</span>
-            </a>
-            <a href="#" class="pill-item" title="Tickets (próx.)">
-                <span class="pill-icon">🎫</span>
-            </a>
-            <a href="../../auth/logout.php" class="pill-item" title="Cerrar sesión">
-                <span class="pill-icon">⏻</span>
-            </a>
-        </div>
-    </aside>
         <!-- ALERTAS -->
 
             <?php
 $alerts = [];
 
 if (isset($_GET['created'])) {
-    $alerts[] = ['type' => 'success', 'text' => 'Usuario registrado exitosamente.'];
+    $alerts[] = ['type' => 'success', 'icon' => 'add.png','text' => 'Usuario registrado exitosamente.'];
 }
 if (isset($_GET['updated'])) {
     $alerts[] = ['type' => 'info', 'text' => 'Usuario actualizado exitosamente.'];
@@ -73,8 +56,9 @@ if (isset($_GET['deleted'])) {
     <div id="eqf-alert-container">
         <?php foreach ($alerts as $a): ?>
             <div class="eqf-alert eqf-alert-<?php echo $a['type']; ?>">
-                <?php echo htmlspecialchars($a['text'], ENT_QUOTES, 'UTF-8'); ?>
-            </div>
+    <img class="eqf-alert-icon" src="/HelpDesk_EQF/assets/img/icons/<?php echo $a['icon']; ?>.png" alt="">
+    <span><?php echo htmlspecialchars($a['text'], ENT_QUOTES, 'UTF-8'); ?></span>
+</div>
         <?php endforeach; ?>
     </div>
 <?php endif; ?>
@@ -98,7 +82,7 @@ if (isset($_GET['deleted'])) {
                     type="text"
                     id="searchUser"
                     class="search-big"
-                    placeholder="BUSCAR POR # SAP O NOMBRE"
+                    placeholder="BUSCAR POR #SAP O NOMBRE"
                     autocomplete="off"
                 >
             </div>
@@ -117,13 +101,13 @@ if (isset($_GET['deleted'])) {
         <!-- BOTONES CRUD -->
             <div class="directory-actions">
                 <button type="button" class="action-btn action-add" title="Agregar usuario" onclick="openModal('modal-create-user')">
-                    +
+                    <img src="/HelpDesk_EQF/assets/img/icons/icon_add.png" class="action-icon" alt="Agregar">
                 </button>
                 <button type="button" class="action-btn action-delete" title="Eliminar usuario" onclick="handleDeleteUser()">
-                    🗑
+                    <img src="/HelpDesk_EQF/assets/img/icons/icon_delete.png" class="action-icon" alt="Eliminar">
                 </button>
                 <button type="button" class="action-btn action-edit" title="Actualizar usuario" onclick="openEditModal()">
-                    ♻️
+                    <img src="/HelpDesk_EQF/assets/img/icons/icon_update.png" class="action-icon" alt="Actualizar">
                 </button>
             </div>
         </div>
@@ -255,7 +239,7 @@ if (isset($_GET['deleted'])) {
                 <p class="modal-description">
                     Actualiza los datos del usuario seleccionado.
                 </p>
-<form method="POST" action="../../auth/users.php" class="modal-form">
+<form method="POST" action="/HelpDesk_EQF/auth/users.php" class="modal-form">
     <input type="hidden" name="action" value="update">
     <input type="hidden" name="id" id="edit_id">
 
@@ -289,7 +273,7 @@ if (isset($_GET['deleted'])) {
                         </div>
                         <div class="form-group">
                             <label>Rol</label>
-                            <select name="area" id="edit_rol" required>
+                            <select name="rol" id="edit_rol" required>
                                 <option value="">Selecciona...</option>
                                 <option value="1">SA</option>
                                 <option value="2">Administrador</option>

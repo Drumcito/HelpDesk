@@ -7,7 +7,7 @@ if (session_status() === PHP_SESSION_NONE) {
 
 <header class="eqf-header">
     <div class="eqf-header-left">
-        <img src="/HELPDESK_EQF/assets/img/icon_helpdesk.png" alt="Helpdesk EQF" class="header-icon">
+        <img src="/HELPDESK_EQF/assets/img/icon2.png" alt="Helpdesk EQF" class="header-icon">
     </div>
 
 
