@@ -14,6 +14,8 @@ $stmt = $pdo->query('
     FROM users
     ORDER BY last_name ASC, name ASC
 ');
+
+
 $usuarios = $stmt->fetchAll();
 
 function rolLabel(int $rol): string {
@@ -31,24 +33,38 @@ function rolLabel(int $rol): string {
 <head>
     <meta charset="UTF-8">
     <title>Directorio | HELP DESK EQF</title>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
     <link rel="stylesheet" href="/HelpDesk_EQF/assets/css/style.css">
 
 </head>
 <body class="directory-body">
 
         <!-- ALERTAS -->
-
-            <?php
+<?php
 $alerts = [];
 
 if (isset($_GET['created'])) {
-    $alerts[] = ['type' => 'success', 'icon' => 'add.png','text' => 'Usuario registrado exitosamente.'];
+    $alerts[] = [
+        'type' => 'success',
+        'icon' => 'capsulin_add.png',   // ícono verde (Capsulín feliz +)
+        'text' => 'USUARIO REGISTRADO EXITOSAMENTE'
+    ];
 }
-if (isset($_GET['updated'])) {
-    $alerts[] = ['type' => 'info', 'text' => 'Usuario actualizado exitosamente.'];
-}
+
 if (isset($_GET['deleted'])) {
-    $alerts[] = ['type' => 'danger', 'text' => 'Usuario eliminado exitosamente.'];
+    $alerts[] = [
+        'type' => 'danger',
+        'icon' => 'capsulin_delete.png', // ícono rojo (Capsulín triste -)
+        'text' => 'USUARIO ELIMINADO EXITOSAMENTE'
+    ];
+}
+
+if (isset($_GET['updated'])) {
+    $alerts[] = [
+        'type' => 'info',
+        'icon' => 'capsulin_update.png', // ícono azul (Capsulín actualizando)
+        'text' => 'USUARIO ACTUALIZADO EXITOSAMENTE'
+    ];
 }
 ?>
 
@@ -56,12 +72,19 @@ if (isset($_GET['deleted'])) {
     <div id="eqf-alert-container">
         <?php foreach ($alerts as $a): ?>
             <div class="eqf-alert eqf-alert-<?php echo $a['type']; ?>">
-    <img class="eqf-alert-icon" src="/HelpDesk_EQF/assets/img/icons/<?php echo $a['icon']; ?>.png" alt="">
-    <span><?php echo htmlspecialchars($a['text'], ENT_QUOTES, 'UTF-8'); ?></span>
-</div>
+                <img
+                    class="eqf-alert-icon"
+                    src="/HelpDesk_EQF/assets/img/icons/<?php echo htmlspecialchars($a['icon'], ENT_QUOTES, 'UTF-8'); ?>"
+                    alt="Notificación EQF"
+                >
+                <p class="eqf-alert-text">
+                    <?php echo htmlspecialchars($a['text'], ENT_QUOTES, 'UTF-8'); ?>
+                </p>
+            </div>
         <?php endforeach; ?>
     </div>
 <?php endif; ?>
+
 
     <!-- CONTENIDO PRINCIPAL -->
     <main class="directory-main">
@@ -95,7 +118,7 @@ if (isset($_GET['deleted'])) {
             <button class="chip-filter" data-area="TI">TI</button>
             <button class="chip-filter" data-area="MKT">MKT</button>
             <button class="chip-filter" data-area="SAP">SAP</button>
-            <button class="chip-filter" data-area="SUCURSALES">Sucursales</button>
+            <button class="chip-filter" data-area="Sucursal">Sucursales</button>
         </div>
 
         <!-- BOTONES CRUD -->
@@ -301,7 +324,8 @@ if (isset($_GET['deleted'])) {
     <input type="hidden" name="id" id="delete_id">
 </form>
     </main>
-
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
     <script src="../../assets/js/script.js"></script>
 
 </body>

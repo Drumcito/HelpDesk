@@ -3,53 +3,81 @@
    Archivo: assets/js/scripts.js
 ============================================ */
 
-document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', () => {
 
     /* ============================================
        MODALES GLOBALES
-       (openModal / closeModal) – reutilizables
     ============================================ */
-
     window.openModal = function (id) {
         const el = document.getElementById(id);
-        if (el) {
-            el.classList.add('show');
-        }
+        if (el) el.classList.add('show');
     };
 
     window.closeModal = function (id) {
         const el = document.getElementById(id);
-        if (el) {
-            el.classList.remove('show');
-        }
+        if (el) el.classList.remove('show');
     };
 
     /* ============================================
        DIRECTORIO DE USUARIOS
-       (solo se ejecuta si existe la tabla)
+       (solo si existe la tabla)
     ============================================ */
+    const directoryTableEl = document.querySelector('.directory-table');
+    let selectedRow = null;
+    let currentArea = 'ALL';
 
-    const directoryTable = document.querySelector('.directory-table');
+    if (directoryTableEl) {
+                function sortDirectoryRows(mode) {
+            const tbody = directoryTableEl.querySelector('tbody');
+            if (!tbody) return;
 
-    if (directoryTable) {
-        // -------- Selección de fila --------
-        let selectedRow = null;
-        const rows = directoryTable.querySelectorAll('.directory-row');
+            const rowsArr = Array.from(tbody.querySelectorAll('.directory-row'));
 
-        rows.forEach(row => {
-            row.addEventListener('click', () => {
+            rowsArr.sort((a, b) => {
+                const aLast  = (a.dataset.last  || '').toLowerCase();
+                const bLast  = (b.dataset.last  || '').toLowerCase();
+                const aName  = (a.dataset.name  || '').toLowerCase();
+                const bName  = (b.dataset.name  || '').toLowerCase();
+                const aEmail = (a.dataset.email || '').toLowerCase();
+                const bEmail = (b.dataset.email || '').toLowerCase();
+
+                if (mode === 'email') {
+                    if (aEmail < bEmail) return -1;
+                    if (aEmail > bEmail) return 1;
+                    return 0;
+                } else {
+                    // modo por defecto: Apellido, luego Nombre
+                    if (aLast < bLast) return -1;
+                    if (aLast > bLast) return 1;
+                    if (aName < bName) return -1;
+                    if (aName > bName) return 1;
+                    return 0;
+                }
+            });
+
+            // Reinsertar en el DOM en el nuevo orden
+            rowsArr.forEach(row => tbody.appendChild(row));
+        }
+
+        // -------- Selección de fila (delegado) --------
+        const tbody = directoryTableEl.querySelector('tbody');
+
+        if (tbody) {
+            tbody.addEventListener('click', (e) => {
+                const row = e.target.closest('.directory-row');
+                if (!row) return;
+
                 if (selectedRow) {
                     selectedRow.classList.remove('row-selected');
                 }
                 selectedRow = row;
                 row.classList.add('row-selected');
             });
-        });
+        }
 
-        // -------- Búsqueda + filtros --------
+        // -------- BÚSQUEDA + FILTRO POR ÁREA --------
         const searchInput = document.getElementById('searchUser');
         const filterChips = document.querySelectorAll('.chip-filter');
-        let currentArea = 'ALL';
 
         function applyFilter() {
             const term = (searchInput && searchInput.value ? searchInput.value : '')
@@ -70,7 +98,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 const matchArea =
                     currentArea === 'ALL' ||
-                    area === currentArea.toLowerCase();
+                    area === currentArea.toLowerCase(); 
 
                 row.style.display = (matchTerm && matchArea) ? '' : 'none';
             });
@@ -80,19 +108,29 @@ document.addEventListener('DOMContentLoaded', function () {
             searchInput.addEventListener('input', applyFilter);
         }
 
+        // Botón BUSCAR del formulario
         window.triggerSearch = function () {
             applyFilter();
         };
 
-        // Filtros por área: TI, MKT, SAP, Sucursales, etc.
-        filterChips.forEach(chip => {
+        // Filtros por área: TI, MKT, SAP, Sucursal
+ filterChips.forEach(chip => {
             chip.addEventListener('click', () => {
                 filterChips.forEach(c => c.classList.remove('chip-active'));
                 chip.classList.add('chip-active');
 
                 currentArea = chip.dataset.area || 'ALL';
 
-                // Al cambiar filtro, se deselecciona la fila
+                // Orden según filtro:
+                // - Si Sucursal -> por correo
+                // - En cualquier otro caso -> por Apellido + Nombre
+                if (currentArea === 'Sucursal') {
+                    sortDirectoryRows('email');
+                } else {
+                    sortDirectoryRows('name'); // modo por defecto
+                }
+
+                // Al cambiar filtro, se deselecciona la fila actual
                 if (selectedRow) {
                     selectedRow.classList.remove('row-selected');
                     selectedRow = null;
@@ -103,11 +141,10 @@ document.addEventListener('DOMContentLoaded', function () {
         });
 
         /* ============================================
-           Acciones CRUD desde los botones laterales
-           (Agregar, Eliminar, Actualizar)
+           Acciones CRUD (Agregar, Eliminar, Actualizar)
         ============================================ */
 
-        // --- Eliminar usuario seleccionado ---
+        // --- Eliminar usuario ---
         window.handleDeleteUser = function () {
             if (!selectedRow) {
                 alert('Primero selecciona un usuario en la tabla.');
@@ -119,11 +156,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 ' ' +
                 (selectedRow.dataset.last || '');
 
-            const confirmDelete = confirm(
-                '¿Eliminar al usuario: ' + fullName + '?'
-            );
-
-            if (!confirmDelete) {
+            if (!confirm('¿Eliminar al usuario: ' + fullName + '?')) {
                 return;
             }
 
@@ -140,7 +173,7 @@ document.addEventListener('DOMContentLoaded', function () {
             deleteForm.submit();
         };
 
-        // --- Abrir modal de edición y rellenar campos ---
+        // --- Abrir modal de edición ---
         window.openEditModal = function () {
             if (!selectedRow) {
                 alert('Primero selecciona un usuario en la tabla.');
@@ -181,169 +214,20 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     /* ============================================
-       Alertas del directorio
+       ALERTAS CRUD – AUTO DESAPARICIÓN
     ============================================ */
-document.addEventListener('DOMContentLoaded', function () {
-    const container = document.getElementById('eqf-alert-container');
-    if (container) {
+    (function initCrudAlerts() {
+        const container = document.getElementById('eqf-alert-container');
+        if (!container) return;
+
         setTimeout(() => {
-            container.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
-            container.style.opacity = '0';
-            container.style.transform = 'translateY(-8px)';
+            container.classList.add('eqf-alert-hide'); 
             setTimeout(() => {
-                container.remove();
-            }, 300);
-        }, 3000); // 3 segundos visible
-    }
-});
-/* ============================================================
-   SELECCIÓN DE FILA
-============================================================ */
-let selectedRow = null;
-
-function initRowSelection() {
-    const rows = document.querySelectorAll('.directory-row');
-
-    rows.forEach(row => {
-        row.addEventListener('click', () => {
-            if (selectedRow) {
-                selectedRow.classList.remove('row-selected');
-            }
-            selectedRow = row;
-            row.classList.add('row-selected');
-        });
-    });
-}
-
-/* ============================================================
-   BÚSQUEDA + FILTRO POR ÁREA
-============================================================ */
-let currentArea = 'ALL';
-
-function applyFilter() {
-    const term = (document.getElementById('searchUser').value || '').trim().toLowerCase();
-
-    document.querySelectorAll('.directory-row').forEach(row => {
-        const sap  = row.dataset.sap.toLowerCase();
-        const name = row.dataset.name.toLowerCase();
-        const last = row.dataset.last.toLowerCase();
-        const area = row.dataset.area.toLowerCase();
-
-        const matchTerm =
-            term === '' ||
-            sap.includes(term) ||
-            name.includes(term) ||
-            last.includes(term);
-
-        const matchArea =
-            currentArea === 'ALL' ||
-            area === currentArea.toLowerCase();
-
-        row.style.display = (matchTerm && matchArea) ? '' : 'none';
-    });
-}
-
-function initSearchFilter() {
-    const searchInput = document.getElementById('searchUser');
-    if (!searchInput) return;
-
-    searchInput.addEventListener('input', applyFilter);
-}
-
-function initAreaChips() {
-    const chips = document.querySelectorAll('.chip-filter');
-
-    chips.forEach(chip => {
-        chip.addEventListener('click', () => {
-            chips.forEach(c => c.classList.remove('chip-active'));
-            chip.classList.add('chip-active');
-
-            currentArea = chip.dataset.area || 'ALL';
-            selectedRow = null;
-            applyFilter();
-        });
-    });
-}
-
-/* ============================================================
-   MODALES
-============================================================ */
-function openModal(id) {
-    const modal = document.getElementById(id);
-    if (modal) modal.classList.add('show');
-}
-
-function closeModal(id) {
-    const modal = document.getElementById(id);
-    if (modal) modal.classList.remove('show');
-}
-
-/* ============================================================
-   ELIMINAR USUARIO
-============================================================ */
-function handleDeleteUser() {
-    if (!selectedRow) {
-        alert('Primero selecciona un usuario en la tabla.');
-        return;
-    }
-
-    const name = selectedRow.dataset.name + ' ' + selectedRow.dataset.last;
-
-    if (!confirm(`¿Eliminar al usuario: ${name}?`)) {
-        return;
-    }
-
-    const id = selectedRow.dataset.id;
-    document.getElementById('delete_id').value = id;
-    document.getElementById('deleteForm').submit();
-}
-
-/* ============================================================
-   EDITAR USUARIO - MODAL CON DATOS
-============================================================ */
-function openEditModal() {
-    if (!selectedRow) {
-        alert('Primero selecciona un usuario en la tabla.');
-        return;
-    }
-
-    document.getElementById('edit_id').value   = selectedRow.dataset.id;
-    document.getElementById('edit_sap').value  = selectedRow.dataset.sap;
-    document.getElementById('edit_name').value = selectedRow.dataset.name;
-    document.getElementById('edit_last').value = selectedRow.dataset.last;
-    document.getElementById('edit_area').value = selectedRow.dataset.area;
-    document.getElementById('edit_email').value = selectedRow.dataset.email;
-    document.getElementById('edit_rol').value  = selectedRow.dataset.rol;
-
-    openModal('modal-edit-user');
-}
-
-/* ============================================================
-   ALERTAS CRUD – AUTO DESAPARICIÓN 3s
-============================================================ */
-function initCrudAlerts() {
-    const container = document.getElementById('eqf-alert-container');
-    if (!container) return;
-
-    setTimeout(() => {
-        container.classList.add('eqf-alert-hide');
-        setTimeout(() => {
-            if (container.parentNode) {
-                container.parentNode.removeChild(container);
-            }
-        }, 350);
-    }, 2000);
-}
-
-/* ============================================================
-   INICIALIZACIÓN GENERAL
-============================================================ */
-window.addEventListener('DOMContentLoaded', () => {
-    initRowSelection();
-    initSearchFilter();
-    initAreaChips();
-    initCrudAlerts();
-});
-
+                if (container.parentNode) {
+                    container.parentNode.removeChild(container);
+                }
+            }, 350);
+        }, 2000); 
+    })();
 
 });
