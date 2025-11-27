@@ -6,16 +6,13 @@ $activePage = 'directorio';
 include __DIR__ . '/../../template/navbar.php'; 
 
 
-# 1) Validar que haya sesión
 if (!isset($_SESSION['user_id'])) {
     header('Location: /HelpDesk_EQF/auth/login.php');
     exit;
 }
 
-# 2) Validar rol (solo SA = 1; ajusta si quieres permitir más)
 $rol = (int)($_SESSION['user_rol'] ?? 0);
 if ($rol !== 1) {
-    // Aquí puedes mandar a un "no autorizado" o al dashboard que le toca
     header('Location: /HelpDesk_EQF/modules/dashboard/sa.php');
     exit;
 }
@@ -108,7 +105,7 @@ if (isset($_GET['updated'])) {
                 <h1>Directorio de Usuarios</h1>
             </div>
             <div class="dashboard-user-pill">
-                <span><?php echo htmlspecialchars($nombreCompleto, ENT_QUOTES, 'UTF-8'); ?></span>
+               <b> <span ><?php echo htmlspecialchars($nombreCompleto, ENT_QUOTES, 'UTF-8'); ?></span></b>
             </div>
         </header>
 

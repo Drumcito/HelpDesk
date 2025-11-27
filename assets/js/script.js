@@ -108,10 +108,6 @@ document.addEventListener('DOMContentLoaded', () => {
             searchInput.addEventListener('input', applyFilter);
         }
 
-        // Botón BUSCAR del formulario
-        window.triggerSearch = function () {
-            applyFilter();
-        };
 
         // Filtros por área: TI, MKT, SAP, Sucursal
  filterChips.forEach(chip => {
@@ -214,7 +210,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /* ============================================
-       ALERTAS CRUD – AUTO DESAPARICIÓN
+                    ALERTAS CRUD
     ============================================ */
     (function initCrudAlerts() {
         const container = document.getElementById('eqf-alert-container');
