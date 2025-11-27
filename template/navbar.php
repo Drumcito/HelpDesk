@@ -3,23 +3,16 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Página activa que mandas desde cada módulo, ej.
-// $activePage = 'inicio';
-// $activePage = 'directorio'; etc.
+
 $activePage = $activePage ?? '';
 
-// Rol del usuario logueado (tal como lo pones en login.php)
 $rol = isset($_SESSION['user_rol']) ? (int)$_SESSION['user_rol'] : null;
 
-// Define aquí los IDs de rol que usas en tu BD
 const ROL_SA       = 1;
 const ROL_ADMIN    = 2;
 const ROL_ANALISTA = 3;
 
-// Configuración de las pastillas del menú
 $menuItems = [
-
-    // ====== INICIO (uno por rol, usando url_por_rol) ======
     [
         'id'    => 'inicio',
         'icon'  => '🏠',
@@ -37,7 +30,7 @@ $menuItems = [
         'icon'  => '👥',
         'title' => 'Directorio',
         'url_por_rol' => [
-            ROL_SA       => '/HelpDesk_EQF/modules/directory/directory.php',
+            ROL_SA       => '/HelpDesk_EQF/modules/dashboard/sa/directory.php',
             ROL_ADMIN    => '/HelpDesk_EQF/modules/dashboard/admin/admin_directory.php',
         ],
         'roles' => [ROL_SA, ROL_ADMIN], 

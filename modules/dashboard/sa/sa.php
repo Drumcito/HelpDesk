@@ -1,9 +1,9 @@
 <?php
 session_start();
-require_once __DIR__ . '/../../config/connectionBD.php';
-include __DIR__ . '/../../template/header.php';
+require_once __DIR__ . '/../../../config/connectionBD.php';
+include __DIR__ . '/../../../template/header.php';
 $activePage = 'inicio';
-include __DIR__ . '/../../template/navbar.php'; 
+include __DIR__ . '/../../../template/navbar.php'; 
 
 $pdo = Database::getConnection();
 
@@ -14,7 +14,7 @@ $nombreCompleto = $_SESSION['user_name'] . ' ' . $_SESSION['user_last'];
 <head>
     <meta charset="UTF-8">
     <title>Inicio SA | Mesa de Ayuda EQF</title>
-    <link rel="stylesheet" href="../../assets/css/style.css">
+    <link rel="stylesheet" href="../../../assets/css/style.css">
 </head>
 <body class="dashboard-body">
 
