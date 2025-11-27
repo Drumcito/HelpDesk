@@ -2,12 +2,12 @@
    Variables globales EQF
 ============================ */
 :root {
-    --eqf-red:  #C8002D;
+    --eqf-red: #C8002D;
     --eqf-blue: #14378A;
     --eqf-green: #1E8A4F;
     --eqf-combined: #6e1c5c;
-    --eqf-bg:   #f4f6fb;
-    --eqf-bg-header: #EBEEF2 ;
+    --eqf-bg: #f4f6fb;
+    --eqf-bg-header: #EBEEF2;
     --eqf-black: #211915;
     --eqf-card-bg: #ffffff;
     --eqf-text: #1f2933;
@@ -104,9 +104,11 @@ body {
 .eqf-e {
     color: var(--eqf-blue);
 }
+
 .eqf-q {
     color: var(--eqf-red);
 }
+
 .eqf-f {
     color: var(--eqf-blue);
 }
@@ -269,11 +271,11 @@ body {
     padding: 10px;
     border-radius: 24px;
     background: #f4f5f7;
-    box-shadow: 0 18px 40px rgba(0,0,0,0.18);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.18);
 }
 
 .sidebar-pill-inner {
- background: var(--eqf-combined);
+    background: var(--eqf-combined);
     padding: 20px 0;
     width: 70px;
     border-radius: 40px;
@@ -281,7 +283,7 @@ body {
     flex-direction: column;
     align-items: center;
     gap: 22px;
-    box-shadow: 0 4px 30px rgba(0,0,0,0.2);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
 }
 
 .sidebar-pill-menu {
@@ -294,7 +296,7 @@ body {
 }
 
 .pill-item {
-   width: 42px;
+    width: 42px;
     height: 42px;
     border-radius: 50%;
     display: flex;
@@ -314,16 +316,16 @@ body {
 
 .pill-item.active {
     background: var(--eqf-card-bg);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
 }
 
 .pill-item.active .pill-icon {
-    color: var(--eqf-card-bg);  
+    color: var(--eqf-card-bg);
 }
 
 .sa-main {
     padding: 20px 26px;
-    padding-left: 110px; 
+    padding-left: 110px;
 }
 
 /* ============================
@@ -340,7 +342,8 @@ body {
 /* MAIN con margen para el menú pastilla */
 .directory-main {
     padding: 20px 26px;
-    padding-left: 120px; /* espacio para menú lateral */
+    padding-left: 120px;
+    /* espacio para menú lateral */
 }
 
 .directory-header-main {
@@ -479,23 +482,27 @@ body {
     box-shadow: 0 10px 20px rgba(15, 23, 42, 0.25);
     color: #000000;
 }
+
 .action-icon {
-   width: 26px;
+    width: 26px;
     height: 26px;
     object-fit: contain;
     pointer-events: none;
-    filter: drop-shadow(0 1px 1px rgba(0,0,0,0.4));
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.4));
 }
+
 .action-add {
-    background-color: var(--eqf-green); 
+    background-color: var(--eqf-green);
 }
+
 .action-delete {
-    background-color: var(--eqf-red); 
+    background-color: var(--eqf-red);
 }
 
 .action-edit {
-    background-color: var(--eqf-blue); 
+    background-color: var(--eqf-blue);
 }
+
 /* Chips de filtro */
 .directory-filter-chips {
     display: flex;
@@ -506,8 +513,10 @@ body {
 
 .directory-filter-actions-row {
     display: flex;
-    justify-content: space-between; /* chips izquierda / CRUD derecha */
-    align-items: center;            /* ALINEA VERTICALMENTE 👈 */
+    justify-content: space-between;
+    /* chips izquierda / CRUD derecha */
+    align-items: center;
+    /* ALINEA VERTICALMENTE 👈 */
     width: 100%;
     margin: 10px 0 15px 0;
 }
@@ -526,7 +535,7 @@ body {
 }
 
 .chip-filter:hover {
-    box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
 }
 
 .chip-filter.chip-active {
@@ -534,20 +543,25 @@ body {
     color: #fff;
     border-color: transparent;
 }
+
 /* ===== MODAL OVERLAY ===== */
 
 .modal-backdrop {
     position: fixed;
-    inset: 0; /* top:0; right:0; bottom:0; left:0 */
+    inset: 0;
+    /* top:0; right:0; bottom:0; left:0 */
     background-color: rgba(15, 23, 42, 0.35);
-    display: none;              /* 🔹 IMPORTANTE: oculto por defecto */
+    display: none;
+    /* 🔹 IMPORTANTE: oculto por defecto */
     align-items: center;
     justify-content: center;
-    z-index: 999;               /* por encima de la tabla y todo */
+    z-index: 999;
+    /* por encima de la tabla y todo */
 }
 
 .modal-backdrop.show {
-    display: flex;              /* 🔹 Cuando se agrega .show, aparece como overlay */
+    display: flex;
+    /* 🔹 Cuando se agrega .show, aparece como overlay */
 }
 
 .modal-card {
@@ -647,7 +661,7 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    box-shadow: 0 18px 40px rgba(0,0,0,0.25);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.25);
     color: #ffffff;
     text-align: center;
     animation: eqfAlertFadeIn 0.25s ease-out;
@@ -668,15 +682,15 @@ body {
 }
 
 .eqf-alert-success {
-    background: var(--eqf-green);  
+    background: var(--eqf-green);
 }
 
 .eqf-alert-danger {
-    background: var(--eqf-red);   
+    background: var(--eqf-red);
 }
 
 .eqf-alert-info {
-    background: var(--eqf-blue);   
+    background: var(--eqf-blue);
 }
 
 
@@ -685,6 +699,7 @@ body {
         opacity: 0;
         transform: translateY(-10px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -722,7 +737,7 @@ body {
 }
 
 .header-icon {
-    height:45px;
+    height: 45px;
 }
 
 .header-logo {
@@ -739,7 +754,8 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    background-color: #f3f3f5; /* gris claro tipo tu UI */
+    background-color: #f3f3f5;
+    /* gris claro tipo tu UI */
     font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -815,8 +831,9 @@ body {
 }
 
 .change-pass-input-wrap input:focus {
-    border-color: #14378A; /* azul corporativo */
-    box-shadow: 0 0 0 1px rgba(20,55,138,0.15);
+    border-color: #14378A;
+    /* azul corporativo */
+    box-shadow: 0 0 0 1px rgba(20, 55, 138, 0.15);
     background-color: #ffffff;
 }
 
@@ -850,19 +867,20 @@ body {
     cursor: pointer;
     font-size: 0.9rem;
     font-weight: 600;
-    background-color: #14378A; /* azul EQF */
+    background-color: #14378A;
+    /* azul EQF */
     color: #ffffff;
-    box-shadow: 0 8px 20px rgba(20,55,138,0.35);
+    box-shadow: 0 8px 20px rgba(20, 55, 138, 0.35);
     transition: transform 0.1s ease, box-shadow 0.1s ease, background-color 0.15s ease;
 }
 
 .btn-change-pass:hover {
     background-color: #1d4ed8;
     transform: translateY(-1px);
-    box-shadow: 0 10px 24px rgba(20,55,138,0.4);
+    box-shadow: 0 10px 24px rgba(20, 55, 138, 0.4);
 }
 
 .btn-change-pass:active {
     transform: translateY(0);
-    box-shadow: 0 4px 12px rgba(20,55,138,0.3);
+    box-shadow: 0 4px 12px rgba(20, 55, 138, 0.3);
 }
