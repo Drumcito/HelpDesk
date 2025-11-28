@@ -290,3 +290,83 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
+document.addEventListener('DOMContentLoaded', function () {
+    const noJefeCheckbox    = document.getElementById('noJefe');
+    const sapDisplay        = document.getElementById('sapDisplay');
+    const nombreDisplay     = document.getElementById('nombreDisplay');
+    const emailDisplay      = document.getElementById('emailDisplay');
+    const sapValueHidden    = document.getElementById('sapValue');
+    const nombreValueHidden = document.getElementById('nombreValue');
+    const problemaSelect    = document.getElementById('problemaSelect');
+    const adjuntoContainer  = document.getElementById('adjuntoContainer');
+    const ticketForm        = document.getElementById('ticketForm');
+
+    if (!sapDisplay || !nombreDisplay || !emailDisplay || !sapValueHidden || !nombreValueHidden || !ticketForm) {
+        // Si no está el formulario, no hacemos nada (por si este JS se carga en otras vistas)
+        return;
+    }
+
+    // Guardamos los valores originales tal como vienen renderizados en el HTML (PHP ya los puso)
+    const originalSap    = sapDisplay.value;
+    const originalNombre = nombreDisplay.value;
+    const originalEmail  = emailDisplay.value;
+
+    // Aseguramos estilos iniciales de bloqueado en gris
+    sapDisplay.disabled = true;
+    nombreDisplay.disabled = true;
+    sapDisplay.style.backgroundColor = '#e5e5e5';
+    nombreDisplay.style.backgroundColor = '#e5e5e5';
+    emailDisplay.style.backgroundColor = '#e5e5e5';
+
+    // Checkbox "No soy jefe de sucursal"
+    if (noJefeCheckbox) {
+        noJefeCheckbox.addEventListener('change', function () {
+            if (this.checked) {
+                // Habilitar SAP y Nombre y limpiar campos
+                sapDisplay.disabled = false;
+                nombreDisplay.disabled = false;
+
+                sapDisplay.value = '';
+                nombreDisplay.value = '';
+
+                sapDisplay.style.backgroundColor = '#ffffff';
+                nombreDisplay.style.backgroundColor = '#ffffff';
+            } else {
+                // Volver a bloquear y restaurar valores originales
+                sapDisplay.disabled = true;
+                nombreDisplay.disabled = true;
+
+                sapDisplay.value = originalSap;
+                nombreDisplay.value = originalNombre;
+
+                sapDisplay.style.backgroundColor = '#e5e5e5';
+                nombreDisplay.style.backgroundColor = '#e5e5e5';
+
+                // Restaurar también los hidden
+                sapValueHidden.value    = originalSap;
+                nombreValueHidden.value = originalNombre;
+            }
+        });
+    }
+
+    // Mostrar / ocultar adjuntos cuando selecciona "Otro"
+    if (problemaSelect && adjuntoContainer) {
+        problemaSelect.addEventListener('change', function () {
+            if (this.value === 'otro') {
+                adjuntoContainer.style.display = 'block';
+            } else {
+                adjuntoContainer.style.display = 'none';
+            }
+        });
+    }
+
+    // Antes de enviar, sincronizar los hidden con lo que esté en pantalla
+    ticketForm.addEventListener('submit', function () {
+        const sapFinal    = sapDisplay.value.trim();
+        const nombreFinal = nombreDisplay.value.trim();
+
+        sapValueHidden.value    = sapFinal;
+        nombreValueHidden.value = nombreFinal;
+    });
+});

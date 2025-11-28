@@ -10,7 +10,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email    = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
 
-    // Ya no validamos rol porque viene desde la BD
     if ($email === '' || $password === '') {
         $error = 'Por favor, completa todos los campos.';
     } else {

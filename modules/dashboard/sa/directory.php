@@ -41,6 +41,35 @@ function rolLabel(int $rol): string {
 ?>
 
 
+ <!-- ALERTAS -->
+<?php
+$alerts = [];
+
+if (isset($_GET['created'])) {
+    $alerts[] = [
+        'type' => 'success',
+        'icon' => 'capsulin_add.png',  
+        'text' => 'USUARIO REGISTRADO EXITOSAMENTE'
+    ];
+}
+
+if (isset($_GET['deleted'])) {
+    $alerts[] = [
+        'type' => 'danger',
+        'icon' => 'capsulin_delete.png', 
+        'text' => 'USUARIO ELIMINADO EXITOSAMENTE'
+    ];
+}
+
+if (isset($_GET['updated'])) {
+    $alerts[] = [
+        'type' => 'info',
+        'icon' => 'capsulin_update.png', 
+        'text' => 'USUARIO ACTUALIZADO EXITOSAMENTE'
+    ];
+}
+?>
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -51,53 +80,6 @@ function rolLabel(int $rol): string {
 
 </head>
 <body class="directory-body">
-
-        <!-- ALERTAS -->
-<?php
-$alerts = [];
-
-if (isset($_GET['created'])) {
-    $alerts[] = [
-        'type' => 'success',
-        'icon' => 'capsulin_add.png',   // ícono verde (Capsulín feliz +)
-        'text' => 'USUARIO REGISTRADO EXITOSAMENTE'
-    ];
-}
-
-if (isset($_GET['deleted'])) {
-    $alerts[] = [
-        'type' => 'danger',
-        'icon' => 'capsulin_delete.png', // ícono rojo (Capsulín triste -)
-        'text' => 'USUARIO ELIMINADO EXITOSAMENTE'
-    ];
-}
-
-if (isset($_GET['updated'])) {
-    $alerts[] = [
-        'type' => 'info',
-        'icon' => 'capsulin_update.png', // ícono azul (Capsulín actualizando)
-        'text' => 'USUARIO ACTUALIZADO EXITOSAMENTE'
-    ];
-}
-?>
-
-<?php if (!empty($alerts)): ?>
-    <div id="eqf-alert-container">
-        <?php foreach ($alerts as $a): ?>
-            <div class="eqf-alert eqf-alert-<?php echo $a['type']; ?>">
-                <img
-                    class="eqf-alert-icon"
-                    src="/HelpDesk_EQF/assets/img/icons/<?php echo htmlspecialchars($a['icon'], ENT_QUOTES, 'UTF-8'); ?>"
-                    alt="Notificación EQF"
-                >
-                <p class="eqf-alert-text">
-                    <?php echo htmlspecialchars($a['text'], ENT_QUOTES, 'UTF-8'); ?>
-                </p>
-            </div>
-        <?php endforeach; ?>
-    </div>
-<?php endif; ?>
-
 
     <!-- CONTENIDO PRINCIPAL -->
     <main class="directory-main">
