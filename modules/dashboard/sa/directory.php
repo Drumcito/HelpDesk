@@ -81,6 +81,23 @@ if (isset($_GET['updated'])) {
 </head>
 <body class="directory-body">
 
+<?php if (!empty($alerts)): ?>
+    <?php $alert = $alerts[0]; ?>
+    <div id="eqf-alert-container">
+        <div class="eqf-alert eqf-alert-<?php echo htmlspecialchars($alert['type']); ?>">
+            <img
+                class="eqf-alert-icon"
+                src="/HelpDesk_EQF/assets/img/icons/<?php echo htmlspecialchars($alert['icon']); ?>"
+                alt="alert icon"
+            >
+            <div class="eqf-alert-text">
+                <?php echo htmlspecialchars($alert['text']); ?>
+            </div>
+        </div>
+    </div>
+<?php endif; ?>
+
+
     <!-- CONTENIDO PRINCIPAL -->
     <main class="directory-main">
         <header class="directory-header-main">

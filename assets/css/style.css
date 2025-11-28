@@ -646,7 +646,9 @@ body {
 
 #eqf-alert-container {
     position: fixed;
-    inset: 0;
+    top: 24px;
+    left: 50%;
+    transform: translateX(-50%);
     display: flex;
     align-items: center;
     justify-content: center;

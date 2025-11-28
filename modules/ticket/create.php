@@ -83,12 +83,12 @@ if (!empty($_FILES['adjuntos']['name'][0])) {
     }
 }
 
- header('Location: /HelpDesk_EQF/modules/dashboard/user/user.php?ticket_created=1');
+ header('Location: /HelpDesk_EQF/modules/dashboard/user/user.php?created=1');
     exit;
 
 } catch (Exception $e) {
     $pdo->rollBack();
 
-    header('Location: /HelpDesk_EQF/modules/dashboard/user/user.php?ticket_deleted=1');
+    header('Location: /HelpDesk_EQF/modules/dashboard/user/user.php?deleted=1');
     exit;
 }

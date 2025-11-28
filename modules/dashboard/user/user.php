@@ -7,7 +7,7 @@ include __DIR__ . '/../../../template/header.php';
 
 /* ALERTAS */
 $alerts = [];
-if (isset($_GET['ticket_created'])) {
+if (isset($_GET['created'])) {
     $alerts[] = [
         'type' => 'success',
         'icon' => 'capsulin_add.png',   
@@ -15,7 +15,7 @@ if (isset($_GET['ticket_created'])) {
     ];
 }
 
-if (isset($_GET['ticket_error'])) {
+if (isset($_GET['deleted'])) {
     $alerts[] = [
         'type' => 'danger',
         'icon' => 'capsulin_delete.png',   
@@ -53,21 +53,62 @@ $profileImg = ($userArea === 'Sucursal')
     <meta charset="UTF-8">
     <title>User | HELP DESK EQF</title>
     <link rel="stylesheet" href="/HelpDesk_EQF/assets/css/style.css">
+    <style>
+    /* Ajuste específico para las alertas en la vista de usuario */
+    .user-body #eqf-alert-container {
+        position: fixed;
+        top: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 360px;
+        max-width: calc(100% - 40px);
+        padding: 16px 24px;
+        border-radius: 18px;
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        height: auto;              /* importante: que NO sea 100% alto */
+        box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+        z-index: 9999;
+    }
+
+    .user-body #eqf-alert-container .eqf-alert-icon img {
+        width: 40px;
+        height: 40px;
+        object-fit: contain;
+        display: block;
+        margin: 0;
+    }
+
+    .user-body #eqf-alert-container .eqf-alert-text {
+        font-size: 14px;
+        font-weight: 700;
+        text-align: center;
+    }
+</style>
+
 </head>
 
 <body class="user-body">
 
 <?php if (!empty($alerts)): ?>
-    <?php $alert = $alerts[0]; // si solo usas una alerta a la vez ?>
-    <div id="eqf-alert-container" class="eqf-alert eqf-alert-<?php echo htmlspecialchars($alert['type']); ?>">
-        <div class="eqf-alert-icon">
-            <img src="/HelpDesk_EQF/assets/img/<?php echo htmlspecialchars($alert['icon']); ?>" alt="alert icon">
-        </div>
-        <div class="eqf-alert-text">
-            <?php echo htmlspecialchars($alert['text']); ?>
+    <?php $alert = $alerts[0]; // usamos la primera alerta ?>
+    <div id="eqf-alert-container">
+        <div class="eqf-alert eqf-alert-<?php echo htmlspecialchars($alert['type']); ?>">
+            <img
+                class="eqf-alert-icon"
+                src="/HelpDesk_EQF/assets/img/icons/<?php echo htmlspecialchars($alert['icon']); ?>"
+                alt="alert icon"
+            >
+            <div class="eqf-alert-text">
+                <?php echo htmlspecialchars($alert['text']); ?>
+            </div>
         </div>
     </div>
 <?php endif; ?>
+
 
 
     <!-- SIDEBAR IZQUIERDO -->
