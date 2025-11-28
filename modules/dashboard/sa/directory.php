@@ -13,7 +13,7 @@ if (!isset($_SESSION['user_id'])) {
 
 $rol = (int)($_SESSION['user_rol'] ?? 0);
 if ($rol !== 1) {
-    header('Location: /HelpDesk_EQF/modules/dashboard/sa.php');
+    header('Location: /../../../modules/dashboard/sa/sa.php');
     exit;
 }
 $pdo = Database::getConnection();
@@ -39,6 +39,8 @@ function rolLabel(int $rol): string {
     };
 }
 ?>
+
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -204,7 +206,7 @@ if (isset($_GET['updated'])) {
                     el sistema le pedirá al usuario que la cambie.
                 </p>
 
-                    <form method="POST" action="../../auth/users.php" class="modal-form">
+                    <form method="POST" action="../../../auth/users.php" class="modal-form">
                             <input type="hidden" name="action" value="create">
 
                     <div class="modal-grid">
@@ -232,7 +234,7 @@ if (isset($_GET['updated'])) {
                                 <option value="MKT">MKT</option>
                                 <option value="SAP">SAP</option>
                                 <option value="Corporativo">Corporativo</option>  
-                                <option value="Sucursal">Sucursal</option>  
+                                <option value="Sucursal">Sucursales</option>  
                             </select>
                         </div>
                         <div class="form-group">
@@ -336,14 +338,14 @@ if (isset($_GET['updated'])) {
         </div>
 
         <!-- FORMULARIO OCULTO PARA ELIMINAR -->
-       <form id="deleteForm" method="POST" action="../../auth/users.php" style="display:none;">
+       <form id="deleteForm" method="POST" action="/HelpDesk_EQF/auth/users.php" style="display:none;">
     <input type="hidden" name="action" value="delete">
     <input type="hidden" name="id" id="delete_id">
 </form>
     </main>
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
-    <script src="../../assets/js/script.js"></script>
+    <script src="/HelpDesk_EQF/assets/js/script.js"></script>
 
 </body>
 </html>

@@ -5,7 +5,7 @@ require_once __DIR__ . '/../config/connectionBD.php';
 $pdo = Database::getConnection();
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header('Location: ../modules/directory/directory.php');
+    header('Location: ../modules/dashboard/sa/directory.php');
     exit;
 }
 
@@ -27,7 +27,7 @@ if ($action === 'create') {
         $sap === '' || $name === '' || $last === '' ||
         $email === '' || $area === '' || $rol === 0 || !$assignPassword
     ) {
-        header('Location: ../modules/directory/directory.php?error=datos');
+        header('Location: ../modules/dashboard/sa/directory.php?error=datos');
         exit;
     }
 
@@ -50,7 +50,7 @@ if ($action === 'create') {
         ':area'     => $area,
     ]);
 
-    header('Location: ../modules/directory/directory.php?created=1');
+    header('Location: ../modules/dashboard/sa/directory.php?created=1');
     exit;
 }
 
@@ -65,10 +65,10 @@ if ($action === 'create') {
     $rol        = (int)($_POST['rol'] ?? 0);
 
     // Checkbox de reinicio de contraseña
-    $resetPassword = !empty($_POST['reset_password']) && $_POST['reset_password'] === '1';
+        $resetPassword = isset($_POST['reset_password']);
 
     if ($id <= 0) {
-        header('Location: /HelpDesk_EQF/modules/directory/directory.php?error=1');
+        header(header: 'Location: ../modules/dashboard/sa/directory.php?error=1');
         exit;
     }
 
@@ -128,7 +128,7 @@ if ($action === 'create') {
 
     // Redirigir de regreso al directorio con alerta
     // Puedes diferenciar si quieres, pero por ahora usamos updated
-    header('Location: /HelpDesk_EQF/modules/directory/directory.php?updated=1');
+    header('Location: ../modules/dashboard/sa/directory.php?updated=1');
     exit;
 }
 
@@ -137,25 +137,25 @@ if ($action === 'create') {
         $id = (int)($_POST['id'] ?? 0);
 
         if ($id <= 0) {
-            header('Location: ../modules/directory/directory.php?error=delete_id');
+            header('Location: ../modules/dashboard/sa/directory.php?error=delete_id');
             exit;
         }
 
         $stmt = $pdo->prepare('DELETE FROM users WHERE id = :id');
         $stmt->execute([':id' => $id]);
 
-header('Location: ../modules/directory/directory.php?deleted=1');
+header('Location: ../modules/dashboard/sa/directory.php?deleted=1');
         exit;
     }
 
     // Acción desconocida
-    header('Location: ../modules/directory/directory.php?error=accion');
+    header('Location: ../modules/dashboard/sa/directory.php?error=accion');
     exit;
 
 } catch (PDOException $e) {
     // Para debug rápido, si quieres ver el error real:
     // echo "Error BD: " . $e->getMessage();
     // exit;
-    header('Location: ../modules/directory/directory.php?error=db');
+    header('Location: ../modules/dashboard/sa/directory.php?error=db');
     exit;
 }
