@@ -105,7 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             class="change-pass-toggle"
                             data-target="new_password"
                             aria-label="Mostrar u ocultar contraseña">
-                        👁
+                        👁️
                     </button>
                 </div>
             </div>
@@ -124,7 +124,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             class="change-pass-toggle"
                             data-target="new_password_confirm"
                             aria-label="Mostrar u ocultar contraseña">
-                        👁
+                        👁️
                     </button>
                 </div>
             </div>

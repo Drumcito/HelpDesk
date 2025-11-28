@@ -227,3 +227,66 @@ document.addEventListener('DOMContentLoaded', () => {
     })();
 
 });
+
+
+/* ========== DASHBOARD USUARIO / CAPSULia ========== */
+
+document.addEventListener('DOMContentLoaded', () => {
+    const problemSelect = document.getElementById('problema');
+    const detalleTextarea = document.getElementById('detalle');
+    const qaButtons = document.querySelectorAll('.user-capsulia-qa-btn');
+    const chatLog = document.getElementById('capsuliaChatLog');
+    const input = document.getElementById('capsuliaInput');
+    const sendBtn = document.getElementById('capsuliaSend');
+    const closeBtn = document.querySelector('.user-capsulia-close');
+    const capsuliaPanel = document.querySelector('.user-capsulia');
+
+    function addChatMessage(text, from = 'user') {
+        if (!chatLog) return;
+        const row = document.createElement('div');
+        row.className = 'user-capsulia-chat-msg ' + from;
+        const span = document.createElement('span');
+        span.textContent = text;
+        row.appendChild(span);
+        chatLog.appendChild(row);
+        chatLog.scrollTop = chatLog.scrollHeight;
+    }
+
+    qaButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const val = btn.dataset.problem || btn.textContent.trim();
+            if (problemSelect) {
+                problemSelect.value = val;
+            }
+            addChatMessage(val, 'user');
+        });
+    });
+
+    if (sendBtn && input) {
+        const send = () => {
+            const text = input.value.trim();
+            if (!text) return;
+            addChatMessage(text, 'user');
+            input.value = '';
+
+            // Respuesta dummy
+            setTimeout(() => {
+                addChatMessage('He recibido tu mensaje. Si lo deseas, describe más a detalle y crea el ticket con el botón "Enviar ticket".', 'bot');
+            }, 400);
+        };
+
+        sendBtn.addEventListener('click', send);
+        input.addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                send();
+            }
+        });
+    }
+
+    if (closeBtn && capsuliaPanel) {
+        closeBtn.addEventListener('click', () => {
+            capsuliaPanel.classList.toggle('is-closed');
+        });
+    }
+});
