@@ -11,7 +11,7 @@ if (isset($_GET['created'])) {
     $alerts[] = [
         'type' => 'success',
         'icon' => 'capsulin_add.png',   
-        'text' => 'TICKET REGISTRADO EXITOSAMENTE'
+        'text' => 'TICKET REGISTRADO EXITOSAMENTE, EN BREVE TE ATENDEREMOS'
     ];
 }
 
@@ -41,6 +41,30 @@ $profileImg = ($userArea === 'Sucursal')
     ? '/HelpDesk_EQF/assets/img/pp/pp_sucursal.jpg'
     : '/HelpDesk_EQF/assets/img/pp/pp_corporativo.jpg';
 
+
+    // Tickets abiertos / en proceso del usuario (para el resumen)
+$stmtOpen = $pdo->prepare("
+    SELECT id, problema, fecha_envio, estado
+    FROM tickets
+    WHERE user_id = :uid
+      AND estado IN ('abierto','en_proceso')
+    ORDER BY fecha_envio DESC
+    LIMIT 5
+");
+$stmtOpen->execute([':uid' => $userId]);
+$openTickets = $stmtOpen->fetchAll();
+function problemaLabel(string $p): string {
+    return match ($p) {
+        'cierre_dia'   => 'Cierre del día',
+        'no_legado'    => 'Sin acceso a legado/legacy',
+        'no_internet'  => 'Sin internet',
+        'no_checador'  => 'No funciona checador',
+        'rastreo'      => 'Rastreo de checada',
+        'otro'         => 'Otro',
+        default        => $p,
+    };
+}
+
 ?>
 
 
@@ -52,7 +76,7 @@ $profileImg = ($userArea === 'Sucursal')
 <head>
     <meta charset="UTF-8">
     <title>User | HELP DESK EQF</title>
-    <link rel="stylesheet" href="/HelpDesk_EQF/assets/css/style.css">
+<link rel="stylesheet" href="/HelpDesk_EQF/assets/css/style.css?v=<?php echo time(); ?>">
     <style>
     /* Ajuste específico para las alertas en la vista de usuario */
     .user-body #eqf-alert-container {
@@ -67,6 +91,7 @@ $profileImg = ($userArea === 'Sucursal')
         display: flex;
         flex-direction: row;
         align-items: center;
+        background: none;
         justify-content: center;
         gap: 12px;
         height: auto;              /* importante: que NO sea 100% alto */
@@ -134,11 +159,13 @@ $profileImg = ($userArea === 'Sucursal')
                 <span>Crear ticket</span>
             </button>
 
-            <button type="button" class="user-menu-item" onclick="scrollToTickets()">
+            <button type="button" class="user-menu-item" 
+                    onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/user/tickets.php'">
                 <span class="user-menu-icon">📄</span>
                 <span>Tickets</span>
             </button>
-            <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/modules/docs/important.php'">
+            <button type="button" class="user-menu-item" 
+                    onclick="window.location.href='/HelpDesk_EQF/modules/docs/important.php'">
                 <span class="user-menu-icon">📎</span>
                 <span>Documentos importantes</span>
             </button>
@@ -175,18 +202,38 @@ $profileImg = ($userArea === 'Sucursal')
                         Desde aquí puedes crear tickets, consultar el historial de los que has levantado
                         y acceder a documentos importantes para la operación de tu sucursal o área.
                     </p>
+                </div>
+                <div class="button">
                     <button type="button" class="btn-primary user-main-cta" onclick="openTicketModal()">
                         Crear nuevo ticket
                     </button>
                 </div>
-
                 <!-- Sección de tickets como ancla -->
                 <div id="tickets-section" class="user-tickets-placeholder">
-                    <h3>Tus tickets</h3>
-                    <p>
-                        Próximamente aquí listaremos tus tickets recientes.  
-                        Por ahora, utiliza el botón <strong>“Crear ticket”</strong> del menú lateral o el de arriba.
-                    </p>
+  <h3>Tus tickets</h3>
+
+    <?php if (empty($openTickets)): ?>
+        <p>No tienes tickets abiertos por el momento. </p>
+    <?php else: ?>
+        <ul class="user-tickets-list">
+            <?php foreach ($openTickets as $t): ?>
+                <li class="user-ticket-item">
+                    <div>
+                        <strong>#<?php echo (int)$t['id']; ?></strong>
+                        — <?php echo htmlspecialchars(problemaLabel($t['problema']), ENT_QUOTES, 'UTF-8'); ?>
+                    </div>
+                    <small>
+                        <?php echo htmlspecialchars($t['fecha_envio'], ENT_QUOTES, 'UTF-8'); ?>
+                        · <?php echo htmlspecialchars($t['estado'], ENT_QUOTES, 'UTF-8'); ?>
+                    </small>
+                </li>
+            <?php endforeach; ?>
+        </ul>
+        <button type="button" class="btn-secondary user-main-cta"
+                onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/user/tickets.php'">
+            Ver todos los tickets
+        </button>
+    <?php endif; ?>
                 </div>
             </section>
 
@@ -320,7 +367,7 @@ $profileImg = ($userArea === 'Sucursal')
             <div class="form-group form-group-full">
                 <label>Descripción</label>
                 <textarea name="descripcion" rows="3"
-                          placeholder="Describe el problema y proporciona los ID de TeamViewer si asi se requiere..."
+                          placeholder="Describe el problema de manera detallada"
                           required></textarea>
             </div>
 
