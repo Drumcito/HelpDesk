@@ -343,23 +343,28 @@ function problemaLabel(string $p): string {
             <input type="hidden" name="nombre" id="nombreValue"
                    value="<?php echo htmlspecialchars($userName, ENT_QUOTES, 'UTF-8'); ?>">
 
-            <!-- CHECKBOX NO SOY JEFE -->
+                       <!-- CHECKBOX NO SOY JEFE -->
             <div class="form-group checkbox-container">
                 <input type="checkbox" id="noJefe">
                 <label for="noJefe">No soy jefe de sucursal</label>
             </div>
 
-            <!-- PROBLEMA -->
+            <!-- ÁREA DE SOPORTE -->
+            <div class="form-group">
+                <label>Área de soporte</label>
+                <select id="areaSoporte" name="area_soporte" required>
+                    <option value="">Selecciona un área</option>
+                    <option value="TI">TI</option>
+                    <option value="SAP">SAP</option>
+                    <option value="MKT">MKT</option>
+                </select>
+            </div>
+
+            <!-- PROBLEMA (se llenará dinámicamente según área) -->
             <div class="form-group">
                 <label>Problema</label>
                 <select name="problema" id="problemaSelect" required>
-                    <option value="">Selecciona una opción</option>
-                    <option value="cierre_dia">Cierre del día</option>
-                    <option value="no_legado">No tengo acceso a legado/legacy</option>
-                    <option value="no_internet">No tengo internet</option>
-                    <option value="no_checador">No funciona checador</option>
-                    <option value="rastreo">Rastreo de checada</option>
-                    <option value="otro">Otro</option>
+                    <option value="">Selecciona primero un área de soporte</option>
                 </select>
             </div>
 
@@ -367,7 +372,7 @@ function problemaLabel(string $p): string {
             <div class="form-group form-group-full">
                 <label>Descripción</label>
                 <textarea name="descripcion" rows="3"
-                          placeholder="Describe el problema de manera detallada"
+                          placeholder="Describe el problema "
                           required></textarea>
             </div>
 
@@ -379,6 +384,7 @@ function problemaLabel(string $p): string {
                        multiple
                        accept=".pdf,.jpg,.jpeg,.webp,.docx,.png,.xls,.xlsx,.csv">
             </div>
+
 
             <div class="modal-actions">
                 <button type="button" class="btn-secondary" onclick="closeTicketModal()">Cancelar</button>

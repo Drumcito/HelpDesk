@@ -137,7 +137,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         /* ============================================
-           Acciones CRUD (Agregar, Eliminar, Actualizar)
+           Acciones CRUD 
         ============================================ */
 
         // --- Eliminar usuario ---
@@ -301,25 +301,30 @@ document.addEventListener('DOMContentLoaded', function () {
     const problemaSelect    = document.getElementById('problemaSelect');
     const adjuntoContainer  = document.getElementById('adjuntoContainer');
     const ticketForm        = document.getElementById('ticketForm');
+    const areaSoporte       = document.getElementById('areaSoporte');
 
+    // Si no está el formulario de ticket, no hacemos nada (este JS se usa en otras vistas)
     if (!sapDisplay || !nombreDisplay || !emailDisplay || !sapValueHidden || !nombreValueHidden || !ticketForm) {
-        // Si no está el formulario, no hacemos nada (por si este JS se carga en otras vistas)
         return;
     }
 
-    // Guardamos los valores originales tal como vienen renderizados en el HTML (PHP ya los puso)
+    // -----------------------------
+    // Valores originales (del jefe)
+    // -----------------------------
     const originalSap    = sapDisplay.value;
     const originalNombre = nombreDisplay.value;
     const originalEmail  = emailDisplay.value;
 
-    // Aseguramos estilos iniciales de bloqueado en gris
+    // Estilos iniciales de bloqueado en gris
     sapDisplay.disabled = true;
     nombreDisplay.disabled = true;
     sapDisplay.style.backgroundColor = '#e5e5e5';
     nombreDisplay.style.backgroundColor = '#e5e5e5';
     emailDisplay.style.backgroundColor = '#e5e5e5';
 
+    // -----------------------------
     // Checkbox "No soy jefe de sucursal"
+    // -----------------------------
     if (noJefeCheckbox) {
         noJefeCheckbox.addEventListener('change', function () {
             if (this.checked) {
@@ -350,6 +355,82 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    // -----------------------------
+    // Área de soporte → lista de problemas
+    // -----------------------------
+    // Si no existe el select de área o el de problema, no seguimos con esta parte
+    if (!areaSoporte || !problemaSelect) {
+        // pero el resto del formulario (noJefe y submit) sí se sigue usando
+        ticketForm.addEventListener('submit', function () {
+            const sapFinal    = sapDisplay.value.trim();
+            const nombreFinal = nombreDisplay.value.trim();
+
+            sapValueHidden.value    = sapFinal;
+            nombreValueHidden.value = nombreFinal;
+        });
+        return;
+    }
+
+    // Opciones de problemas por área de soporte
+    const problemOptions = {
+        TI: [
+            { value: 'no_internet',   label: 'No tengo internet' },
+            { value: 'no_checador',   label: 'No funciona checador' },
+            { value: 'no_legado',     label: 'No tengo acceso a legado/legacy' },
+            { value: 'rastreo',       label: 'Rastreo de checadam de colaborador' },
+            { value: 'otro',          label: 'Otro (TI)' }
+        ],
+        SAP: [
+            { value: 'cierre_dia',    label: 'Cierre de día' },
+            { value: 'replica',       label: 'Replica' },
+            { value: 'no_sap',        label: 'No tengo acceso a SAP' },
+            { value: 'otro',          label: 'Otro (SAP)' }
+        ],
+        MKT: [
+            { value: 'update_cliente',   label: 'Modificacion de cliente' },
+            { value: 'alta_cliente',     label: 'Alta de cliente' },
+            { value: 'Descuentos',     label: 'Descuentos' },
+            { value: 'otro',          label: 'Otro (MKT / Diseño)' }
+        ]
+    };
+
+    function fillProblemas(areaRaw) {
+        const area = (areaRaw || '').toUpperCase().trim();
+
+        // Limpia select
+        problemaSelect.innerHTML = '';
+
+        if (!area || !problemOptions[area]) {
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = 'Selecciona primero un área de soporte';
+            problemaSelect.appendChild(opt);
+            problemaSelect.value = '';
+            if (adjuntoContainer) adjuntoContainer.style.display = 'none';
+            return;
+        }
+
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = 'Selecciona un problema';
+        problemaSelect.appendChild(placeholder);
+
+        problemOptions[area].forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.value;
+            opt.textContent = p.label;
+            problemaSelect.appendChild(opt);
+        });
+
+        problemaSelect.value = '';
+        if (adjuntoContainer) adjuntoContainer.style.display = 'none';
+    }
+
+    // Cuando cambia el área, llenamos los problemas
+    areaSoporte.addEventListener('change', function () {
+        fillProblemas(this.value);
+    });
+
     // Mostrar / ocultar adjuntos cuando selecciona "Otro"
     if (problemaSelect && adjuntoContainer) {
         problemaSelect.addEventListener('change', function () {
@@ -361,7 +442,9 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    // -----------------------------
     // Antes de enviar, sincronizar los hidden con lo que esté en pantalla
+    // -----------------------------
     ticketForm.addEventListener('submit', function () {
         const sapFinal    = sapDisplay.value.trim();
         const nombreFinal = nombreDisplay.value.trim();
@@ -370,3 +453,4 @@ document.addEventListener('DOMContentLoaded', function () {
         nombreValueHidden.value = nombreFinal;
     });
 });
+

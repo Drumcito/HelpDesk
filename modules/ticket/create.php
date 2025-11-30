@@ -15,7 +15,15 @@ try{
 $user_id    = $_POST['user_id'] ?? null;
 $sap        = $_POST['sap'] ?? '';
 $nombre     = $_POST['nombre'] ?? '';
-$area       = $_POST['area'] ?? '';
+
+// Área del usuario (Sucursal / Corporativo, etc.)
+$user_area       = $_POST['area'] ?? '';
+// Área de soporte elegida en el formulario (TI / SAP / MKT)
+$area_soporte    = $_POST['area_soporte'] ?? '';
+// Usaremos el área de soporte para enrutar el ticket a los analistas.
+// Si por alguna razón viene vacío, caemos al área del usuario.
+$area = $area_soporte !== '' ? $area_soporte : $user_area;
+
 $email      = $_POST['email'] ?? '';
 $problema   = $_POST['problema'] ?? '';
 $descripcion= $_POST['descripcion'] ?? '';

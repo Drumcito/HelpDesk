@@ -66,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     header('Location: ../modules/dashboard/admin/admin.php');
                     break;
                 case 3:
-                    header('Location: ../modules/dashboard/analist/analist.php');
+                    header('Location: ../modules/dashboard/analyst/analyst.php');
                     break;
                 case 4:
                 default:
