@@ -64,17 +64,28 @@ try {
     $hideInternal = ($rol === 4) ? 1 : 0;
 
     $sql = "
-        SELECT id, sender_id, sender_role, mensaje, is_internal, created_at
-        FROM ticket_messages
-        WHERE ticket_id = :ticket_id
-          AND id > :last_id
+        SELECT 
+            m.id,
+            m.sender_id,
+            m.sender_role,
+            m.mensaje,
+            m.is_internal,
+            m.created_at,
+            f.file_name,
+            f.file_path,
+            f.file_type
+        FROM ticket_messages m
+        LEFT JOIN ticket_message_files f
+               ON f.message_id = m.id
+        WHERE m.ticket_id = :ticket_id
+          AND m.id > :last_id
     ";
 
     if ($hideInternal) {
-        $sql .= " AND is_internal = 0 ";
+        $sql .= " AND m.is_internal = 0 ";
     }
 
-    $sql .= " ORDER BY id ASC";
+    $sql .= " ORDER BY m.id ASC";
 
     $stmtMsg = $pdo->prepare($sql);
     $stmtMsg->execute([
@@ -83,6 +94,17 @@ try {
     ]);
 
     $rows = $stmtMsg->fetchAll(PDO::FETCH_ASSOC);
+
+    // Agregamos una URL completa al archivo para que el front solo la use
+    foreach ($rows as &$r) {
+        if (!empty($r['file_path'])) {
+            // Ruta pública
+            $r['file_url'] = '/HelpDesk_EQF/' . ltrim($r['file_path'], '/');
+        } else {
+            $r['file_url'] = null;
+        }
+    }
+    unset($r);
 
     echo json_encode([
         'ok'       => true,

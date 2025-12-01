@@ -394,8 +394,16 @@ $historyTickets = $stmtHistory->fetchAll();
         <form class="ticket-chat-form" onsubmit="sendTicketMessage(event)">
             <textarea id="ticketChatInput"
                       rows="2"
-                      placeholder="Escribe tu mensaje..."></textarea>
-            <button type="submit" class="btn-login" style="min-width: 120px;">
+                      placeholder="Escribe tu mensaje..."
+                       style="width:100%"></textarea>
+                       <div class="ticket-chat-input-row">
+        <input type="file"
+               id="ticketChatFile"
+               name="adjunto"
+               class="ticket-chat-file"
+               accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,.csv"
+                style="width:100%">
+            <button type="submit" class="btn-login" style="min-width: 60px;">
                 Enviar
             </button>
         </form>
@@ -615,10 +623,50 @@ function appendChatMessage(msg) {
 
     div.classList.add(isMine ? 'mine' : 'other');
 
-    const textSpan = document.createElement('span');
-    textSpan.textContent = msg.mensaje;
-    div.appendChild(textSpan);
+    // Texto del mensaje
+    if (msg.mensaje) {
+        const textSpan = document.createElement('span');
+        textSpan.textContent = msg.mensaje;
+        div.appendChild(textSpan);
+    }
 
+    // Si hay archivo adjunto, mostramos link (y preview si es imagen)
+    if (msg.file_url) {
+        const fileWrapper = document.createElement('div');
+        fileWrapper.style.marginTop = '6px';
+
+        const url  = msg.file_url;
+        const name = msg.file_name || 'Archivo adjunto';
+        const type = msg.file_type || '';
+
+        // Si es imagen, mostramos miniatura clickeable
+        if (type.startsWith('image/')) {
+            const imgLink = document.createElement('a');
+            imgLink.href   = url;
+            imgLink.target = '_blank';
+            imgLink.rel    = 'noopener';
+
+            const img = document.createElement('img');
+            img.src = url;
+            img.alt = name;
+            img.className = 'ticket-chat-image';
+
+            imgLink.appendChild(img);
+            fileWrapper.appendChild(imgLink);
+        } else {
+            // Para otros archivos, solo un link
+            const link = document.createElement('a');
+            link.href   = url;
+            link.target = '_blank';
+            link.rel    = 'noopener';
+            link.textContent = '📎 ' + name;
+            fileWrapper.appendChild(link);
+        }
+
+        div.appendChild(fileWrapper);
+    }
+
+    // Meta (rol + fecha)
     const meta = document.createElement('span');
     meta.className = 'ticket-chat-meta';
 
@@ -630,6 +678,8 @@ function appendChatMessage(msg) {
     bodyEl.appendChild(div);
     bodyEl.scrollTop = bodyEl.scrollHeight;
 }
+
+
 
 // Obtener mensajes nuevos
 function fetchMessages(initial) {
@@ -660,41 +710,57 @@ function sendTicketMessage(ev) {
     if (!currentTicketId) return;
 
     const input = document.getElementById('ticketChatInput');
+    const fileInput = document.getElementById('ticketChatFile');
     if (!input) return;
 
     const texto = input.value.trim();
-    if (!texto) return;
+    const file  = fileInput && fileInput.files.length > 0 ? fileInput.files[0] : null;
 
-    input.value = '';
+    if (!texto && !file) {
+        return; // no mandes nada vacío
+    }
+
     input.disabled = true;
+    if (fileInput) fileInput.disabled = true;
 
-    const body = 'ticket_id=' + encodeURIComponent(currentTicketId)
-               + '&mensaje='  + encodeURIComponent(texto);
+    const formData = new FormData();
+    formData.append('ticket_id', currentTicketId);
+    formData.append('mensaje', texto);
+    if (file) {
+        formData.append('adjunto', file);
+    }
 
     fetch('/HelpDesk_EQF/modules/ticket/send_message.php', {
         method: 'POST',
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body
+        body: formData
     })
     .then(r => r.json())
     .then(data => {
         input.disabled = false;
-        input.focus();
+        if (fileInput) {
+            fileInput.disabled = false;
+            fileInput.value = '';
+        }
 
         if (!data.ok) {
             alert(data.msg || 'No se pudo enviar el mensaje');
             return;
         }
 
-        // Opcionalmente forzamos un fetch para ver nuestro mensaje ya ordenado
+        input.value = '';
+        input.focus();
+
+        // fuerza refresh para ver mensaje + adjunto
         fetchMessages(false);
     })
     .catch(err => {
         console.error('Error enviando mensaje:', err);
         input.disabled = false;
+        if (fileInput) fileInput.disabled = false;
         alert('Error al enviar el mensaje');
     });
 }
+
 </script>
 <?php include __DIR__ . '/../../../template/footer.php'; ?>
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>

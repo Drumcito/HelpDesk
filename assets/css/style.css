@@ -554,7 +554,7 @@ body {
     /* top:0; right:0; bottom:0; left:0 */
     background-color: rgba(15, 23, 42, 0.35);
     display: none;
-    /* 🔹 IMPORTANTE: oculto por defecto */
+    /* IMPORTANTE: oculto por defecto */
     align-items: center;
     justify-content: center;
     z-index: 999;
@@ -563,7 +563,7 @@ body {
 
 .modal-backdrop.show {
     display: flex;
-    /* 🔹 Cuando se agrega .show, aparece como overlay */
+    /* Cuando se agrega .show, aparece como overlay */
 }
 
 .modal-card {
@@ -1523,6 +1523,7 @@ footer {
     border-radius: 8px;
     background: #f3f4f6;
     margin-bottom: 10px;
+    align: center;
 }
 
 .ticket-chat-message {
@@ -1559,4 +1560,20 @@ footer {
 
 .user-ticket-actions {
     margin-left: 10px;
+}
+.ticket-chat-input-row {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+}
+
+.ticket-chat-file {
+    max-width: 160px;
+    font-size: 0.75rem;
+}
+.ticket-chat-image {
+    max-width: 220px;
+    max-height: 160px;
+    border-radius: 8px;
+    display: block;
 }
