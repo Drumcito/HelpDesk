@@ -431,5 +431,60 @@ function problemaLabel(string $p): string {
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
 <script src="/HelpDesk_EQF/assets/js/script.js?v=20251129a"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+    // Toast sencillo para el usuario (puedes reutilizar estilos de eqf-toast-ticket)
+    function showUserToast(msg) {
+        const toast = document.createElement('div');
+        toast.className = 'eqf-toast-ticket'; // mismo estilo que usas con analistas
+        toast.textContent = msg;
+        document.body.appendChild(toast);
+
+        setTimeout(() => {
+            toast.classList.add('hide');
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    }
+
+    // Notificación de escritorio opcional
+    function showDesktopNotification(msg) {
+        if (!('Notification' in window)) return;
+        if (Notification.permission !== 'granted') return;
+
+        new Notification('HelpDesk EQF', {
+            body: msg,
+            icon: '/HelpDesk_EQF/assets/img/icon_helpdesk.png'
+        });
+    }
+
+    // Pedimos permiso de notificaciones solo si el usuario está en esta pantalla
+    if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+    }
+
+    function pollUserNotifications() {
+        fetch('/HelpDesk_EQF/modules/ticket/check_user_notifications.php')
+            .then(r => r.json())
+            .then(data => {
+                if (!data.ok || !data.has) return;
+                if (!Array.isArray(data.notifications)) return;
+
+                data.notifications.forEach(n => {
+                    const msg = n.mensaje || 'Tienes una actualización de tu ticket.';
+                    showUserToast(msg);
+                    showDesktopNotification(msg);
+                });
+            })
+            .catch(err => {
+                console.error('Error consultando notificaciones de usuario:', err);
+            });
+    }
+
+    // Revisar cada 10 segundos
+    setInterval(pollUserNotifications, 10000);
+});
+</script>
+
 </body>
 </html>

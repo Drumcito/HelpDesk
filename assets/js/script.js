@@ -1,6 +1,6 @@
 /* ============================================
    SCRIPTS GLOBALES · MESA DE AYUDA EQF
-   Archivo: assets/js/scripts.js
+   Archivo: assets/js/script.js
 ============================================ */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -27,7 +27,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentArea = 'ALL';
 
     if (directoryTableEl) {
-                function sortDirectoryRows(mode) {
+
+        function sortDirectoryRows(mode) {
             const tbody = directoryTableEl.querySelector('tbody');
             if (!tbody) return;
 
@@ -55,7 +56,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
 
-            // Reinsertar en el DOM en el nuevo orden
             rowsArr.forEach(row => tbody.appendChild(row));
         }
 
@@ -98,7 +98,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const matchArea =
                     currentArea === 'ALL' ||
-                    area === currentArea.toLowerCase(); 
+                    area === currentArea.toLowerCase();
 
                 row.style.display = (matchTerm && matchArea) ? '' : 'none';
             });
@@ -108,9 +108,8 @@ document.addEventListener('DOMContentLoaded', () => {
             searchInput.addEventListener('input', applyFilter);
         }
 
-
         // Filtros por área: TI, MKT, SAP, Sucursal
- filterChips.forEach(chip => {
+        filterChips.forEach(chip => {
             chip.addEventListener('click', () => {
                 filterChips.forEach(c => c.classList.remove('chip-active'));
                 chip.classList.add('chip-active');
@@ -217,13 +216,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!container) return;
 
         setTimeout(() => {
-            container.classList.add('eqf-alert-hide'); 
+            container.classList.add('eqf-alert-hide');
             setTimeout(() => {
                 if (container.parentNode) {
                     container.parentNode.removeChild(container);
                 }
             }, 350);
-        }, 2000); 
+        }, 2000);
     })();
 
 });
@@ -232,14 +231,14 @@ document.addEventListener('DOMContentLoaded', () => {
 /* ========== DASHBOARD USUARIO / CAPSULia ========== */
 
 document.addEventListener('DOMContentLoaded', () => {
-    const problemSelect = document.getElementById('problema');
+    const problemSelect   = document.getElementById('problema');
     const detalleTextarea = document.getElementById('detalle');
-    const qaButtons = document.querySelectorAll('.user-capsulia-qa-btn');
-    const chatLog = document.getElementById('capsuliaChatLog');
-    const input = document.getElementById('capsuliaInput');
-    const sendBtn = document.getElementById('capsuliaSend');
-    const closeBtn = document.querySelector('.user-capsulia-close');
-    const capsuliaPanel = document.querySelector('.user-capsulia');
+    const qaButtons       = document.querySelectorAll('.user-capsulia-qa-btn');
+    const chatLog         = document.getElementById('capsuliaChatLog');
+    const input           = document.getElementById('capsuliaInput');
+    const sendBtn         = document.getElementById('capsuliaSend');
+    const closeBtn        = document.querySelector('.user-capsulia-close');
+    const capsuliaPanel   = document.querySelector('.user-capsulia');
 
     function addChatMessage(text, from = 'user') {
         if (!chatLog) return;
@@ -271,7 +270,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Respuesta dummy
             setTimeout(() => {
-                addChatMessage('He recibido tu mensaje. Si lo deseas, describe más a detalle y crea el ticket con el botón "Enviar ticket".', 'bot');
+                addChatMessage(
+                    'He recibido tu mensaje. Si lo deseas, describe más a detalle y crea el ticket con el botón "Enviar ticket".',
+                    'bot'
+                );
             }, 400);
         };
 
@@ -453,7 +455,6 @@ document.addEventListener('DOMContentLoaded', function () {
                     prioridadDisplay.value = 'Media';
                     prioridadHidden.value  = 'media';
                 } else if (value === '') {
-                    // nada seleccionado, dejamos media
                     prioridadDisplay.value = 'Media';
                     prioridadHidden.value  = 'media';
                 } else {
@@ -477,9 +478,9 @@ document.addEventListener('DOMContentLoaded', function () {
         // Por si acaso, aseguramos prioridadHidden
         if (prioridadDisplay && prioridadHidden && !prioridadHidden.value) {
             const txt = (prioridadDisplay.value || '').toLowerCase();
-            if (txt.includes('alta'))  prioridadHidden.value = 'alta';
+            if (txt.includes('alta'))      prioridadHidden.value = 'alta';
             else if (txt.includes('baja')) prioridadHidden.value = 'baja';
-            else prioridadHidden.value = 'media';
+            else                           prioridadHidden.value = 'media';
         }
     });
 });
