@@ -358,6 +358,7 @@ $historyTickets = $stmtHistory->fetchAll();
                                     <th>Usuario</th>
                                     <th>Problema</th>
                                     <th>Estatus</th>
+                                    <th>Reporte</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -369,6 +370,14 @@ $historyTickets = $stmtHistory->fetchAll();
                                         <td><?php echo htmlspecialchars($t['nombre'], ENT_QUOTES, 'UTF-8'); ?></td>
                                         <td><?php echo htmlspecialchars(problemaLabel($t['problema']), ENT_QUOTES, 'UTF-8'); ?></td>
                                         <td><?php echo htmlspecialchars($t['estado'], ENT_QUOTES, 'UTF-8'); ?></td>
+                                        <td>
+                                            <a href="/HelpDesk_EQF/modules/ticket/report.php?ticket_id=<?php echo (int)$t['id']; ?>"
+                                                class="btn-login"
+                                                style="padding:4px 10px; font-size:0.75rem;"
+                                                target="_blank">
+                                                PDF
+                                            </a>
+                                        </td>
                                     </tr>
                                 <?php endforeach; ?>
                             </tbody>
