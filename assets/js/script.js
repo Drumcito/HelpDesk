@@ -291,6 +291,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+
+/* ============================================
+            MODAL CREAR TICKET (USUARIO)
+============================================ */
 document.addEventListener('DOMContentLoaded', function () {
     const noJefeCheckbox    = document.getElementById('noJefe');
     const sapDisplay        = document.getElementById('sapDisplay');
@@ -303,19 +307,18 @@ document.addEventListener('DOMContentLoaded', function () {
     const ticketForm        = document.getElementById('ticketForm');
     const areaSoporte       = document.getElementById('areaSoporte');
 
+    const prioridadDisplay  = document.getElementById('prioridadDisplay');
+    const prioridadHidden   = document.getElementById('prioridadValue');
+
     // Si no está el formulario de ticket, no hacemos nada (este JS se usa en otras vistas)
     if (!sapDisplay || !nombreDisplay || !emailDisplay || !sapValueHidden || !nombreValueHidden || !ticketForm) {
         return;
     }
 
-    // -----------------------------
-    // Valores originales (del jefe)
-    // -----------------------------
     const originalSap    = sapDisplay.value;
     const originalNombre = nombreDisplay.value;
     const originalEmail  = emailDisplay.value;
 
-    // Estilos iniciales de bloqueado en gris
     sapDisplay.disabled = true;
     nombreDisplay.disabled = true;
     sapDisplay.style.backgroundColor = '#e5e5e5';
@@ -328,7 +331,6 @@ document.addEventListener('DOMContentLoaded', function () {
     if (noJefeCheckbox) {
         noJefeCheckbox.addEventListener('change', function () {
             if (this.checked) {
-                // Habilitar SAP y Nombre y limpiar campos
                 sapDisplay.disabled = false;
                 nombreDisplay.disabled = false;
 
@@ -338,7 +340,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 sapDisplay.style.backgroundColor = '#ffffff';
                 nombreDisplay.style.backgroundColor = '#ffffff';
             } else {
-                // Volver a bloquear y restaurar valores originales
                 sapDisplay.disabled = true;
                 nombreDisplay.disabled = true;
 
@@ -348,7 +349,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 sapDisplay.style.backgroundColor = '#e5e5e5';
                 nombreDisplay.style.backgroundColor = '#e5e5e5';
 
-                // Restaurar también los hidden
                 sapValueHidden.value    = originalSap;
                 nombreValueHidden.value = originalNombre;
             }
@@ -358,88 +358,110 @@ document.addEventListener('DOMContentLoaded', function () {
     // -----------------------------
     // Área de soporte → lista de problemas
     // -----------------------------
-    // Si no existe el select de área o el de problema, no seguimos con esta parte
-    if (!areaSoporte || !problemaSelect) {
-        // pero el resto del formulario (noJefe y submit) sí se sigue usando
-        ticketForm.addEventListener('submit', function () {
-            const sapFinal    = sapDisplay.value.trim();
-            const nombreFinal = nombreDisplay.value.trim();
+    if (areaSoporte && problemaSelect) {
 
-            sapValueHidden.value    = sapFinal;
-            nombreValueHidden.value = nombreFinal;
-        });
-        return;
-    }
+        const problemOptions = {
+            TI: [
+                { value: 'no_internet',   label: 'No tengo internet' },
+                { value: 'no_checador',   label: 'No funciona checador' },
+                { value: 'no_legado',     label: 'No tengo acceso a legado/legacy' },
+                { value: 'rastreo',       label: 'Rastreo de checada de colaborador' },
+                { value: 'otro',          label: 'Otro (TI)' }
+            ],
+            SAP: [
+                { value: 'cierre_dia',    label: 'Cierre de día' },
+                { value: 'replica',       label: 'Replica' },
+                { value: 'no_sap',        label: 'No tengo acceso a SAP' },
+                { value: 'otro',          label: 'Otro (SAP)' }
+            ],
+            MKT: [
+                { value: 'update_cliente', label: 'Modificación de cliente' },
+                { value: 'alta_cliente',   label: 'Alta de cliente' },
+                { value: 'Descuentos',     label: 'Descuentos' },
+                { value: 'otro',           label: 'Otro (MKT / Diseño)' }
+            ]
+        };
 
-    // Opciones de problemas por área de soporte
-    const problemOptions = {
-        TI: [
-            { value: 'no_internet',   label: 'No tengo internet' },
-            { value: 'no_checador',   label: 'No funciona checador' },
-            { value: 'no_legado',     label: 'No tengo acceso a legado/legacy' },
-            { value: 'rastreo',       label: 'Rastreo de checadam de colaborador' },
-            { value: 'otro',          label: 'Otro (TI)' }
-        ],
-        SAP: [
-            { value: 'cierre_dia',    label: 'Cierre de día' },
-            { value: 'replica',       label: 'Replica' },
-            { value: 'no_sap',        label: 'No tengo acceso a SAP' },
-            { value: 'otro',          label: 'Otro (SAP)' }
-        ],
-        MKT: [
-            { value: 'update_cliente',   label: 'Modificacion de cliente' },
-            { value: 'alta_cliente',     label: 'Alta de cliente' },
-            { value: 'Descuentos',     label: 'Descuentos' },
-            { value: 'otro',          label: 'Otro (MKT / Diseño)' }
-        ]
-    };
+        function fillProblemas(areaRaw) {
+            const area = (areaRaw || '').toUpperCase().trim();
 
-    function fillProblemas(areaRaw) {
-        const area = (areaRaw || '').toUpperCase().trim();
+            problemaSelect.innerHTML = '';
 
-        // Limpia select
-        problemaSelect.innerHTML = '';
+            if (!area || !problemOptions[area]) {
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = 'Selecciona primero un área de soporte';
+                problemaSelect.appendChild(opt);
+                problemaSelect.value = '';
 
-        if (!area || !problemOptions[area]) {
-            const opt = document.createElement('option');
-            opt.value = '';
-            opt.textContent = 'Selecciona primero un área de soporte';
-            problemaSelect.appendChild(opt);
+                if (adjuntoContainer) adjuntoContainer.style.display = 'none';
+
+                // Reinicia prioridad a media
+                if (prioridadDisplay && prioridadHidden) {
+                    prioridadDisplay.value = 'Media';
+                    prioridadHidden.value  = 'media';
+                }
+                return;
+            }
+
+            const placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.textContent = 'Selecciona un problema';
+            problemaSelect.appendChild(placeholder);
+
+            problemOptions[area].forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.value;
+                opt.textContent = p.label;
+                problemaSelect.appendChild(opt);
+            });
+
             problemaSelect.value = '';
             if (adjuntoContainer) adjuntoContainer.style.display = 'none';
-            return;
+
+            // Al cambiar área, reinicia prioridad a media por default
+            if (prioridadDisplay && prioridadHidden) {
+                prioridadDisplay.value = 'Media';
+                prioridadHidden.value  = 'media';
+            }
         }
 
-        const placeholder = document.createElement('option');
-        placeholder.value = '';
-        placeholder.textContent = 'Selecciona un problema';
-        problemaSelect.appendChild(placeholder);
-
-        problemOptions[area].forEach(p => {
-            const opt = document.createElement('option');
-            opt.value = p.value;
-            opt.textContent = p.label;
-            problemaSelect.appendChild(opt);
+        areaSoporte.addEventListener('change', function () {
+            fillProblemas(this.value);
         });
 
-        problemaSelect.value = '';
-        if (adjuntoContainer) adjuntoContainer.style.display = 'none';
-    }
+        // Problema cambia prioridad y adjuntos
+        if (problemaSelect) {
+            problemaSelect.addEventListener('change', function () {
+                const value = this.value;
 
-    // Cuando cambia el área, llenamos los problemas
-    areaSoporte.addEventListener('change', function () {
-        fillProblemas(this.value);
-    });
+                // Adjuntos solo en "otro"
+                if (adjuntoContainer) {
+                    if (value === 'otro') {
+                        adjuntoContainer.style.display = 'block';
+                    } else {
+                        adjuntoContainer.style.display = 'none';
+                    }
+                }
 
-    // Mostrar / ocultar adjuntos cuando selecciona "Otro"
-    if (problemaSelect && adjuntoContainer) {
-        problemaSelect.addEventListener('change', function () {
-            if (this.value === 'otro') {
-                adjuntoContainer.style.display = 'block';
-            } else {
-                adjuntoContainer.style.display = 'none';
-            }
-        });
+                // PRIORIDAD:
+                // - "otro"  => media
+                // - cualquier otro problema de la lista => alta
+                if (!prioridadDisplay || !prioridadHidden) return;
+
+                if (value === 'otro') {
+                    prioridadDisplay.value = 'Media';
+                    prioridadHidden.value  = 'media';
+                } else if (value === '') {
+                    // nada seleccionado, dejamos media
+                    prioridadDisplay.value = 'Media';
+                    prioridadHidden.value  = 'media';
+                } else {
+                    prioridadDisplay.value = 'Alta';
+                    prioridadHidden.value  = 'alta';
+                }
+            });
+        }
     }
 
     // -----------------------------
@@ -451,6 +473,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
         sapValueHidden.value    = sapFinal;
         nombreValueHidden.value = nombreFinal;
+
+        // Por si acaso, aseguramos prioridadHidden
+        if (prioridadDisplay && prioridadHidden && !prioridadHidden.value) {
+            const txt = (prioridadDisplay.value || '').toLowerCase();
+            if (txt.includes('alta'))  prioridadHidden.value = 'alta';
+            else if (txt.includes('baja')) prioridadHidden.value = 'baja';
+            else prioridadHidden.value = 'media';
+        }
     });
 });
-

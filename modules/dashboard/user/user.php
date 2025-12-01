@@ -367,6 +367,17 @@ function problemaLabel(string $p): string {
                     <option value="">Selecciona primero un área de soporte</option>
                 </select>
             </div>
+            <!-- PRIORIDAD (automática según problema) -->
+<div class="form-group">
+    <label>Prioridad</label>
+    <input type="text"
+           id="prioridadDisplay"
+           value="Media"
+           disabled>
+</div>
+
+<input type="hidden" name="prioridad" id="prioridadValue" value="media">
+
 
             <!-- DESCRIPCIÓN -->
             <div class="form-group form-group-full">
@@ -419,6 +430,6 @@ function problemaLabel(string $p): string {
 <?php include __DIR__ . '/../../../template/footer.php'; ?>
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
-    <script src="/HelpDesk_EQF/assets/js/script.js"></script>
+<script src="/HelpDesk_EQF/assets/js/script.js?v=20251129a"></script>
 </body>
 </html>

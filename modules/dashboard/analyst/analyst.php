@@ -23,11 +23,23 @@ $email = strtolower(trim($userEmail));
 $profileImg = match (true) {
 
     // TI
-    $area === 'TI' =>
+    $area === 'TI'
+    || str_starts_with($email, 'ti@')
+    || str_starts_with($email, 'ti1@')
+    || str_starts_with($email, 'ti2@')
+    || str_starts_with($email, 'ti3@')
+    || str_starts_with($email, 'ti4@')
+    || str_starts_with($email, 'ti5@')
+    || str_starts_with($email, 'ti6@') =>
         '/HelpDesk_EQF/assets/img/pp/pp_ti.jpg',
 
     // SAP
-    $area === 'SAP' =>
+    $area === 'SAP' 
+    || str_starts_with($email, 'administracion@')
+    || str_starts_with($email, 'administracion1@')
+    || str_starts_with($email, 'administracion2@')
+    || str_starts_with($email, 'administracion3@')
+    || str_starts_with($email, 'administracion4@') =>
         '/HelpDesk_EQF/assets/img/pp/pp_sap.jpg',
 
     // MKT → gerente de mercadotecnia + mkt + mkt1-5
@@ -268,6 +280,7 @@ $historyTickets = $stmtHistory->fetchAll();
                                     <th>Usuario</th>
                                     <th>Problema</th>
                                     <th>Descripción</th>
+                                    <th>Acciones</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -278,6 +291,12 @@ $historyTickets = $stmtHistory->fetchAll();
                                         <td><?php echo htmlspecialchars($t['nombre'], ENT_QUOTES, 'UTF-8'); ?></td>
                                         <td><?php echo htmlspecialchars(problemaLabel($t['problema']), ENT_QUOTES, 'UTF-8'); ?></td>
                                         <td><?php echo htmlspecialchars($t['descripcion'], ENT_QUOTES, 'UTF-8'); ?></td>
+                                        <td>
+                                            <button type="button"
+                                                    class="btn-assign-ticket">
+                                                    Asignar
+                                            </button>
+                                        </td>
                                     </tr>
                                 <?php endforeach; ?>
                             </tbody>
@@ -380,5 +399,131 @@ $historyTickets = $stmtHistory->fetchAll();
             });
         });
     </script>
+    <script>
+document.addEventListener('DOMContentLoaded', function () {
+    // Delegación para botones "Asignar"
+    document.addEventListener('click', function (e) {
+        const btn = e.target.closest('.btn-assign-ticket');
+        if (!btn) return;
+
+        const row = btn.closest('tr');
+        const ticketId = row ? row.getAttribute('data-ticket-id') : null;
+        if (!ticketId) return;
+
+        btn.disabled = true;
+        btn.textContent = 'Asignando...';
+
+        fetch('/HelpDesk_EQF/modules/ticket/assign.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: 'ticket_id=' + encodeURIComponent(ticketId)
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (!data.ok) {
+                alert(data.msg || 'No se pudo asignar el ticket.');
+                btn.disabled = false;
+                btn.textContent = 'Asignar';
+                return;
+            }
+
+            // 1) Quitar la fila de "entrantes"
+            row.parentNode.removeChild(row);
+
+            // 2) Mostrar aviso visual
+            showTicketToast('Ticket #' + ticketId + ' asignado a ti.');
+
+            // 3) (Opcional) Recargar tabla de "Mis tickets activos" via fetch o simplemente:
+            location.reload(); // si quieres mantenerlo simple por ahora
+        })
+        .catch(err => {
+            console.error(err);
+            alert('Error al asignar el ticket.');
+            btn.disabled = false;
+            btn.textContent = 'Asignar';
+        });
+    });
+
+    // Pequeña notificación dentro de la página
+    function showTicketToast(text) {
+        const toast = document.createElement('div');
+        toast.className = 'eqf-toast-ticket';
+        toast.textContent = text;
+        document.body.appendChild(toast);
+
+        setTimeout(() => {
+            toast.classList.add('hide');
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    }
+});
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    let lastTicketId = 0;
+
+    // Pedimos permiso para notificaciones del navegador
+    if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+    }
+
+    function showInPageToast(msg) {
+        const toast = document.createElement('div');
+        toast.className = 'eqf-toast-ticket';
+        toast.textContent = msg;
+        document.body.appendChild(toast);
+        setTimeout(() => {
+            toast.classList.add('hide');
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    }
+
+    function showDesktopNotification(ticket) {
+        if (!('Notification' in window)) return;
+        if (Notification.permission !== 'granted') return;
+
+        new Notification('Nuevo ticket entrante (' + ticket.id + ')', {
+            body: ticket.problema,
+            icon: '/HelpDesk_EQF/assets/img/icon_helpdesk.png' // si tienes uno
+        });
+    }
+
+    function pollNewTickets() {
+        fetch('/HelpDesk_EQF/modules/ticket/check_new.php?last_id=' + lastTicketId)
+            .then(r => r.json())
+            .then(data => {
+                if (!data.new) return;
+
+                lastTicketId = data.id;
+
+                const msg = 'Nuevo ticket #' + data.id + ' – ' + data.problema;
+                showInPageToast(msg);
+                showDesktopNotification(data);
+
+                // Opcional: recargar tabla de entrantes automáticamente
+                // location.reload();
+            })
+            .catch(err => console.error('Error comprobando nuevos tickets:', err));
+    }
+
+    // Llamada inicial para pillar el último id actual (para no notificar lo viejo)
+    fetch('/HelpDesk_EQF/modules/ticket/check_new.php?last_id=0')
+        .then(r => r.json())
+        .then(data => {
+            if (data.new) {
+                lastTicketId = data.id;
+            }
+        })
+        .catch(() => {});
+
+    // Revisar cada 10 segundos
+    setInterval(pollNewTickets, 10000);
+});
+</script>
+
+
 </body>
 </html>
