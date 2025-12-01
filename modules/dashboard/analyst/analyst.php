@@ -320,17 +320,25 @@ $historyTickets = $stmtHistory->fetchAll();
                                     <th>Estatus</th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                <?php foreach ($myTickets as $t): ?>
-                                    <tr>
-                                        <td><?php echo (int)$t['id']; ?></td>
-                                        <td><?php echo htmlspecialchars($t['fecha_envio'], ENT_QUOTES, 'UTF-8'); ?></td>
-                                        <td><?php echo htmlspecialchars($t['nombre'], ENT_QUOTES, 'UTF-8'); ?></td>
-                                        <td><?php echo htmlspecialchars(problemaLabel($t['problema']), ENT_QUOTES, 'UTF-8'); ?></td>
-                                        <td><?php echo htmlspecialchars($t['estado'], ENT_QUOTES, 'UTF-8'); ?></td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
+<tbody>
+<?php foreach ($myTickets as $t): ?>
+    <tr>
+        <td><?php echo (int)$t['id']; ?></td>
+        <td><?php echo htmlspecialchars($t['fecha_envio'], ENT_QUOTES, 'UTF-8'); ?></td>
+        <td><?php echo htmlspecialchars($t['nombre'], ENT_QUOTES, 'UTF-8'); ?></td>
+        <td><?php echo htmlspecialchars(problemaLabel($t['problema']), ENT_QUOTES, 'UTF-8'); ?></td>
+        <td><?php echo htmlspecialchars($t['estado'], ENT_QUOTES, 'UTF-8'); ?></td>
+        <td>
+            <button type="button"
+                    class="btn-login"
+                    onclick="openTicketChat(<?php echo (int)$t['id']; ?>, '<?php echo htmlspecialchars($t['nombre'], ENT_QUOTES, 'UTF-8'); ?>')">
+                Ver chat
+            </button>
+        </td>
+    </tr>
+<?php endforeach; ?>
+</tbody>
+
                         </table>
                     <?php endif; ?>
                 </div>
@@ -371,6 +379,29 @@ $historyTickets = $stmtHistory->fetchAll();
             </section>
         </section>
     </main>
+    <!-- MODAL CHAT DE TICKET -->
+<div class="modal-backdrop" id="ticket-chat-modal">
+    <div class="modal-card ticket-chat-modal-card">
+        <div class="modal-header">
+            <h3 id="ticketChatTitle">Chat del ticket</h3>
+            <button type="button" class="modal-close" onclick="closeTicketChat()">✕</button>
+        </div>
+
+        <div class="ticket-chat-body" id="ticketChatBody">
+            <!-- Mensajes se agregan por JS -->
+        </div>
+
+        <form class="ticket-chat-form" onsubmit="sendTicketMessage(event)">
+            <textarea id="ticketChatInput"
+                      rows="2"
+                      placeholder="Escribe tu mensaje..."></textarea>
+            <button type="submit" class="btn-login" style="min-width: 120px;">
+                Enviar
+            </button>
+        </form>
+    </div>
+</div>
+
 
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
@@ -523,7 +554,152 @@ document.addEventListener('DOMContentLoaded', function () {
     setInterval(pollNewTickets, 10000);
 });
 </script>
+<script>
+let currentTicketId = null;
+let lastMessageId   = 0;
+let chatPollTimer   = null;
 
+// Abre el modal de chat para un ticket
+function openTicketChat(ticketId, tituloExtra) {
+    currentTicketId = ticketId;
+    lastMessageId   = 0;
+
+    const titleEl = document.getElementById('ticketChatTitle');
+    if (titleEl) {
+        titleEl.textContent = 'Chat del ticket #' + ticketId + (tituloExtra ? ' – ' + tituloExtra : '');
+    }
+
+    const bodyEl = document.getElementById('ticketChatBody');
+    if (bodyEl) {
+        bodyEl.innerHTML = ''; // limpiamos mensajes previos
+    }
+
+    if (typeof openModal === 'function') {
+        openModal('ticket-chat-modal');
+    } else {
+        // por si acaso
+        document.getElementById('ticket-chat-modal')?.classList.add('show');
+    }
+
+    // Cargar mensajes iniciales
+    fetchMessages(true);
+
+    // Iniciar polling
+    if (chatPollTimer) clearInterval(chatPollTimer);
+    chatPollTimer = setInterval(() => fetchMessages(false), 5000);
+}
+
+function closeTicketChat() {
+    if (typeof closeModal === 'function') {
+        closeModal('ticket-chat-modal');
+    } else {
+        document.getElementById('ticket-chat-modal')?.classList.remove('show');
+    }
+    if (chatPollTimer) {
+        clearInterval(chatPollTimer);
+        chatPollTimer = null;
+    }
+    currentTicketId = null;
+}
+
+// Pinta un mensaje en el body
+function appendChatMessage(msg) {
+    const bodyEl = document.getElementById('ticketChatBody');
+    if (!bodyEl) return;
+
+    const div = document.createElement('div');
+    div.className = 'ticket-chat-message';
+
+    const myId = <?php echo (int)($_SESSION['user_id'] ?? 0); ?>;
+    const isMine = (parseInt(msg.sender_id, 10) === myId);
+
+    div.classList.add(isMine ? 'mine' : 'other');
+
+    const textSpan = document.createElement('span');
+    textSpan.textContent = msg.mensaje;
+    div.appendChild(textSpan);
+
+    const meta = document.createElement('span');
+    meta.className = 'ticket-chat-meta';
+
+    const rol = msg.sender_role || '';
+    const at  = msg.created_at || '';
+    meta.textContent = (rol ? rol + ' · ' : '') + at;
+    div.appendChild(meta);
+
+    bodyEl.appendChild(div);
+    bodyEl.scrollTop = bodyEl.scrollHeight;
+}
+
+// Obtener mensajes nuevos
+function fetchMessages(initial) {
+    if (!currentTicketId) return;
+
+    const url = '/HelpDesk_EQF/modules/ticket/get_messages.php'
+              + '?ticket_id=' + encodeURIComponent(currentTicketId)
+              + '&last_id=' + encodeURIComponent(lastMessageId);
+
+    fetch(url)
+        .then(r => r.json())
+        .then(data => {
+            if (!data.ok || !Array.isArray(data.messages)) return;
+
+            data.messages.forEach(m => {
+                appendChatMessage(m);
+                if (m.id > lastMessageId) {
+                    lastMessageId = m.id;
+                }
+            });
+        })
+        .catch(err => console.error('Error obteniendo mensajes:', err));
+}
+
+// Enviar mensaje
+function sendTicketMessage(ev) {
+    ev.preventDefault();
+    if (!currentTicketId) return;
+
+    const input = document.getElementById('ticketChatInput');
+    if (!input) return;
+
+    const texto = input.value.trim();
+    if (!texto) return;
+
+    input.value = '';
+    input.disabled = true;
+
+    const body = 'ticket_id=' + encodeURIComponent(currentTicketId)
+               + '&mensaje='  + encodeURIComponent(texto);
+
+    fetch('/HelpDesk_EQF/modules/ticket/send_message.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body
+    })
+    .then(r => r.json())
+    .then(data => {
+        input.disabled = false;
+        input.focus();
+
+        if (!data.ok) {
+            alert(data.msg || 'No se pudo enviar el mensaje');
+            return;
+        }
+
+        // Opcionalmente forzamos un fetch para ver nuestro mensaje ya ordenado
+        fetchMessages(false);
+    })
+    .catch(err => {
+        console.error('Error enviando mensaje:', err);
+        input.disabled = false;
+        alert('Error al enviar el mensaje');
+    });
+}
+</script>
+<?php include __DIR__ . '/../../../template/footer.php'; ?>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="/HelpDesk_EQF/assets/js/script.js?v=20251129a"></script>
 
 </body>
 </html>
