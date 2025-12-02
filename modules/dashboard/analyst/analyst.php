@@ -184,9 +184,6 @@ $historyTickets = $stmtHistory->fetchAll();
              alt="Foto de perfil"
              class="user-sidebar-avatar">
 
-        <div class="user-sidebar-avatar-circle">
-            <?php echo strtoupper(substr($userName, 0, 1)); ?>
-        </div>
         <div class="user-sidebar-info">
             <p class="user-sidebar-name">
                 <?php echo htmlspecialchars($userName, ENT_QUOTES, 'UTF-8'); ?>
