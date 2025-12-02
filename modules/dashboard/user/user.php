@@ -216,19 +216,37 @@ function problemaLabel(string $p): string {
         <p>No tienes tickets abiertos por el momento. </p>
     <?php else: ?>
         <ul class="user-tickets-list">
-            <?php foreach ($openTickets as $t): ?>
-                <li class="user-ticket-item">
-                    <div>
-                        <strong>#<?php echo (int)$t['id']; ?></strong>
-                        — <?php echo htmlspecialchars(problemaLabel($t['problema']), ENT_QUOTES, 'UTF-8'); ?>
-                    </div>
-                    <small>
-                        <?php echo htmlspecialchars($t['fecha_envio'], ENT_QUOTES, 'UTF-8'); ?>
-                        · <?php echo htmlspecialchars($t['estado'], ENT_QUOTES, 'UTF-8'); ?>
-                    </small>
-                </li>
-            <?php endforeach; ?>
-        </ul>
+    <?php foreach ($openTickets as $t): ?>
+        <li class="user-ticket-item">
+
+            <div class="user-ticket-info">
+                <div>
+                    <strong>#<?php echo (int)$t['id']; ?></strong>
+                    — <?php echo htmlspecialchars(problemaLabel($t['problema']), ENT_QUOTES, 'UTF-8'); ?>
+                </div>
+
+                <small>
+                    <?php echo htmlspecialchars($t['fecha_envio'], ENT_QUOTES, 'UTF-8'); ?>
+                    · <?php echo htmlspecialchars($t['estado'], ENT_QUOTES, 'UTF-8'); ?>
+                </small>
+            </div>
+
+            <div class="user-ticket-actions">
+                <button type="button"
+                        class="btn-login"
+                        style="padding:6px 14px; font-size:0.75rem;"
+                        onclick="openTicketChat(
+                            <?php echo (int)$t['id']; ?>,
+                            '<?php echo htmlspecialchars(problemaLabel($t['problema']), ENT_QUOTES, 'UTF-8'); ?>'
+                        )">
+                    Ver chat
+                </button>
+            </div>
+
+        </li>
+    <?php endforeach; ?>
+</ul>
+
         <button type="button" class="btn-secondary user-main-cta"
                 onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/user/tickets.php'">
             Ver todos los tickets
@@ -405,6 +423,39 @@ function problemaLabel(string $p): string {
     </div>
 </div>
 
+<!-- MODAL CHAT DE TICKET -->
+<div class="modal-backdrop" id="ticket-chat-modal">
+    <div class="modal-card ticket-chat-modal-card">
+        <div class="modal-header">
+            <h3 id="ticketChatTitle">Chat del ticket</h3>
+            <button type="button" class="modal-close" onclick="closeTicketChat()">✕</button>
+        </div>
+
+        <div class="ticket-chat-body" id="ticketChatBody">
+            <!-- Mensajes se agregan por JS -->
+        </div>
+
+        <form class="ticket-chat-form" onsubmit="sendTicketMessage(event)">
+            <textarea id="ticketChatInput"
+                      rows="2"
+                      placeholder="Escribe tu mensaje..."
+                       style="width:100%"></textarea>
+                       <div class="ticket-chat-input-row">
+        <input type="file"
+               id="ticketChatFile"
+               name="adjunto"
+               class="ticket-chat-file"
+               accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,.csv"
+                style="width:100%">
+
+            <button type="submit" class="btn-login" style="min-width: 60px;">
+                Enviar
+            </button>
+        </form>
+    </div>
+</div>
+
+
     <script>
         function openTicketModal() {
             document.getElementById('ticketModal').classList.add('is-visible');
@@ -426,6 +477,206 @@ function problemaLabel(string $p): string {
             }
         }
     </script>
+<script>
+let currentTicketId = null;
+let lastMessageId   = 0;
+let chatPollTimer   = null;
+
+// Abre el modal de chat para un ticket
+function openTicketChat(ticketId, tituloExtra) {
+    currentTicketId = ticketId;
+    lastMessageId   = 0;
+
+    const titleEl = document.getElementById('ticketChatTitle');
+    if (titleEl) {
+        titleEl.textContent = 'Chat del ticket #' + ticketId + (tituloExtra ? ' – ' + tituloExtra : '');
+    }
+
+    const bodyEl = document.getElementById('ticketChatBody');
+    if (bodyEl) {
+        bodyEl.innerHTML = ''; // limpiamos mensajes previos
+    }
+
+    if (typeof openModal === 'function') {
+        openModal('ticket-chat-modal');
+    } else {
+        // por si acaso
+        document.getElementById('ticket-chat-modal')?.classList.add('show');
+    }
+
+    // Cargar mensajes iniciales
+    fetchMessages(true);
+
+    // Iniciar polling
+    if (chatPollTimer) clearInterval(chatPollTimer);
+    chatPollTimer = setInterval(() => fetchMessages(false), 5000);
+}
+
+function closeTicketChat() {
+    if (typeof closeModal === 'function') {
+        closeModal('ticket-chat-modal');
+    } else {
+        document.getElementById('ticket-chat-modal')?.classList.remove('show');
+    }
+    if (chatPollTimer) {
+        clearInterval(chatPollTimer);
+        chatPollTimer = null;
+    }
+    currentTicketId = null;
+}
+
+// Pinta un mensaje en el body
+function appendChatMessage(msg) {
+    const bodyEl = document.getElementById('ticketChatBody');
+    if (!bodyEl) return;
+
+    const div = document.createElement('div');
+    div.className = 'ticket-chat-message';
+
+    const myId = <?php echo (int)($_SESSION['user_id'] ?? 0); ?>;
+    const isMine = (parseInt(msg.sender_id, 10) === myId);
+
+    div.classList.add(isMine ? 'mine' : 'other');
+
+    // Texto del mensaje
+    if (msg.mensaje) {
+        const textSpan = document.createElement('span');
+        textSpan.textContent = msg.mensaje;
+        div.appendChild(textSpan);
+    }
+
+    // Si hay archivo adjunto, mostramos link (y preview si es imagen)
+    if (msg.file_url) {
+        const fileWrapper = document.createElement('div');
+        fileWrapper.style.marginTop = '6px';
+
+        const url  = msg.file_url;
+        const name = msg.file_name || 'Archivo adjunto';
+        const type = msg.file_type || '';
+
+        // Si es imagen, mostramos miniatura clickeable
+        if (type.startsWith('image/')) {
+            const imgLink = document.createElement('a');
+            imgLink.href   = url;
+            imgLink.target = '_blank';
+            imgLink.rel    = 'noopener';
+
+            const img = document.createElement('img');
+            img.src = url;
+            img.alt = name;
+            img.className = 'ticket-chat-image';
+
+            imgLink.appendChild(img);
+            fileWrapper.appendChild(imgLink);
+        } else {
+            // Para otros archivos, solo un link
+            const link = document.createElement('a');
+            link.href   = url;
+            link.target = '_blank';
+            link.rel    = 'noopener';
+            link.textContent = '📎 ' + name;
+            fileWrapper.appendChild(link);
+        }
+
+        div.appendChild(fileWrapper);
+    }
+
+    // Meta (rol + fecha)
+    const meta = document.createElement('span');
+    meta.className = 'ticket-chat-meta';
+
+    const rol = msg.sender_role || '';
+    const at  = msg.created_at || '';
+    meta.textContent = (rol ? rol + ' · ' : '') + at;
+    div.appendChild(meta);
+
+    bodyEl.appendChild(div);
+    bodyEl.scrollTop = bodyEl.scrollHeight;
+}
+
+
+
+// Obtener mensajes nuevos
+function fetchMessages(initial) {
+    if (!currentTicketId) return;
+
+    const url = '/HelpDesk_EQF/modules/ticket/get_messages.php'
+              + '?ticket_id=' + encodeURIComponent(currentTicketId)
+              + '&last_id=' + encodeURIComponent(lastMessageId);
+
+    fetch(url)
+        .then(r => r.json())
+        .then(data => {
+            if (!data.ok || !Array.isArray(data.messages)) return;
+
+            data.messages.forEach(m => {
+                appendChatMessage(m);
+                if (m.id > lastMessageId) {
+                    lastMessageId = m.id;
+                }
+            });
+        })
+        .catch(err => console.error('Error obteniendo mensajes:', err));
+}
+
+// Enviar mensaje
+function sendTicketMessage(ev) {
+    ev.preventDefault();
+    if (!currentTicketId) return;
+
+    const input = document.getElementById('ticketChatInput');
+    const fileInput = document.getElementById('ticketChatFile');
+    if (!input) return;
+
+    const texto = input.value.trim();
+    const file  = fileInput && fileInput.files.length > 0 ? fileInput.files[0] : null;
+
+    if (!texto && !file) {
+        return; // no mandes nada vacío
+    }
+
+    input.disabled = true;
+    if (fileInput) fileInput.disabled = true;
+
+    const formData = new FormData();
+    formData.append('ticket_id', currentTicketId);
+    formData.append('mensaje', texto);
+    if (file) {
+        formData.append('adjunto', file);
+    }
+
+    fetch('/HelpDesk_EQF/modules/ticket/send_message.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        input.disabled = false;
+        if (fileInput) {
+            fileInput.disabled = false;
+            fileInput.value = '';
+        }
+
+        if (!data.ok) {
+            alert(data.msg || 'No se pudo enviar el mensaje');
+            return;
+        }
+
+        input.value = '';
+        input.focus();
+
+        // fuerza refresh para ver mensaje + adjunto
+        fetchMessages(false);
+    })
+    .catch(err => {
+        console.error('Error enviando mensaje:', err);
+        input.disabled = false;
+        if (fileInput) fileInput.disabled = false;
+        alert('Error al enviar el mensaje');
+    });
+}
+
+</script>
 
 <?php include __DIR__ . '/../../../template/footer.php'; ?>
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>

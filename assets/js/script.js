@@ -367,7 +367,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 { value: 'no_internet',   label: 'No tengo internet' },
                 { value: 'no_checador',   label: 'No funciona checador' },
                 { value: 'no_legado',     label: 'No tengo acceso a legado/legacy' },
-                { value: 'rastreo',       label: 'Rastreo de checada de colaborador' },
+                { value: 'cierre',       label: 'Cierre de día' },
                 { value: 'otro',          label: 'Otro (TI)' }
             ],
             SAP: [
