@@ -15,15 +15,14 @@ $userEmail = $_SESSION['user_email'] ?? '';
 $userArea  = $_SESSION['user_area'] ?? '';
 $userSap   = $_SESSION['number_sap'] ?? '';
 
-/*imagenes de perfil*/
-
+// ------------ Foto de perfil por área/correo -------------
 $area  = strtolower(trim($userArea));
 $email = strtolower(trim($userEmail));
 
 $profileImg = match (true) {
 
     // TI
-    $area === 'TI'
+    $area === 'ti'
     || str_starts_with($email, 'ti@')
     || str_starts_with($email, 'ti1@')
     || str_starts_with($email, 'ti2@')
@@ -34,7 +33,7 @@ $profileImg = match (true) {
         '/HelpDesk_EQF/assets/img/pp/pp_ti.jpg',
 
     // SAP
-    $area === 'SAP' 
+    $area === 'sap'
     || str_starts_with($email, 'administracion@')
     || str_starts_with($email, 'administracion1@')
     || str_starts_with($email, 'administracion2@')
@@ -43,7 +42,7 @@ $profileImg = match (true) {
         '/HelpDesk_EQF/assets/img/pp/pp_sap.jpg',
 
     // MKT → gerente de mercadotecnia + mkt + mkt1-5
-    $area === 'MKT'
+    $area === 'mkt'
     || str_starts_with($email, 'gerente.mercadotecnia@')
     || str_starts_with($email, 'mkt@')
     || str_starts_with($email, 'mkt1@')
@@ -54,7 +53,7 @@ $profileImg = match (true) {
         '/HelpDesk_EQF/assets/img/pp/pp_mkt.jpg',
 
     // DISEÑO
-    $area === 'diseno' || $area === 'MKT'
+    $area === 'diseno'
     || str_starts_with($email, 'diseno@')
     || str_starts_with($email, 'diseno1@')
     || str_starts_with($email, 'diseno2@') =>
@@ -64,8 +63,6 @@ $profileImg = match (true) {
     default =>
         '/HelpDesk_EQF/assets/img/pp/pp_corporativo.jpg',
 };
-
-
 
 // -------- ALERTAS (ej. al actualizar ticket) ----------
 $alerts = [];
@@ -179,9 +176,8 @@ $historyTickets = $stmtHistory->fetchAll();
                  alt="Foto de perfil"
                  class="user-sidebar-avatar">
 
-            <div class="user-sidebar-avatar-circle">
-                <?php echo strtoupper(substr($userName, 0, 1)); ?>
-            </div>
+            <!-- Quitamos el circulo con la inicial -->
+
             <div class="user-sidebar-info">
                 <p class="user-sidebar-name">
                     <?php echo htmlspecialchars($userName, ENT_QUOTES, 'UTF-8'); ?>
@@ -285,7 +281,7 @@ $historyTickets = $stmtHistory->fetchAll();
                             </thead>
                             <tbody>
                                 <?php foreach ($incomingTickets as $t): ?>
-                                    <tr>
+                                    <tr data-ticket-id="<?php echo (int)$t['id']; ?>">
                                         <td><?php echo (int)$t['id']; ?></td>
                                         <td><?php echo htmlspecialchars($t['fecha_envio'], ENT_QUOTES, 'UTF-8'); ?></td>
                                         <td><?php echo htmlspecialchars($t['nombre'], ENT_QUOTES, 'UTF-8'); ?></td>
@@ -293,8 +289,9 @@ $historyTickets = $stmtHistory->fetchAll();
                                         <td><?php echo htmlspecialchars($t['descripcion'], ENT_QUOTES, 'UTF-8'); ?></td>
                                         <td>
                                             <button type="button"
-                                                    class="btn-assign-ticket">
-                                                    Asignar
+                                                    class="btn-assign-ticket"
+                                                    data-ticket-id="<?php echo (int)$t['id']; ?>">
+                                                Asignar
                                             </button>
                                         </td>
                                     </tr>
@@ -318,27 +315,27 @@ $historyTickets = $stmtHistory->fetchAll();
                                     <th>Usuario</th>
                                     <th>Problema</th>
                                     <th>Estatus</th>
+                                    <th>Chat</th>
                                 </tr>
                             </thead>
-<tbody>
-<?php foreach ($myTickets as $t): ?>
-    <tr>
-        <td><?php echo (int)$t['id']; ?></td>
-        <td><?php echo htmlspecialchars($t['fecha_envio'], ENT_QUOTES, 'UTF-8'); ?></td>
-        <td><?php echo htmlspecialchars($t['nombre'], ENT_QUOTES, 'UTF-8'); ?></td>
-        <td><?php echo htmlspecialchars(problemaLabel($t['problema']), ENT_QUOTES, 'UTF-8'); ?></td>
-        <td><?php echo htmlspecialchars($t['estado'], ENT_QUOTES, 'UTF-8'); ?></td>
-        <td>
-            <button type="button"
-                    class="btn-login"
-                    onclick="openTicketChat(<?php echo (int)$t['id']; ?>, '<?php echo htmlspecialchars($t['nombre'], ENT_QUOTES, 'UTF-8'); ?>')">
-                Ver chat
-            </button>
-        </td>
-    </tr>
-<?php endforeach; ?>
-</tbody>
-
+                            <tbody>
+                            <?php foreach ($myTickets as $t): ?>
+                                <tr>
+                                    <td><?php echo (int)$t['id']; ?></td>
+                                    <td><?php echo htmlspecialchars($t['fecha_envio'], ENT_QUOTES, 'UTF-8'); ?></td>
+                                    <td><?php echo htmlspecialchars($t['nombre'], ENT_QUOTES, 'UTF-8'); ?></td>
+                                    <td><?php echo htmlspecialchars(problemaLabel($t['problema']), ENT_QUOTES, 'UTF-8'); ?></td>
+                                    <td><?php echo htmlspecialchars($t['estado'], ENT_QUOTES, 'UTF-8'); ?></td>
+                                    <td>
+                                        <button type="button"
+                                                class="btn-login"
+                                                onclick="openTicketChat(<?php echo (int)$t['id']; ?>, '<?php echo htmlspecialchars($t['nombre'], ENT_QUOTES, 'UTF-8'); ?>')">
+                                            Ver chat
+                                        </button>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                            </tbody>
                         </table>
                     <?php endif; ?>
                 </div>
@@ -372,9 +369,9 @@ $historyTickets = $stmtHistory->fetchAll();
                                         <td><?php echo htmlspecialchars($t['estado'], ENT_QUOTES, 'UTF-8'); ?></td>
                                         <td>
                                             <a href="/HelpDesk_EQF/modules/ticket/report.php?ticket_id=<?php echo (int)$t['id']; ?>"
-                                                class="btn-login"
-                                                style="padding:4px 10px; font-size:0.75rem;"
-                                                target="_blank">
+                                               class="btn-login"
+                                               style="padding:4px 10px; font-size:0.75rem;"
+                                               target="_blank">
                                                 PDF
                                             </a>
                                         </td>
@@ -388,195 +385,78 @@ $historyTickets = $stmtHistory->fetchAll();
             </section>
         </section>
     </main>
+
     <!-- MODAL CHAT DE TICKET -->
-<div class="modal-backdrop" id="ticket-chat-modal">
-    <div class="modal-card ticket-chat-modal-card">
-        <div class="modal-header">
-            <h3 id="ticketChatTitle">Chat del ticket</h3>
-            <button type="button" class="modal-close" onclick="closeTicketChat()">✕</button>
-        </div>
+    <div class="modal-backdrop" id="ticket-chat-modal">
+        <div class="modal-card ticket-chat-modal-card">
+            <div class="modal-header">
+                <h3 id="ticketChatTitle">Chat del ticket</h3>
+                <button type="button" class="modal-close" onclick="closeTicketChat()">✕</button>
+            </div>
 
-        <div class="ticket-chat-body" id="ticketChatBody">
-            <!-- Mensajes se agregan por JS -->
-        </div>
+            <div class="ticket-chat-body" id="ticketChatBody">
+                <!-- Mensajes se agregan por JS -->
+            </div>
 
-        <form class="ticket-chat-form" onsubmit="sendTicketMessage(event)">
-            <textarea id="ticketChatInput"
-                      rows="2"
-                      placeholder="Escribe tu mensaje..."
-                       style="width:100%"></textarea>
-                       <div class="ticket-chat-input-row">
-        <input type="file"
-               id="ticketChatFile"
-               name="adjunto"
-               class="ticket-chat-file"
-               accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,.csv"
-                style="width:100%">
-            <button type="submit" class="btn-login" style="min-width: 60px;">
-                Enviar
-            </button>
-        </form>
+            <form class="ticket-chat-form" onsubmit="sendTicketMessage(event)">
+                <textarea id="ticketChatInput"
+                          rows="2"
+                          placeholder="Escribe tu mensaje..."
+                          style="width:100%"></textarea>
+                <div class="ticket-chat-input-row">
+                    <input type="file"
+                           id="ticketChatFile"
+                           name="adjunto"
+                           class="ticket-chat-file"
+                           accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,.csv"
+                           style="width:100%">
+                    <button type="submit" class="btn-login" style="min-width: 60px;">
+                        Enviar
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
-</div>
 
+<?php include __DIR__ . '/../../../template/footer.php'; ?>
 
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
-    <script src="/HelpDesk_EQF/assets/js/script.js"></script>
-    <script>
-        function scrollToSection(id) {
-            const el = document.getElementById(id);
-            if (!el) return;
-            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-
-        $(document).ready(function () {
-            $('#incomingTable').DataTable({
-                pageLength: 5,
-                order: [[1, 'asc']]
-            });
-
-            $('#myTicketsTable').DataTable({
-                pageLength: 5,
-                order: [[1, 'desc']]
-            });
-
-            $('#historyTable').DataTable({
-                pageLength: 5,
-                order: [[1, 'desc']]
-            });
-        });
-    </script>
-    <script>
-document.addEventListener('DOMContentLoaded', function () {
-    // Delegación para botones "Asignar"
-    document.addEventListener('click', function (e) {
-        const btn = e.target.closest('.btn-assign-ticket');
-        if (!btn) return;
-
-        const row = btn.closest('tr');
-        const ticketId = row ? row.getAttribute('data-ticket-id') : null;
-        if (!ticketId) return;
-
-        btn.disabled = true;
-        btn.textContent = 'Asignando...';
-
-        fetch('/HelpDesk_EQF/modules/ticket/assign.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded'
-            },
-            body: 'ticket_id=' + encodeURIComponent(ticketId)
-        })
-        .then(r => r.json())
-        .then(data => {
-            if (!data.ok) {
-                alert(data.msg || 'No se pudo asignar el ticket.');
-                btn.disabled = false;
-                btn.textContent = 'Asignar';
-                return;
-            }
-
-            // 1) Quitar la fila de "entrantes"
-            row.parentNode.removeChild(row);
-
-            // 2) Mostrar aviso visual
-            showTicketToast('Ticket #' + ticketId + ' asignado a ti.');
-
-            // 3) (Opcional) Recargar tabla de "Mis tickets activos" via fetch o simplemente:
-            location.reload(); // si quieres mantenerlo simple por ahora
-        })
-        .catch(err => {
-            console.error(err);
-            alert('Error al asignar el ticket.');
-            btn.disabled = false;
-            btn.textContent = 'Asignar';
-        });
-    });
-
-    // Pequeña notificación dentro de la página
-    function showTicketToast(text) {
-        const toast = document.createElement('div');
-        toast.className = 'eqf-toast-ticket';
-        toast.textContent = text;
-        document.body.appendChild(toast);
-
-        setTimeout(() => {
-            toast.classList.add('hide');
-            setTimeout(() => toast.remove(), 300);
-        }, 3000);
-    }
-});
-</script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+<script src="/HelpDesk_EQF/assets/js/script.js?v=20251129a"></script>
 
 <script>
-document.addEventListener('DOMContentLoaded', function () {
-    let lastTicketId = 0;
-
-    // Pedimos permiso para notificaciones del navegador
-    if ('Notification' in window && Notification.permission === 'default') {
-        Notification.requestPermission();
-    }
-
-    function showInPageToast(msg) {
-        const toast = document.createElement('div');
-        toast.className = 'eqf-toast-ticket';
-        toast.textContent = msg;
-        document.body.appendChild(toast);
-        setTimeout(() => {
-            toast.classList.add('hide');
-            setTimeout(() => toast.remove(), 300);
-        }, 3000);
-    }
-
-    function showDesktopNotification(ticket) {
-        if (!('Notification' in window)) return;
-        if (Notification.permission !== 'granted') return;
-
-        new Notification('Nuevo ticket entrante (' + ticket.id + ')', {
-            body: ticket.problema,
-            icon: '/HelpDesk_EQF/assets/img/icon_helpdesk.png' // si tienes uno
-        });
-    }
-
-    function pollNewTickets() {
-        fetch('/HelpDesk_EQF/modules/ticket/check_new.php?last_id=' + lastTicketId)
-            .then(r => r.json())
-            .then(data => {
-                if (!data.new) return;
-
-                lastTicketId = data.id;
-
-                const msg = 'Nuevo ticket #' + data.id + ' – ' + data.problema;
-                showInPageToast(msg);
-                showDesktopNotification(data);
-
-                // Opcional: recargar tabla de entrantes automáticamente
-                // location.reload();
-            })
-            .catch(err => console.error('Error comprobando nuevos tickets:', err));
-    }
-
-    // Llamada inicial para pillar el último id actual (para no notificar lo viejo)
-    fetch('/HelpDesk_EQF/modules/ticket/check_new.php?last_id=0')
-        .then(r => r.json())
-        .then(data => {
-            if (data.new) {
-                lastTicketId = data.id;
-            }
-        })
-        .catch(() => {});
-
-    // Revisar cada 10 segundos
-    setInterval(pollNewTickets, 10000);
-});
-</script>
-<script>
+// ===============================
+//  Variables globales para chat
+// ===============================
+const CURRENT_USER_ID = <?php echo (int)($_SESSION['user_id'] ?? 0); ?>;
 let currentTicketId = null;
 let lastMessageId   = 0;
 let chatPollTimer   = null;
 
-// Abre el modal de chat para un ticket
+// ===============================
+//  Utilidades generales
+// ===============================
+function scrollToSection(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function showTicketToast(text) {
+    const toast = document.createElement('div');
+    toast.className = 'eqf-toast-ticket';
+    text && (toast.textContent = text);
+    document.body.appendChild(toast);
+
+    setTimeout(() => {
+        toast.classList.add('hide');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
+// ===============================
+//  Chat: abrir/cerrar
+// ===============================
 function openTicketChat(ticketId, tituloExtra) {
     currentTicketId = ticketId;
     lastMessageId   = 0;
@@ -588,20 +468,17 @@ function openTicketChat(ticketId, tituloExtra) {
 
     const bodyEl = document.getElementById('ticketChatBody');
     if (bodyEl) {
-        bodyEl.innerHTML = ''; // limpiamos mensajes previos
+        bodyEl.innerHTML = '';
     }
 
     if (typeof openModal === 'function') {
         openModal('ticket-chat-modal');
     } else {
-        // por si acaso
         document.getElementById('ticket-chat-modal')?.classList.add('show');
     }
 
-    // Cargar mensajes iniciales
     fetchMessages(true);
 
-    // Iniciar polling
     if (chatPollTimer) clearInterval(chatPollTimer);
     chatPollTimer = setInterval(() => fetchMessages(false), 5000);
 }
@@ -619,7 +496,9 @@ function closeTicketChat() {
     currentTicketId = null;
 }
 
-// Pinta un mensaje en el body
+// ===============================
+//  Chat: render de mensajes
+// ===============================
 function appendChatMessage(msg) {
     const bodyEl = document.getElementById('ticketChatBody');
     if (!bodyEl) return;
@@ -627,19 +506,15 @@ function appendChatMessage(msg) {
     const div = document.createElement('div');
     div.className = 'ticket-chat-message';
 
-    const myId = <?php echo (int)($_SESSION['user_id'] ?? 0); ?>;
-    const isMine = (parseInt(msg.sender_id, 10) === myId);
-
+    const isMine = (parseInt(msg.sender_id, 10) === CURRENT_USER_ID);
     div.classList.add(isMine ? 'mine' : 'other');
 
-    // Texto del mensaje
     if (msg.mensaje) {
         const textSpan = document.createElement('span');
         textSpan.textContent = msg.mensaje;
         div.appendChild(textSpan);
     }
 
-    // Si hay archivo adjunto, mostramos link (y preview si es imagen)
     if (msg.file_url) {
         const fileWrapper = document.createElement('div');
         fileWrapper.style.marginTop = '6px';
@@ -648,7 +523,6 @@ function appendChatMessage(msg) {
         const name = msg.file_name || 'Archivo adjunto';
         const type = msg.file_type || '';
 
-        // Si es imagen, mostramos miniatura clickeable
         if (type.startsWith('image/')) {
             const imgLink = document.createElement('a');
             imgLink.href   = url;
@@ -663,7 +537,6 @@ function appendChatMessage(msg) {
             imgLink.appendChild(img);
             fileWrapper.appendChild(imgLink);
         } else {
-            // Para otros archivos, solo un link
             const link = document.createElement('a');
             link.href   = url;
             link.target = '_blank';
@@ -675,10 +548,8 @@ function appendChatMessage(msg) {
         div.appendChild(fileWrapper);
     }
 
-    // Meta (rol + fecha)
     const meta = document.createElement('span');
     meta.className = 'ticket-chat-meta';
-
     const rol = msg.sender_role || '';
     const at  = msg.created_at || '';
     meta.textContent = (rol ? rol + ' · ' : '') + at;
@@ -688,9 +559,9 @@ function appendChatMessage(msg) {
     bodyEl.scrollTop = bodyEl.scrollHeight;
 }
 
-
-
-// Obtener mensajes nuevos
+// ===============================
+//  Chat: obtener mensajes
+// ===============================
 function fetchMessages(initial) {
     if (!currentTicketId) return;
 
@@ -713,21 +584,21 @@ function fetchMessages(initial) {
         .catch(err => console.error('Error obteniendo mensajes:', err));
 }
 
-// Enviar mensaje
+// ===============================
+//  Chat: enviar mensaje
+// ===============================
 function sendTicketMessage(ev) {
     ev.preventDefault();
     if (!currentTicketId) return;
 
-    const input = document.getElementById('ticketChatInput');
+    const input     = document.getElementById('ticketChatInput');
     const fileInput = document.getElementById('ticketChatFile');
     if (!input) return;
 
     const texto = input.value.trim();
     const file  = fileInput && fileInput.files.length > 0 ? fileInput.files[0] : null;
 
-    if (!texto && !file) {
-        return; // no mandes nada vacío
-    }
+    if (!texto && !file) return;
 
     input.disabled = true;
     if (fileInput) fileInput.disabled = true;
@@ -758,8 +629,6 @@ function sendTicketMessage(ev) {
 
         input.value = '';
         input.focus();
-
-        // fuerza refresh para ver mensaje + adjunto
         fetchMessages(false);
     })
     .catch(err => {
@@ -770,11 +639,135 @@ function sendTicketMessage(ev) {
     });
 }
 
+// ===============================
+//  INICIALIZACIÓN jQuery
+// ===============================
+$(function () {
+    // ---- DataTables ----
+    let incomingDT = null;
+
+    if ($('#incomingTable').length) {
+        incomingDT = $('#incomingTable').DataTable({
+            pageLength: 5,
+            order: [[1, 'asc']]
+        });
+    }
+
+    if ($('#myTicketsTable').length) {
+        $('#myTicketsTable').DataTable({
+            pageLength: 5,
+            order: [[1, 'desc']]
+        });
+    }
+
+    if ($('#historyTable').length) {
+        $('#historyTable').DataTable({
+            pageLength: 5,
+            order: [[1, 'desc']]
+        });
+    }
+
+    // ---- Botón ASIGNAR ----
+    $(document).on('click', '.btn-assign-ticket', function () {
+        const btn  = this;
+        const $row = $(btn).closest('tr');
+
+        const ticketId =
+            $(btn).data('ticket-id') ||
+            $row.data('ticket-id');
+
+        if (!ticketId) return;
+
+        const originalText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Asignando...';
+
+        fetch('/HelpDesk_EQF/modules/ticket/assign.php', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: 'ticket_id=' + encodeURIComponent(ticketId)
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (!data.ok) {
+                alert(data.msg || 'No se pudo asignar el ticket.');
+                btn.disabled = false;
+                btn.textContent = originalText;
+                return;
+            }
+
+            if (incomingDT) {
+                incomingDT.row($row).remove().draw(false);
+            } else {
+                $row.remove();
+            }
+
+            showTicketToast('Ticket #' + ticketId + ' asignado a ti.');
+
+            // Si quieres refrescar Mis tickets activos automáticamente:
+            // location.reload();
+        })
+        .catch(err => {
+            console.error(err);
+            alert('Error al asignar el ticket.');
+            btn.disabled = false;
+            btn.textContent = originalText;
+        });
+    });
+
+    // ---- Notificaciones de nuevos tickets ----
+    let lastTicketId = 0;
+
+    if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+    }
+
+    function showInPageToast(msg) {
+        showTicketToast(msg);
+    }
+
+    function showDesktopNotification(ticket) {
+        if (!('Notification' in window)) return;
+        if (Notification.permission !== 'granted') return;
+
+        new Notification('Nuevo ticket entrante (' + ticket.id + ')', {
+            body: ticket.problema,
+            icon: '/HelpDesk_EQF/assets/img/icon_helpdesk.png'
+        });
+    }
+
+    function pollNewTickets() {
+        fetch('/HelpDesk_EQF/modules/ticket/check_new.php?last_id=' + lastTicketId)
+            .then(r => r.json())
+            .then(data => {
+                if (!data.new) return;
+
+                lastTicketId = data.id;
+
+                const msg = 'Nuevo ticket #' + data.id + ' – ' + data.problema;
+                showInPageToast(msg);
+                showDesktopNotification(data);
+
+                // Si quieres actualizar la tabla automáticamente:
+                // location.reload();
+            })
+            .catch(err => console.error('Error comprobando nuevos tickets:', err));
+    }
+
+    fetch('/HelpDesk_EQF/modules/ticket/check_new.php?last_id=0')
+        .then(r => r.json())
+        .then(data => {
+            if (data.new) {
+                lastTicketId = data.id;
+            }
+        })
+        .catch(() => {});
+
+    setInterval(pollNewTickets, 10000);
+});
 </script>
-<?php include __DIR__ . '/../../../template/footer.php'; ?>
-<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
-<script src="/HelpDesk_EQF/assets/js/script.js?v=20251129a"></script>
 
 </body>
 </html>
