@@ -20,7 +20,6 @@ $area  = strtolower(trim($userArea));
 $email = strtolower(trim($userEmail));
 
 $profileImg = match (true) {
-
     // TI
     $area === 'ti'
     || str_starts_with($email, 'ti@')
@@ -74,7 +73,7 @@ if (isset($_GET['updated'])) {
     ];
 }
 
-// -------- HELPER: etiqueta bonita del problema ----------
+/* Helper: label de problema */
 function problemaLabel(string $p): string {
     return match ($p) {
         'cierre_dia'  => 'Cierre del día',
@@ -87,7 +86,7 @@ function problemaLabel(string $p): string {
     };
 }
 
-// -------- KPIs del área ----------
+/* KPIs del área */
 $stmtKpi = $pdo->prepare("
     SELECT 
         SUM(estado = 'abierto')      AS abiertos,
@@ -107,7 +106,7 @@ $kpi = $stmtKpi->fetch() ?: [
     'total'       => 0,
 ];
 
-// -------- Tickets entrantes (sin asignar, abiertos) ----------
+/* Tickets entrantes (abiertos, sin asignar) */
 $stmtIncoming = $pdo->prepare("
     SELECT id, sap, nombre, email, problema, descripcion, fecha_envio, estado
     FROM tickets
@@ -119,7 +118,16 @@ $stmtIncoming = $pdo->prepare("
 $stmtIncoming->execute([':area' => $userArea]);
 $incomingTickets = $stmtIncoming->fetchAll();
 
-// -------- Mis tickets activos (asignados a mí y NO cerrados) ----------
+/* máximo id actual para iniciar el polling desde ahí */
+$maxIncomingId = 0;
+foreach ($incomingTickets as $t) {
+    $tid = (int)$t['id'];
+    if ($tid > $maxIncomingId) {
+        $maxIncomingId = $tid;
+    }
+}
+
+/* Mis tickets activos */
 $stmtMy = $pdo->prepare("
     SELECT id, sap, nombre, email, problema, descripcion, fecha_envio, estado
     FROM tickets
@@ -131,7 +139,7 @@ $stmtMy = $pdo->prepare("
 $stmtMy->execute([':area' => $userArea, ':uid' => $userId]);
 $myTickets = $stmtMy->fetchAll();
 
-// -------- Historial (asignados a mí y ya resueltos/cerrados) ----------
+/* Historial (resueltos / cerrados) */
 $stmtHistory = $pdo->prepare("
     SELECT id, sap, nombre, email, problema, descripcion, fecha_envio, estado, fecha_resolucion
     FROM tickets
@@ -169,156 +177,155 @@ $historyTickets = $stmtHistory->fetchAll();
     </div>
 <?php endif; ?>
 
-    <!-- SIDEBAR ANALISTA -->
-    <aside class="user-sidebar">
-        <div class="user-sidebar-profile">
-            <img src="<?php echo htmlspecialchars($profileImg, ENT_QUOTES, 'UTF-8'); ?>"
-                 alt="Foto de perfil"
-                 class="user-sidebar-avatar">
+<!-- SIDEBAR -->
+<aside class="user-sidebar">
+    <div class="user-sidebar-profile">
+        <img src="<?php echo htmlspecialchars($profileImg, ENT_QUOTES, 'UTF-8'); ?>"
+             alt="Foto de perfil"
+             class="user-sidebar-avatar">
 
-            <!-- Quitamos el circulo con la inicial -->
+        <!-- Sin círculo con inicial -->
+        <div class="user-sidebar-info">
+            <p class="user-sidebar-name">
+                <?php echo htmlspecialchars($userName, ENT_QUOTES, 'UTF-8'); ?>
+            </p>
+            <p class="user-sidebar-email">
+                <?php echo htmlspecialchars($userEmail, ENT_QUOTES, 'UTF-8'); ?>
+            </p>
+            <p class="user-sidebar-email" style="opacity:0.8;">
+                Área: <?php echo htmlspecialchars($userArea, ENT_QUOTES, 'UTF-8'); ?>
+            </p>
+        </div>
+    </div>
 
-            <div class="user-sidebar-info">
-                <p class="user-sidebar-name">
-                    <?php echo htmlspecialchars($userName, ENT_QUOTES, 'UTF-8'); ?>
+    <nav class="user-sidebar-menu">
+        <button type="button" class="user-menu-item" onclick="scrollToSection('analyst-dashboard')">
+            <span class="user-menu-icon">📊</span>
+            <span>Dashboard</span>
+        </button>
+
+        <button type="button" class="user-menu-item" onclick="scrollToSection('incoming-section')">
+            <span class="user-menu-icon">📥</span>
+            <span>Tickets entrantes</span>
+        </button>
+
+        <button type="button" class="user-menu-item" onclick="scrollToSection('mytickets-section')">
+            <span class="user-menu-icon">🧑‍💻</span>
+            <span>Mis tickets</span>
+        </button>
+
+        <button type="button" class="user-menu-item" onclick="scrollToSection('history-section')">
+            <span class="user-menu-icon">📚</span>
+            <span>Historial</span>
+        </button>
+
+        <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/auth/logout.php'">
+            <span class="user-menu-icon">🚪</span>
+            <span>Cerrar sesión</span>
+        </button>
+    </nav>
+</aside>
+
+<!-- CONTENIDO PRINCIPAL -->
+<main class="user-main">
+    <section class="user-main-inner">
+
+        <header class="user-main-header" id="analyst-dashboard">
+            <div>
+                <p class="login-brand">
+                    <span>HelpDesk </span><span class="eqf-e">E</span><span class="eqf-q">Q</span><span class="eqf-f">F</span>
                 </p>
-                <p class="user-sidebar-email">
-                    <?php echo htmlspecialchars($userEmail, ENT_QUOTES, 'UTF-8'); ?>
-                </p>
-                <p class="user-sidebar-email" style="opacity:0.8;">
-                    Área: <?php echo htmlspecialchars($userArea, ENT_QUOTES, 'UTF-8'); ?>
+                <p class="user-main-subtitle">
+                    Panel de Analista – <?php echo htmlspecialchars($userArea, ENT_QUOTES, 'UTF-8'); ?>
                 </p>
             </div>
-        </div>
+        </header>
 
-        <nav class="user-sidebar-menu">
-            <button type="button" class="user-menu-item" onclick="scrollToSection('analyst-dashboard')">
-                <span class="user-menu-icon">📊</span>
-                <span>Dashboard</span>
-            </button>
+        <section class="user-main-content">
 
-            <button type="button" class="user-menu-item" onclick="scrollToSection('incoming-section')">
-                <span class="user-menu-icon">📥</span>
-                <span>Tickets entrantes</span>
-            </button>
-
-            <button type="button" class="user-menu-item" onclick="scrollToSection('mytickets-section')">
-                <span class="user-menu-icon">🧑‍💻</span>
-                <span>Mis tickets</span>
-            </button>
-
-            <button type="button" class="user-menu-item" onclick="scrollToSection('history-section')">
-                <span class="user-menu-icon">📚</span>
-                <span>Historial</span>
-            </button>
-
-            <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/auth/logout.php'">
-                <span class="user-menu-icon">🚪</span>
-                <span>Cerrar sesión</span>
-            </button>
-        </nav>
-    </aside>
-
-    <!-- CONTENIDO PRINCIPAL -->
-    <main class="user-main">
-        <section class="user-main-inner">
-
-            <!-- HEADER -->
-            <header class="user-main-header" id="analyst-dashboard">
-                <div>
-                    <p class="login-brand">
-                        <span>HelpDesk </span><span class="eqf-e">E</span><span class="eqf-q">Q</span><span class="eqf-f">F</span>
-                    </p>
-                    <p class="user-main-subtitle">
-                        Panel de Analista – <?php echo htmlspecialchars($userArea, ENT_QUOTES, 'UTF-8'); ?>
-                    </p>
-                </div>
-            </header>
-
-            <section class="user-main-content">
-                <!-- Resumen / KPIs -->
-                <div class="user-info-card">
-                    <h2>Resumen del área</h2>
-                    <p>
-                        Aquí puedes gestionar los tickets asignados a tu área, ver tus tickets activos y revisar tu historial de atención.
-                    </p>
-                    <div class="kpi-analyst-row">
-                        <div class="kpi-card kpi-green">
-                            <span class="kpi-label">Abiertos</span>
-                            <span class="kpi-value"><?php echo (int)$kpi['abiertos']; ?></span>
-                        </div>
-                        <div class="kpi-card kpi-blue">
-                            <span class="kpi-label">En proceso</span>
-                            <span class="kpi-value"><?php echo (int)$kpi['en_proceso']; ?></span>
-                        </div>
-                        <div class="kpi-card kpi-yellow">
-                            <span class="kpi-label">Resueltos</span>
-                            <span class="kpi-value"><?php echo (int)$kpi['resueltos']; ?></span>
-                        </div>
-                        <div class="kpi-card kpi-gray">
-                            <span class="kpi-label">Total</span>
-                            <span class="kpi-value"><?php echo (int)$kpi['total']; ?></span>
-                        </div>
+            <!-- RESUMEN / KPIs -->
+            <div class="user-info-card">
+                <h2>Resumen del área</h2>
+                <p>
+                    Aquí puedes gestionar los tickets asignados a tu área, ver tus tickets activos y revisar tu historial de atención.
+                </p>
+                <div class="kpi-analyst-row">
+                    <div class="kpi-card kpi-green">
+                        <span class="kpi-label">Abiertos</span>
+                        <span class="kpi-value"><?php echo (int)$kpi['abiertos']; ?></span>
+                    </div>
+                    <div class="kpi-card kpi-blue">
+                        <span class="kpi-label">En proceso</span>
+                        <span class="kpi-value"><?php echo (int)$kpi['en_proceso']; ?></span>
+                    </div>
+                    <div class="kpi-card kpi-yellow">
+                        <span class="kpi-label">Resueltos</span>
+                        <span class="kpi-value"><?php echo (int)$kpi['resueltos']; ?></span>
+                    </div>
+                    <div class="kpi-card kpi-gray">
+                        <span class="kpi-label">Total</span>
+                        <span class="kpi-value"><?php echo (int)$kpi['total']; ?></span>
                     </div>
                 </div>
+            </div>
 
-                <!-- TICKETS ENTRANTES -->
-                <div id="incoming-section" class="user-info-card">
-                    <h3>Tickets entrantes (sin asignar)</h3>
-                    <?php if (empty($incomingTickets)): ?>
-                        <p>No hay tickets entrantes sin asignar en este momento.</p>
-                    <?php else: ?>
-                        <table id="incomingTable" class="data-table display">
-                            <thead>
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Fecha</th>
-                                    <th>Usuario</th>
-                                    <th>Problema</th>
-                                    <th>Descripción</th>
-                                    <th>Acciones</th>
+            <!-- TICKETS ENTRANTES -->
+            <div id="incoming-section" class="user-info-card">
+                <h3>Tickets entrantes (sin asignar)</h3>
+                <?php if (empty($incomingTickets)): ?>
+                    <p>No hay tickets entrantes sin asignar en este momento.</p>
+                <?php else: ?>
+                    <table id="incomingTable" class="data-table display">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Fecha</th>
+                                <th>Usuario</th>
+                                <th>Problema</th>
+                                <th>Descripción</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($incomingTickets as $t): ?>
+                                <tr data-ticket-id="<?php echo (int)$t['id']; ?>">
+                                    <td><?php echo (int)$t['id']; ?></td>
+                                    <td><?php echo htmlspecialchars($t['fecha_envio'], ENT_QUOTES, 'UTF-8'); ?></td>
+                                    <td><?php echo htmlspecialchars($t['nombre'], ENT_QUOTES, 'UTF-8'); ?></td>
+                                    <td><?php echo htmlspecialchars(problemaLabel($t['problema']), ENT_QUOTES, 'UTF-8'); ?></td>
+                                    <td><?php echo htmlspecialchars($t['descripcion'], ENT_QUOTES, 'UTF-8'); ?></td>
+                                    <td>
+                                        <button type="button"
+                                                class="btn-assign-ticket"
+                                                data-ticket-id="<?php echo (int)$t['id']; ?>">
+                                            Asignar
+                                        </button>
+                                    </td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($incomingTickets as $t): ?>
-                                    <tr data-ticket-id="<?php echo (int)$t['id']; ?>">
-                                        <td><?php echo (int)$t['id']; ?></td>
-                                        <td><?php echo htmlspecialchars($t['fecha_envio'], ENT_QUOTES, 'UTF-8'); ?></td>
-                                        <td><?php echo htmlspecialchars($t['nombre'], ENT_QUOTES, 'UTF-8'); ?></td>
-                                        <td><?php echo htmlspecialchars(problemaLabel($t['problema']), ENT_QUOTES, 'UTF-8'); ?></td>
-                                        <td><?php echo htmlspecialchars($t['descripcion'], ENT_QUOTES, 'UTF-8'); ?></td>
-                                        <td>
-                                            <button type="button"
-                                                    class="btn-assign-ticket"
-                                                    data-ticket-id="<?php echo (int)$t['id']; ?>">
-                                                Asignar
-                                            </button>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    <?php endif; ?>
-                </div>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                <?php endif; ?>
+            </div>
 
-                <!-- MIS TICKETS ACTIVOS -->
-                <div id="mytickets-section" class="user-info-card">
-                    <h3>Mis tickets activos</h3>
-                    <?php if (empty($myTickets)): ?>
-                        <p>No tienes tickets activos asignados en este momento.</p>
-                    <?php else: ?>
-                        <table id="myTicketsTable" class="data-table display">
-                            <thead>
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Fecha</th>
-                                    <th>Usuario</th>
-                                    <th>Problema</th>
-                                    <th>Estatus</th>
-                                    <th>Chat</th>
-                                </tr>
-                            </thead>
-                            <tbody>
+            <!-- MIS TICKETS ACTIVOS -->
+            <div id="mytickets-section" class="user-info-card">
+                <h3>Mis tickets activos</h3>
+                <?php if (empty($myTickets)): ?>
+                    <p>No tienes tickets activos asignados en este momento.</p>
+                <?php else: ?>
+                    <table id="myTicketsTable" class="data-table display">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Fecha</th>
+                                <th>Usuario</th>
+                                <th>Problema</th>
+                                <th>Estatus</th>
+                                <th>Chat</th>
+                            </tr>
+                        </thead>
+                        <tbody>
                             <?php foreach ($myTickets as $t): ?>
                                 <tr>
                                     <td><?php echo (int)$t['id']; ?></td>
@@ -335,88 +342,88 @@ $historyTickets = $stmtHistory->fetchAll();
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    <?php endif; ?>
-                </div>
+                        </tbody>
+                    </table>
+                <?php endif; ?>
+            </div>
 
-                <!-- HISTORIAL -->
-                <div id="history-section" class="user-info-card">
-                    <h3>Historial de tickets atendidos</h3>
-                    <?php if (empty($historyTickets)): ?>
-                        <p>Todavía no tienes tickets resueltos o cerrados.</p>
-                    <?php else: ?>
-                        <table id="historyTable" class="data-table display">
-                            <thead>
+            <!-- HISTORIAL -->
+            <div id="history-section" class="user-info-card">
+                <h3>Historial de tickets atendidos</h3>
+                <?php if (empty($historyTickets)): ?>
+                    <p>Todavía no tienes tickets resueltos o cerrados.</p>
+                <?php else: ?>
+                    <table id="historyTable" class="data-table display">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Fecha envío</th>
+                                <th>Fecha resolución</th>
+                                <th>Usuario</th>
+                                <th>Problema</th>
+                                <th>Estatus</th>
+                                <th>Reporte</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($historyTickets as $t): ?>
                                 <tr>
-                                    <th>ID</th>
-                                    <th>Fecha envío</th>
-                                    <th>Fecha resolución</th>
-                                    <th>Usuario</th>
-                                    <th>Problema</th>
-                                    <th>Estatus</th>
-                                    <th>Reporte</th>
+                                    <td><?php echo (int)$t['id']; ?></td>
+                                    <td><?php echo htmlspecialchars($t['fecha_envio'], ENT_QUOTES, 'UTF-8'); ?></td>
+                                    <td><?php echo htmlspecialchars($t['fecha_resolucion'] ?? '-', ENT_QUOTES, 'UTF-8'); ?></td>
+                                    <td><?php echo htmlspecialchars($t['nombre'], ENT_QUOTES, 'UTF-8'); ?></td>
+                                    <td><?php echo htmlspecialchars(problemaLabel($t['problema']), ENT_QUOTES, 'UTF-8'); ?></td>
+                                    <td><?php echo htmlspecialchars($t['estado'], ENT_QUOTES, 'UTF-8'); ?></td>
+                                    <td>
+                                        <a href="/HelpDesk_EQF/modules/ticket/report.php?ticket_id=<?php echo (int)$t['id']; ?>"
+                                           class="btn-login"
+                                           style="padding:4px 10px; font-size:0.75rem;"
+                                           target="_blank">
+                                            PDF
+                                        </a>
+                                    </td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($historyTickets as $t): ?>
-                                    <tr>
-                                        <td><?php echo (int)$t['id']; ?></td>
-                                        <td><?php echo htmlspecialchars($t['fecha_envio'], ENT_QUOTES, 'UTF-8'); ?></td>
-                                        <td><?php echo htmlspecialchars($t['fecha_resolucion'] ?? '-', ENT_QUOTES, 'UTF-8'); ?></td>
-                                        <td><?php echo htmlspecialchars($t['nombre'], ENT_QUOTES, 'UTF-8'); ?></td>
-                                        <td><?php echo htmlspecialchars(problemaLabel($t['problema']), ENT_QUOTES, 'UTF-8'); ?></td>
-                                        <td><?php echo htmlspecialchars($t['estado'], ENT_QUOTES, 'UTF-8'); ?></td>
-                                        <td>
-                                            <a href="/HelpDesk_EQF/modules/ticket/report.php?ticket_id=<?php echo (int)$t['id']; ?>"
-                                               class="btn-login"
-                                               style="padding:4px 10px; font-size:0.75rem;"
-                                               target="_blank">
-                                                PDF
-                                            </a>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    <?php endif; ?>
-                </div>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                <?php endif; ?>
+            </div>
 
-            </section>
         </section>
-    </main>
+    </section>
+</main>
 
-    <!-- MODAL CHAT DE TICKET -->
-    <div class="modal-backdrop" id="ticket-chat-modal">
-        <div class="modal-card ticket-chat-modal-card">
-            <div class="modal-header">
-                <h3 id="ticketChatTitle">Chat del ticket</h3>
-                <button type="button" class="modal-close" onclick="closeTicketChat()">✕</button>
-            </div>
-
-            <div class="ticket-chat-body" id="ticketChatBody">
-                <!-- Mensajes se agregan por JS -->
-            </div>
-
-            <form class="ticket-chat-form" onsubmit="sendTicketMessage(event)">
-                <textarea id="ticketChatInput"
-                          rows="2"
-                          placeholder="Escribe tu mensaje..."
-                          style="width:100%"></textarea>
-                <div class="ticket-chat-input-row">
-                    <input type="file"
-                           id="ticketChatFile"
-                           name="adjunto"
-                           class="ticket-chat-file"
-                           accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,.csv"
-                           style="width:100%">
-                    <button type="submit" class="btn-login" style="min-width: 60px;">
-                        Enviar
-                    </button>
-                </div>
-            </form>
+<!-- MODAL CHAT DE TICKET -->
+<div class="modal-backdrop" id="ticket-chat-modal">
+    <div class="modal-card ticket-chat-modal-card">
+        <div class="modal-header">
+            <h3 id="ticketChatTitle">Chat del ticket</h3>
+            <button type="button" class="modal-close" onclick="closeTicketChat()">✕</button>
         </div>
+
+        <div class="ticket-chat-body" id="ticketChatBody">
+            <!-- Mensajes se agregan por JS -->
+        </div>
+
+        <form class="ticket-chat-form" onsubmit="sendTicketMessage(event)">
+            <textarea id="ticketChatInput"
+                      rows="2"
+                      placeholder="Escribe tu mensaje..."
+                      style="width:100%"></textarea>
+            <div class="ticket-chat-input-row">
+                <input type="file"
+                       id="ticketChatFile"
+                       name="adjunto"
+                       class="ticket-chat-file"
+                       accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,.csv"
+                       style="width:100%">
+                <button type="submit" class="btn-login" style="min-width: 60px;">
+                    Enviar
+                </button>
+            </div>
+        </form>
     </div>
+</div>
 
 <?php include __DIR__ . '/../../../template/footer.php'; ?>
 
@@ -640,43 +647,49 @@ function sendTicketMessage(ev) {
 }
 
 // ===============================
-//  INICIALIZACIÓN jQuery
+//  INIT: DataTables + asignación + notificaciones
 // ===============================
-$(function () {
-    // ---- DataTables ----
-    let incomingDT = null;
+document.addEventListener('DOMContentLoaded', function () {
 
-    if ($('#incomingTable').length) {
-        incomingDT = $('#incomingTable').DataTable({
-            pageLength: 5,
-            order: [[1, 'asc']]
-        });
+    // ---------- DATATABLES ----------
+    function initOrGetTable(selector, options) {
+        if (!window.jQuery || !$.fn.dataTable || !$(selector).length) return null;
+        if ($.fn.dataTable.isDataTable(selector)) {
+            return $(selector).DataTable();
+        }
+        return $(selector).DataTable(options || {});
     }
 
-    if ($('#myTicketsTable').length) {
-        $('#myTicketsTable').DataTable({
-            pageLength: 5,
-            order: [[1, 'desc']]
-        });
-    }
+    const incomingDT = initOrGetTable('#incomingTable', {
+        pageLength: 5,
+        order: [[1, 'asc']]
+    });
 
-    if ($('#historyTable').length) {
-        $('#historyTable').DataTable({
-            pageLength: 5,
-            order: [[1, 'desc']]
-        });
-    }
+    initOrGetTable('#myTicketsTable', {
+        pageLength: 5,
+        order: [[1, 'desc']]
+    });
 
-    // ---- Botón ASIGNAR ----
-    $(document).on('click', '.btn-assign-ticket', function () {
-        const btn  = this;
-        const $row = $(btn).closest('tr');
+    initOrGetTable('#historyTable', {
+        pageLength: 5,
+        order: [[1, 'desc']]
+    });
 
-        const ticketId =
-            $(btn).data('ticket-id') ||
-            $row.data('ticket-id');
+    // ---------- ASIGNAR TICKET ----------
+    document.addEventListener('click', function (e) {
+        const btn = e.target.closest('.btn-assign-ticket');
+        if (!btn) return;
 
-        if (!ticketId) return;
+        // evitar doble click
+        if (btn.dataset.loading === '1') return;
+        btn.dataset.loading = '1';
+
+        const rowEl = btn.closest('tr');
+        const ticketId = btn.dataset.ticketId || (rowEl && rowEl.getAttribute('data-ticket-id'));
+        if (!ticketId || !rowEl) {
+            btn.dataset.loading = '0';
+            return;
+        }
 
         const originalText = btn.textContent;
         btn.disabled = true;
@@ -684,9 +697,7 @@ $(function () {
 
         fetch('/HelpDesk_EQF/modules/ticket/assign.php', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded'
-            },
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: 'ticket_id=' + encodeURIComponent(ticketId)
         })
         .then(r => r.json())
@@ -695,31 +706,33 @@ $(function () {
                 alert(data.msg || 'No se pudo asignar el ticket.');
                 btn.disabled = false;
                 btn.textContent = originalText;
+                btn.dataset.loading = '0';
                 return;
             }
 
+            // quitar fila de entrantes
             if (incomingDT) {
-                incomingDT.row($row).remove().draw(false);
-            } else {
-                $row.remove();
+                incomingDT.row($(rowEl)).remove().draw(false);
+            } else if (rowEl.parentNode) {
+                rowEl.parentNode.removeChild(rowEl);
             }
 
             showTicketToast('Ticket #' + ticketId + ' asignado a ti.');
-
-            // Si quieres refrescar Mis tickets activos automáticamente:
-            // location.reload();
+            btn.dataset.loading = '0';
         })
         .catch(err => {
             console.error(err);
             alert('Error al asignar el ticket.');
             btn.disabled = false;
             btn.textContent = originalText;
+            btn.dataset.loading = '0';
         });
     });
 
-    // ---- Notificaciones de nuevos tickets ----
-    let lastTicketId = 0;
+    // ---------- NOTIFICACIONES NUEVOS TICKETS ----------
+    let lastTicketId = <?php echo (int)$maxIncomingId; ?>;
 
+    // permiso de notificaciones de escritorio
     if ('Notification' in window && Notification.permission === 'default') {
         Notification.requestPermission();
     }
@@ -733,38 +746,63 @@ $(function () {
         if (Notification.permission !== 'granted') return;
 
         new Notification('Nuevo ticket entrante (' + ticket.id + ')', {
-            body: ticket.problema,
+            body: ticket.problema || '',
             icon: '/HelpDesk_EQF/assets/img/icon_helpdesk.png'
         });
+    }
+
+    function addIncomingTicketRow(ticket) {
+        if (!ticket || !ticket.id) return;
+
+        const rowData = [
+            ticket.id,
+            ticket.fecha || '',
+            ticket.usuario || '',
+            ticket.problema || '',
+            ticket.descripcion || '',
+            `<button type="button"
+                     class="btn-assign-ticket"
+                     data-ticket-id="${ticket.id}">
+                Asignar
+             </button>`
+        ];
+
+        if (incomingDT) {
+            incomingDT.row.add(rowData).draw(false);
+        } else {
+            const tbody = document.querySelector('#incomingTable tbody');
+            if (!tbody) return;
+
+            const tr = document.createElement('tr');
+            tr.setAttribute('data-ticket-id', ticket.id);
+            tr.innerHTML = `
+                <td>${rowData[0]}</td>
+                <td>${rowData[1]}</td>
+                <td>${rowData[2]}</td>
+                <td>${rowData[3]}</td>
+                <td>${rowData[4]}</td>
+                <td>${rowData[5]}</td>
+            `;
+            tbody.prepend(tr);
+        }
     }
 
     function pollNewTickets() {
         fetch('/HelpDesk_EQF/modules/ticket/check_new.php?last_id=' + lastTicketId)
             .then(r => r.json())
             .then(data => {
-                if (!data.new) return;
+                if (!data || !data.new) return;
 
                 lastTicketId = data.id;
-
-                const msg = 'Nuevo ticket #' + data.id + ' – ' + data.problema;
+                const msg = 'Nuevo ticket #' + data.id + ' – ' + (data.problema || '');
                 showInPageToast(msg);
                 showDesktopNotification(data);
-
-                // Si quieres actualizar la tabla automáticamente:
-                // location.reload();
+                addIncomingTicketRow(data);
             })
             .catch(err => console.error('Error comprobando nuevos tickets:', err));
     }
 
-    fetch('/HelpDesk_EQF/modules/ticket/check_new.php?last_id=0')
-        .then(r => r.json())
-        .then(data => {
-            if (data.new) {
-                lastTicketId = data.id;
-            }
-        })
-        .catch(() => {});
-
+    // revisar cada 10 segundos
     setInterval(pollNewTickets, 10000);
 });
 </script>
