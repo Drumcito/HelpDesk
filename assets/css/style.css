@@ -549,11 +549,15 @@ body {
 /* ===== MODAL OVERLAY ===== */
 
 .modal-backdrop {
+    flex: 1;
+    overflow-y: auto;
     position: fixed;
     inset: 0;
     /* top:0; right:0; bottom:0; left:0 */
     background-color: rgba(15, 23, 42, 0.35);
     display: none;
+    flex-direction: column;
+    align-items: flex-start;
     /* IMPORTANTE: oculto por defecto */
     align-items: center;
     justify-content: center;
@@ -1514,10 +1518,14 @@ footer {
     height: 70vh;
     display: flex;
     flex-direction: column;
+    background: #ffffff;
+    border-radius: 20px;
+    margin: 0;              /* importante, sin márgenes */
 }
 
+
 .ticket-chat-body {
-    flex: 1;
+     flex: 1;
     overflow-y: auto;
     padding: 12px;
     border-radius: 8px;
@@ -1526,8 +1534,11 @@ footer {
 
     display: flex;
     flex-direction: column;
-    align-items: center;
+    gap: 8px;
+    justify-content: flex-start;
+    align-items: stretch;
 }
+
 
 .ticket-chat-message {
     margin-bottom: 12px;
@@ -1536,17 +1547,18 @@ footer {
     border-radius: 14px;
     font-size: 0.92rem;
     width: fit-content;
-
-    align-self: center;
     text-align: left;
 }
 
+
 .ticket-chat-message.mine {
+    align-self: flex-end;
     background: var(--eqf-blue);
     color: #fff;
 }
 
 .ticket-chat-message.other {
+    align-self: flex-start;
     background: #ffffff;
     border: 1px solid #e5e7eb;
 }

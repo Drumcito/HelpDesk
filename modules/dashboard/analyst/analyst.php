@@ -40,7 +40,7 @@ $profileImg = match (true) {
     || str_starts_with($email, 'administracion4@') =>
         '/HelpDesk_EQF/assets/img/pp/pp_sap.jpg',
 
-    // MKT → gerente de mercadotecnia + mkt + mkt1-5
+    // MKT
     $area === 'mkt'
     || str_starts_with($email, 'gerente.mercadotecnia@')
     || str_starts_with($email, 'mkt@')
@@ -63,7 +63,7 @@ $profileImg = match (true) {
         '/HelpDesk_EQF/assets/img/pp/pp_corporativo.jpg',
 };
 
-// -------- ALERTAS (ej. al actualizar ticket) ----------
+// -------- ALERTAS ----------
 $alerts = [];
 if (isset($_GET['updated'])) {
     $alerts[] = [
@@ -184,7 +184,6 @@ $historyTickets = $stmtHistory->fetchAll();
              alt="Foto de perfil"
              class="user-sidebar-avatar">
 
-        <!-- Sin círculo con inicial -->
         <div class="user-sidebar-info">
             <p class="user-sidebar-name">
                 <?php echo htmlspecialchars($userName, ENT_QUOTES, 'UTF-8'); ?>
@@ -436,6 +435,7 @@ $historyTickets = $stmtHistory->fetchAll();
 //  Variables globales para chat
 // ===============================
 const CURRENT_USER_ID = <?php echo (int)($_SESSION['user_id'] ?? 0); ?>;
+
 let currentTicketId = null;
 let lastMessageId   = 0;
 let chatPollTimer   = null;
@@ -452,7 +452,7 @@ function scrollToSection(id) {
 function showTicketToast(text) {
     const toast = document.createElement('div');
     toast.className = 'eqf-toast-ticket';
-    text && (toast.textContent = text);
+    if (text) toast.textContent = text;
     document.body.appendChild(toast);
 
     setTimeout(() => {
@@ -478,10 +478,11 @@ function openTicketChat(ticketId, tituloExtra) {
         bodyEl.innerHTML = '';
     }
 
+    const modal = document.getElementById('ticket-chat-modal');
     if (typeof openModal === 'function') {
         openModal('ticket-chat-modal');
-    } else {
-        document.getElementById('ticket-chat-modal')?.classList.add('show');
+    } else if (modal) {
+        modal.classList.add('show');   // asegúrate en tu CSS: .modal-backdrop.show { display:flex; }
     }
 
     fetchMessages(true);
@@ -491,11 +492,13 @@ function openTicketChat(ticketId, tituloExtra) {
 }
 
 function closeTicketChat() {
+    const modal = document.getElementById('ticket-chat-modal');
     if (typeof closeModal === 'function') {
         closeModal('ticket-chat-modal');
-    } else {
-        document.getElementById('ticket-chat-modal')?.classList.remove('show');
+    } else if (modal) {
+        modal.classList.remove('show');
     }
+
     if (chatPollTimer) {
         clearInterval(chatPollTimer);
         chatPollTimer = null;
@@ -513,7 +516,8 @@ function appendChatMessage(msg) {
     const div = document.createElement('div');
     div.className = 'ticket-chat-message';
 
-    const isMine = (parseInt(msg.sender_id, 10) === CURRENT_USER_ID);
+    const senderId = parseInt(msg.sender_id, 10);
+    const isMine   = (senderId === CURRENT_USER_ID);
     div.classList.add(isMine ? 'mine' : 'other');
 
     if (msg.mensaje) {
@@ -530,7 +534,7 @@ function appendChatMessage(msg) {
         const name = msg.file_name || 'Archivo adjunto';
         const type = msg.file_type || '';
 
-        if (type.startsWith('image/')) {
+        if (type && type.startsWith('image/')) {
             const imgLink = document.createElement('a');
             imgLink.href   = url;
             imgLink.target = '_blank';
@@ -605,7 +609,9 @@ function sendTicketMessage(ev) {
     const texto = input.value.trim();
     const file  = fileInput && fileInput.files.length > 0 ? fileInput.files[0] : null;
 
-    if (!texto && !file) return;
+    if (!texto && !file) {
+        return;
+    }
 
     input.disabled = true;
     if (fileInput) fileInput.disabled = true;
@@ -617,20 +623,19 @@ function sendTicketMessage(ev) {
         formData.append('adjunto', file);
     }
 
-    fetch('/HelpDesk_EQF/modules/ticket/send_message.php', {
+    fetch('/HelpDesk_EQF/modules/ticket/send_messages.php', {
         method: 'POST',
         body: formData
     })
-    .then(r => r.json())
-    .then(data => {
+    .then(response => {
         input.disabled = false;
         if (fileInput) {
             fileInput.disabled = false;
             fileInput.value = '';
         }
 
-        if (!data.ok) {
-            alert(data.msg || 'No se pudo enviar el mensaje');
+        if (!response.ok) {
+            alert('No se pudo enviar el mensaje');
             return;
         }
 
@@ -651,7 +656,6 @@ function sendTicketMessage(ev) {
 // ===============================
 document.addEventListener('DOMContentLoaded', function () {
 
-    // ---------- DATATABLES ----------
     function initOrGetTable(selector, options) {
         if (!window.jQuery || !$.fn.dataTable || !$(selector).length) return null;
         if ($.fn.dataTable.isDataTable(selector)) {
@@ -680,7 +684,6 @@ document.addEventListener('DOMContentLoaded', function () {
         const btn = e.target.closest('.btn-assign-ticket');
         if (!btn) return;
 
-        // evitar doble click
         if (btn.dataset.loading === '1') return;
         btn.dataset.loading = '1';
 
@@ -710,7 +713,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
-            // quitar fila de entrantes
             if (incomingDT) {
                 incomingDT.row($(rowEl)).remove().draw(false);
             } else if (rowEl.parentNode) {
@@ -732,7 +734,6 @@ document.addEventListener('DOMContentLoaded', function () {
     // ---------- NOTIFICACIONES NUEVOS TICKETS ----------
     let lastTicketId = <?php echo (int)$maxIncomingId; ?>;
 
-    // permiso de notificaciones de escritorio
     if ('Notification' in window && Notification.permission === 'default') {
         Notification.requestPermission();
     }
@@ -802,7 +803,6 @@ document.addEventListener('DOMContentLoaded', function () {
             .catch(err => console.error('Error comprobando nuevos tickets:', err));
     }
 
-    // revisar cada 10 segundos
     setInterval(pollNewTickets, 10000);
 });
 </script>
