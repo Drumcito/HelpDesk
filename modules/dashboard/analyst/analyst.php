@@ -1,6 +1,8 @@
 <?php
 session_start();
 require_once __DIR__ . '/../../../config/connectionBD.php';
+include __DIR__ . '/../../../template/header.php';
+
 
 // Solo Analistas (rol = 3)
 if (!isset($_SESSION['user_id']) || (int)($_SESSION['user_rol'] ?? 0) !== 3) {
