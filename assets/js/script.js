@@ -484,3 +484,11 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 });
+
+
+/*------------------
+Colapsar Sidebar
+-------------------*/
+function toggleSidebar() {
+    document.body.classList.toggle('sidebar-collapsed');
+}

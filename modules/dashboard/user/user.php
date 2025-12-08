@@ -2,6 +2,7 @@
 session_start();
 require_once __DIR__ . '/../../../config/connectionBD.php';
 include __DIR__ . '/../../../template/header.php';
+include __DIR__ . '/../../../template/sidebar.php';
 
 /* ALERTAS */
 $alerts = [];
@@ -121,48 +122,6 @@ function problemaLabel(string $p): string {
     </div>
 <?php endif; ?>
 
-    <!-- SIDEBAR IZQUIERDO -->
-    <aside class="user-sidebar">
-        <div class="user-sidebar-profile">
-            <img src="<?php echo htmlspecialchars($profileImg, ENT_QUOTES, 'UTF-8'); ?>"
-                 alt="Foto de perfil"
-                 class="user-sidebar-avatar">
-
-            <div class="user-sidebar-info">
-                <p class="user-sidebar-name">
-                    <?php echo htmlspecialchars($userName, ENT_QUOTES, 'UTF-8'); ?>
-                </p>
-                <p class="user-sidebar-email">
-                    <?php echo htmlspecialchars($userEmail, ENT_QUOTES, 'UTF-8'); ?>
-                </p>
-            </div>
-        </div>
-
-        <nav class="user-sidebar-menu">
-            <button type="button" class="user-menu-item" onclick="openTicketModal()">
-                <span class="user-menu-icon">➕</span>
-                <span>Crear ticket</span>
-            </button>
-
-            <button type="button" class="user-menu-item"
-                    onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/user/tickets.php'">
-                <span class="user-menu-icon">📄</span>
-                <span>Tickets</span>
-            </button>
-
-            <button type="button" class="user-menu-item"
-                    onclick="window.location.href='/HelpDesk_EQF/modules/docs/important.php'">
-                <span class="user-menu-icon">📎</span>
-                <span>Documentos importantes</span>
-            </button>
-
-            <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/auth/logout.php'">
-                <span class="user-menu-icon">🚪</span>
-                <span>Cerrar sesión</span>
-            </button>
-        </nav>
-    </aside>
-
     <!-- CONTENIDO PRINCIPAL -->
     <main class="user-main">
         <section class="user-main-inner">
@@ -228,10 +187,6 @@ function problemaLabel(string $p): string {
                             <?php endforeach; ?>
                         </ul>
 
-                        <button type="button" class="btn-secondary user-main-cta"
-                                onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/user/tickets.php'">
-                            Ver todos los tickets
-                        </button>
                     <?php endif; ?>
                 </div>
             </section>
@@ -639,7 +594,7 @@ function problemaLabel(string $p): string {
 <?php include __DIR__ . '/../../../template/footer.php'; ?>
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
-<script src="/HelpDesk_EQF/assets/js/script.js?v=20251129a"></script>
+<script src="/HelpDesk_EQF/assets/js/script.js?v=20251208a"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
 
@@ -689,6 +644,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     setInterval(pollUserNotifications, 10000);
 });
+
 </script>
 
 </body>

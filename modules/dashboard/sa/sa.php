@@ -3,7 +3,7 @@ session_start();
 require_once __DIR__ . '/../../../config/connectionBD.php';
 include __DIR__ . '/../../../template/header.php';
 $activePage = 'inicio';
-include __DIR__ . '/../../../template/navbar.php'; 
+include __DIR__ . '/../../../template/sidebar.php';
 
 $pdo = Database::getConnection();
 

@@ -2,6 +2,7 @@
 session_start();
 require_once __DIR__ . '/../../../config/connectionBD.php';
 include __DIR__ . '/../../../template/header.php';
+include __DIR__ . '/../../../template/sidebar.php';
 
 
 // Solo Analistas (rol = 3)
@@ -16,54 +17,6 @@ $userName  = trim(($_SESSION['user_name'] ?? '') . ' ' . ($_SESSION['user_last']
 $userEmail = $_SESSION['user_email'] ?? '';
 $userArea  = $_SESSION['user_area'] ?? '';
 $userSap   = $_SESSION['number_sap'] ?? '';
-
-// ------------ Foto de perfil por área/correo -------------
-$area  = strtolower(trim($userArea));
-$email = strtolower(trim($userEmail));
-
-$profileImg = match (true) {
-    // TI
-    $area === 'ti'
-    || str_starts_with($email, 'ti@')
-    || str_starts_with($email, 'ti1@')
-    || str_starts_with($email, 'ti2@')
-    || str_starts_with($email, 'ti3@')
-    || str_starts_with($email, 'ti4@')
-    || str_starts_with($email, 'ti5@')
-    || str_starts_with($email, 'ti6@') =>
-        '/HelpDesk_EQF/assets/img/pp/pp_ti.jpg',
-
-    // SAP
-    $area === 'sap'
-    || str_starts_with($email, 'administracion@')
-    || str_starts_with($email, 'administracion1@')
-    || str_starts_with($email, 'administracion2@')
-    || str_starts_with($email, 'administracion3@')
-    || str_starts_with($email, 'administracion4@') =>
-        '/HelpDesk_EQF/assets/img/pp/pp_sap.jpg',
-
-    // MKT
-    $area === 'mkt'
-    || str_starts_with($email, 'gerente.mercadotecnia@')
-    || str_starts_with($email, 'mkt@')
-    || str_starts_with($email, 'mkt1@')
-    || str_starts_with($email, 'mkt2@')
-    || str_starts_with($email, 'mkt3@')
-    || str_starts_with($email, 'mkt4@')
-    || str_starts_with($email, 'mkt5@') =>
-        '/HelpDesk_EQF/assets/img/pp/pp_mkt.jpg',
-
-    // DISEÑO
-    $area === 'diseno'
-    || str_starts_with($email, 'diseno@')
-    || str_starts_with($email, 'diseno1@')
-    || str_starts_with($email, 'diseno2@') =>
-        '/HelpDesk_EQF/assets/img/pp/pp_diseno.jpg',
-
-    // DEFAULT
-    default =>
-        '/HelpDesk_EQF/assets/img/pp/pp_corporativo.jpg',
-};
 
 // -------- ALERTAS ----------
 $alerts = [];
@@ -158,7 +111,7 @@ $historyTickets = $stmtHistory->fetchAll();
 <head>
     <meta charset="UTF-8">
     <title>Panel de Analista | HELP DESK EQF</title>
-    <link rel="stylesheet" href="/HelpDesk_EQF/assets/css/style.css">
+<link rel="stylesheet" href="/HelpDesk_EQF/assets/css/style.css?v=<?php echo time(); ?>">
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
 </head>
 <body class="user-body">
@@ -179,53 +132,6 @@ $historyTickets = $stmtHistory->fetchAll();
     </div>
 <?php endif; ?>
 
-<!-- SIDEBAR -->
-<aside class="user-sidebar">
-    <div class="user-sidebar-profile">
-        <img src="<?php echo htmlspecialchars($profileImg, ENT_QUOTES, 'UTF-8'); ?>"
-             alt="Foto de perfil"
-             class="user-sidebar-avatar">
-
-        <div class="user-sidebar-info">
-            <p class="user-sidebar-name">
-                <?php echo htmlspecialchars($userName, ENT_QUOTES, 'UTF-8'); ?>
-            </p>
-            <p class="user-sidebar-email">
-                <?php echo htmlspecialchars($userEmail, ENT_QUOTES, 'UTF-8'); ?>
-            </p>
-            <p class="user-sidebar-email" style="opacity:0.8;">
-                Área: <?php echo htmlspecialchars($userArea, ENT_QUOTES, 'UTF-8'); ?>
-            </p>
-        </div>
-    </div>
-
-    <nav class="user-sidebar-menu">
-        <button type="button" class="user-menu-item" onclick="scrollToSection('analyst-dashboard')">
-            <span class="user-menu-icon">📊</span>
-            <span>Dashboard</span>
-        </button>
-
-        <button type="button" class="user-menu-item" onclick="scrollToSection('incoming-section')">
-            <span class="user-menu-icon">📥</span>
-            <span>Tickets entrantes</span>
-        </button>
-
-        <button type="button" class="user-menu-item" onclick="scrollToSection('mytickets-section')">
-            <span class="user-menu-icon">🧑‍💻</span>
-            <span>Mis tickets</span>
-        </button>
-
-        <button type="button" class="user-menu-item" onclick="scrollToSection('history-section')">
-            <span class="user-menu-icon">📚</span>
-            <span>Historial</span>
-        </button>
-
-        <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/auth/logout.php'">
-            <span class="user-menu-icon">🚪</span>
-            <span>Cerrar sesión</span>
-        </button>
-    </nav>
-</aside>
 
 <!-- CONTENIDO PRINCIPAL -->
 <main class="user-main">
@@ -430,7 +336,7 @@ $historyTickets = $stmtHistory->fetchAll();
 
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
-<script src="/HelpDesk_EQF/assets/js/script.js?v=20251129a"></script>
+<script src="/HelpDesk_EQF/assets/js/script.js?v=20251208a"></script>
 
 <script>
 // ===============================
