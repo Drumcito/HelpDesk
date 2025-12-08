@@ -174,7 +174,7 @@ function problemaLabel(string $p): string {
 
                                     <div class="user-ticket-actions">
                                         <button type="button"
-                                                class="btn-login"
+                                                class="btn-main-combined"
                                                 style="padding:6px 14px; font-size:0.75rem;"
                                                 onclick="openTicketChat(
                                                     <?php echo (int)$t['id']; ?>,

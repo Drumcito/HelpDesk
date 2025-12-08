@@ -4,7 +4,6 @@ require_once __DIR__ . '/../../../config/connectionBD.php';
 include __DIR__ . '/../../../template/header.php';
 include __DIR__ . '/../../../template/sidebar.php';
 
-
 // Solo Analistas (rol = 3)
 if (!isset($_SESSION['user_id']) || (int)($_SESSION['user_rol'] ?? 0) !== 3) {
     header('Location: /HelpDesk_EQF/auth/login.php');
@@ -41,6 +40,17 @@ function problemaLabel(string $p): string {
     };
 }
 
+/* Helper: label de prioridad */
+function prioridadLabel(string $p): string {
+    return match (strtolower($p)) {
+        'alta'     => 'Alta',
+        'media'    => 'Media',
+        'baja'     => 'Baja',
+        'critica', 'crítica' => 'Crítica',
+        default    => ucfirst($p),
+    };
+}
+
 /* KPIs del área */
 $stmtKpi = $pdo->prepare("
     SELECT 
@@ -63,13 +73,14 @@ $kpi = $stmtKpi->fetch() ?: [
 
 /* Tickets entrantes (abiertos, sin asignar) */
 $stmtIncoming = $pdo->prepare("
-    SELECT id, sap, nombre, email, problema, descripcion, fecha_envio, estado
+    SELECT id, sap, nombre, email, problema, descripcion, fecha_envio, estado, prioridad
     FROM tickets
     WHERE area = :area
       AND estado = 'abierto'
       AND (asignado_a IS NULL OR asignado_a = 0)
     ORDER BY fecha_envio ASC
 ");
+
 $stmtIncoming->execute([':area' => $userArea]);
 $incomingTickets = $stmtIncoming->fetchAll();
 
@@ -82,13 +93,13 @@ foreach ($incomingTickets as $t) {
     }
 }
 
-/* Mis tickets activos */
+/* Mis tickets */
 $stmtMy = $pdo->prepare("
-    SELECT id, sap, nombre, email, problema, descripcion, fecha_envio, estado
+    SELECT id, sap, nombre, email, problema, descripcion, fecha_envio, estado, prioridad
     FROM tickets
     WHERE area = :area
       AND asignado_a = :uid
-      AND estado IN ('abierto','en_proceso')
+      AND estado IN ('abierto','en_proceso','resuelto','cerrado')
     ORDER BY fecha_envio DESC
 ");
 $stmtMy->execute([':area' => $userArea, ':uid' => $userId]);
@@ -96,7 +107,7 @@ $myTickets = $stmtMy->fetchAll();
 
 /* Historial (resueltos / cerrados) */
 $stmtHistory = $pdo->prepare("
-    SELECT id, sap, nombre, email, problema, descripcion, fecha_envio, estado, fecha_resolucion
+    SELECT id, sap, nombre, email, problema, descripcion, fecha_envio, estado, fecha_resolucion, prioridad
     FROM tickets
     WHERE area = :area
       AND asignado_a = :uid
@@ -111,7 +122,7 @@ $historyTickets = $stmtHistory->fetchAll();
 <head>
     <meta charset="UTF-8">
     <title>Panel de Analista | HELP DESK EQF</title>
-<link rel="stylesheet" href="/HelpDesk_EQF/assets/css/style.css?v=<?php echo time(); ?>">
+    <link rel="stylesheet" href="/HelpDesk_EQF/assets/css/style.css?v=<?php echo time(); ?>">
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
 </head>
 <body class="user-body">
@@ -132,7 +143,6 @@ $historyTickets = $stmtHistory->fetchAll();
     </div>
 <?php endif; ?>
 
-
 <!-- CONTENIDO PRINCIPAL -->
 <main class="user-main">
     <section class="user-main-inner">
@@ -152,10 +162,8 @@ $historyTickets = $stmtHistory->fetchAll();
 
             <!-- RESUMEN / KPIs -->
             <div class="user-info-card">
-                <h2>Resumen del área</h2>
-                <p>
-                    Aquí puedes gestionar los tickets asignados a tu área, ver tus tickets activos y revisar tu historial de atención.
-                </p>
+                <h2>Resumen Diario</h2>
+                <p>Aquí podrás ver tu resumen diario.</p>
                 <div class="kpi-analyst-row">
                     <div class="kpi-card kpi-green">
                         <span class="kpi-label">Abiertos</span>
@@ -189,6 +197,7 @@ $historyTickets = $stmtHistory->fetchAll();
                                 <th>Fecha</th>
                                 <th>Usuario</th>
                                 <th>Problema</th>
+                                <th>Prioridad</th>
                                 <th>Descripción</th>
                                 <th>Acciones</th>
                             </tr>
@@ -200,6 +209,11 @@ $historyTickets = $stmtHistory->fetchAll();
                                     <td><?php echo htmlspecialchars($t['fecha_envio'], ENT_QUOTES, 'UTF-8'); ?></td>
                                     <td><?php echo htmlspecialchars($t['nombre'], ENT_QUOTES, 'UTF-8'); ?></td>
                                     <td><?php echo htmlspecialchars(problemaLabel($t['problema']), ENT_QUOTES, 'UTF-8'); ?></td>
+                                    <td>
+                                        <span class="priority-pill priority-<?php echo htmlspecialchars(strtolower($t['prioridad'] ?? 'media'), ENT_QUOTES, 'UTF-8'); ?>">
+                                            <?php echo htmlspecialchars(prioridadLabel($t['prioridad'] ?? 'media'), ENT_QUOTES, 'UTF-8'); ?>
+                                        </span>
+                                    </td>
                                     <td><?php echo htmlspecialchars($t['descripcion'], ENT_QUOTES, 'UTF-8'); ?></td>
                                     <td>
                                         <button type="button"
@@ -215,34 +229,50 @@ $historyTickets = $stmtHistory->fetchAll();
                 <?php endif; ?>
             </div>
 
-            <!-- MIS TICKETS ACTIVOS -->
+            <!-- MIS TICKETS -->
             <div id="mytickets-section" class="user-info-card">
-                <h3>Mis tickets activos</h3>
+                <h3>Mis tickets</h3>
                 <?php if (empty($myTickets)): ?>
-                    <p>No tienes tickets activos asignados en este momento.</p>
+                    <p>No tienes tickets asignados en este momento.</p>
                 <?php else: ?>
-                    <table id="myTicketsTable" class="data-table display">
+                    <table id="myTicketsTable" class="data-table display analyst-tickets-table">
                         <thead>
                             <tr>
                                 <th>ID</th>
                                 <th>Fecha</th>
                                 <th>Usuario</th>
                                 <th>Problema</th>
+                                <th>Prioridad</th>
                                 <th>Estatus</th>
                                 <th>Chat</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php foreach ($myTickets as $t): ?>
-                                <tr>
-                                    <td><?php echo (int)$t['id']; ?></td>
+                                <tr data-ticket-id="<?php echo (int)$t['id']; ?>">
+                                    <td>#<?php echo (int)$t['id']; ?></td>
                                     <td><?php echo htmlspecialchars($t['fecha_envio'], ENT_QUOTES, 'UTF-8'); ?></td>
                                     <td><?php echo htmlspecialchars($t['nombre'], ENT_QUOTES, 'UTF-8'); ?></td>
                                     <td><?php echo htmlspecialchars(problemaLabel($t['problema']), ENT_QUOTES, 'UTF-8'); ?></td>
-                                    <td><?php echo htmlspecialchars($t['estado'], ENT_QUOTES, 'UTF-8'); ?></td>
+                                    <td>
+                                        <span class="priority-pill priority-<?php echo htmlspecialchars(strtolower($t['prioridad'] ?? 'media'), ENT_QUOTES, 'UTF-8'); ?>">
+                                            <?php echo htmlspecialchars(prioridadLabel($t['prioridad'] ?? 'media'), ENT_QUOTES, 'UTF-8'); ?>
+                                        </span>
+                                    </td>
+                                    <td>
+    <select
+        class="ticket-status-select status-<?php echo htmlspecialchars(strtolower($t['estado']), ENT_QUOTES, 'UTF-8'); ?>"
+        data-ticket-id="<?php echo (int)$t['id']; ?>"
+    >
+        <option value="abierto"    <?php echo $t['estado'] === 'abierto'    ? 'selected' : ''; ?>>Abierto</option>
+        <option value="en_proceso"<?php echo $t['estado'] === 'en_proceso' ? 'selected' : ''; ?>>En proceso</option>
+        <option value="resuelto"   <?php echo $t['estado'] === 'resuelto'   ? 'selected' : ''; ?>>Resuelto</option>
+        <option value="cerrado"    <?php echo $t['estado'] === 'cerrado'    ? 'selected' : ''; ?>>Cerrado</option>
+    </select>
+</td>
                                     <td>
                                         <button type="button"
-                                                class="btn-login"
+                                                class="btn-main-combined"
                                                 onclick="openTicketChat(<?php echo (int)$t['id']; ?>, '<?php echo htmlspecialchars($t['nombre'], ENT_QUOTES, 'UTF-8'); ?>')">
                                             Ver chat
                                         </button>
@@ -268,27 +298,24 @@ $historyTickets = $stmtHistory->fetchAll();
                                 <th>Fecha resolución</th>
                                 <th>Usuario</th>
                                 <th>Problema</th>
+                                <th>Prioridad</th>
                                 <th>Estatus</th>
-                                <th>Reporte</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php foreach ($historyTickets as $t): ?>
                                 <tr>
-                                    <td><?php echo (int)$t['id']; ?></td>
+                                    <td>#<?php echo (int)$t['id']; ?></td>
                                     <td><?php echo htmlspecialchars($t['fecha_envio'], ENT_QUOTES, 'UTF-8'); ?></td>
                                     <td><?php echo htmlspecialchars($t['fecha_resolucion'] ?? '-', ENT_QUOTES, 'UTF-8'); ?></td>
                                     <td><?php echo htmlspecialchars($t['nombre'], ENT_QUOTES, 'UTF-8'); ?></td>
                                     <td><?php echo htmlspecialchars(problemaLabel($t['problema']), ENT_QUOTES, 'UTF-8'); ?></td>
-                                    <td><?php echo htmlspecialchars($t['estado'], ENT_QUOTES, 'UTF-8'); ?></td>
                                     <td>
-                                        <a href="/HelpDesk_EQF/modules/ticket/report.php?ticket_id=<?php echo (int)$t['id']; ?>"
-                                           class="btn-login"
-                                           style="padding:4px 10px; font-size:0.75rem;"
-                                           target="_blank">
-                                            PDF
-                                        </a>
+                                        <span class="priority-pill priority-<?php echo htmlspecialchars(strtolower($t['prioridad'] ?? 'media'), ENT_QUOTES, 'UTF-8'); ?>">
+                                            <?php echo htmlspecialchars(prioridadLabel($t['prioridad'] ?? 'media'), ENT_QUOTES, 'UTF-8'); ?>
+                                        </span>
                                     </td>
+                                    <td><?php echo htmlspecialchars($t['estado'], ENT_QUOTES, 'UTF-8'); ?></td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>
@@ -390,7 +417,7 @@ function openTicketChat(ticketId, tituloExtra) {
     if (typeof openModal === 'function') {
         openModal('ticket-chat-modal');
     } else if (modal) {
-        modal.classList.add('show');   // asegúrate en tu CSS: .modal-backdrop.show { display:flex; }
+        modal.classList.add('show');
     }
 
     fetchMessages(true);
@@ -560,7 +587,7 @@ function sendTicketMessage(ev) {
 }
 
 // ===============================
-//  INIT: DataTables + asignación + notificaciones
+//  INIT: DataTables + asignación + notificaciones + estatus
 // ===============================
 document.addEventListener('DOMContentLoaded', function () {
 
@@ -587,57 +614,126 @@ document.addEventListener('DOMContentLoaded', function () {
         order: [[1, 'desc']]
     });
 
-    // ---------- ASIGNAR TICKET ----------
-    document.addEventListener('click', function (e) {
-        const btn = e.target.closest('.btn-assign-ticket');
-        if (!btn) return;
+    // ---------- CAMBIO DE ESTATUS EN MIS TICKETS ----------
+    document.addEventListener('change', function (e) {
+        const select = e.target.closest('.ticket-status-select');
+        if (!select) return;
 
-        if (btn.dataset.loading === '1') return;
-        btn.dataset.loading = '1';
+        const ticketId  = select.dataset.ticketId;
+        const newStatus = select.value;
+        if (!ticketId || !newStatus) return;
 
-        const rowEl = btn.closest('tr');
-        const ticketId = btn.dataset.ticketId || (rowEl && rowEl.getAttribute('data-ticket-id'));
-        if (!ticketId || !rowEl) {
-            btn.dataset.loading = '0';
-            return;
-        }
-
-        const originalText = btn.textContent;
-        btn.disabled = true;
-        btn.textContent = 'Asignando...';
-
-        fetch('/HelpDesk_EQF/modules/ticket/assign.php', {
+        fetch('/HelpDesk_EQF/modules/ticket/update_status.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: 'ticket_id=' + encodeURIComponent(ticketId)
+            body: 'ticket_id=' + encodeURIComponent(ticketId) +
+                  '&estado='   + encodeURIComponent(newStatus)
         })
         .then(r => r.json())
         .then(data => {
             if (!data.ok) {
-                alert(data.msg || 'No se pudo asignar el ticket.');
-                btn.disabled = false;
-                btn.textContent = originalText;
-                btn.dataset.loading = '0';
+                alert(data.msg || 'No se pudo actualizar el estatus.');
                 return;
             }
-
-            if (incomingDT) {
-                incomingDT.row($(rowEl)).remove().draw(false);
-            } else if (rowEl.parentNode) {
-                rowEl.parentNode.removeChild(rowEl);
-            }
-
-            showTicketToast('Ticket #' + ticketId + ' asignado a ti.');
-            btn.dataset.loading = '0';
+            showTicketToast('Estatus del ticket #' + ticketId + ' actualizado a "' + data.estado_label + '".');
         })
         .catch(err => {
-            console.error(err);
-            alert('Error al asignar el ticket.');
+            console.error('Error actualizando estatus:', err);
+            alert('Error al actualizar el estatus.');
+        });
+    });
+
+  // ---------- ASIGNAR TICKET ----------
+document.addEventListener('click', function (e) {
+    const btn = e.target.closest('.btn-assign-ticket');
+    if (!btn) return;
+
+    if (btn.dataset.loading === '1') return;
+    btn.dataset.loading = '1';
+
+    const rowEl   = btn.closest('tr');
+    const ticketId = btn.dataset.ticketId || (rowEl && rowEl.getAttribute('data-ticket-id'));
+    if (!ticketId || !rowEl) {
+        btn.dataset.loading = '0';
+        return;
+    }
+
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Asignando...';
+
+    fetch('/HelpDesk_EQF/modules/ticket/assign.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'ticket_id=' + encodeURIComponent(ticketId)
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (!data.ok) {
+            alert(data.msg || 'No se pudo asignar el ticket.');
             btn.disabled = false;
             btn.textContent = originalText;
             btn.dataset.loading = '0';
-        });
+            return;
+        }
+
+        // 1) Quitar de "Tickets entrantes"
+        if (incomingDT) {
+            incomingDT.row($(rowEl)).remove().draw(false);
+        } else if (rowEl.parentNode) {
+            rowEl.parentNode.removeChild(rowEl);
+        }
+
+        // 2) Agregar a "Mis tickets" en caliente
+        //    Data que nos regresa el assign.php
+        const t = data.ticket; // {id, fecha_envio, nombre, problema, estado, prioridad}
+
+        const myTableEl = $('#myTicketsTable');
+        if (myTableEl.length && $.fn.dataTable.isDataTable('#myTicketsTable')) {
+            const myDT = myTableEl.DataTable();
+
+            const statusSelectHtml = `
+                <select class="ticket-status-select status-${t.estado}"
+                        data-ticket-id="${t.id}">
+                    <option value="abierto"   ${t.estado === 'abierto'   ? 'selected' : ''}>Abierto</option>
+                    <option value="en_proceso"${t.estado === 'en_proceso'? 'selected' : ''}>En proceso</option>
+                    <option value="resuelto"  ${t.estado === 'resuelto'  ? 'selected' : ''}>Resuelto</option>
+                    <option value="cerrado"   ${t.estado === 'cerrado'   ? 'selected' : ''}>Cerrado</option>
+                </select>
+            `;
+
+            const chatButtonHtml = `
+                <button type="button"
+                        class="btn-login"
+                        onclick="openTicketChat(${t.id}, '${t.nombre.replace(/'/g, "\\'")}')">
+                    Ver chat
+                </button>
+            `;
+
+            myDT.row.add([
+                t.id,
+                t.fecha_envio || '',
+                t.nombre || '',
+                t.problema || '',
+                statusSelectHtml,
+                chatButtonHtml
+            ]).draw(false);
+        }
+
+        // 3) Mensaje dentro del sistema (toast)
+        showTicketToast('Ticket #' + ticketId + ' asignado a ti.');
+
+        btn.dataset.loading = '0';
+    })
+    .catch(err => {
+        console.error(err);
+        alert('Error al asignar el ticket.');
+        btn.disabled = false;
+        btn.textContent = originalText;
+        btn.dataset.loading = '0';
     });
+});
+
 
     // ---------- NOTIFICACIONES NUEVOS TICKETS ----------
     let lastTicketId = <?php echo (int)$maxIncomingId; ?>;
@@ -660,41 +756,53 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    function addIncomingTicketRow(ticket) {
-        if (!ticket || !ticket.id) return;
+function addIncomingTicketRow(ticket) {
+    if (!ticket || !ticket.id) return;
 
-        const rowData = [
-            ticket.id,
-            ticket.fecha || '',
-            ticket.usuario || '',
-            ticket.problema || '',
-            ticket.descripcion || '',
-            `<button type="button"
-                     class="btn-assign-ticket"
-                     data-ticket-id="${ticket.id}">
-                Asignar
-             </button>`
-        ];
+    const prioridadSlug = (ticket.prioridad || 'media').toLowerCase();
+    const prioridadLabel = ticket.prioridad_label || ticket.prioridad || 'Media';
 
-        if (incomingDT) {
-            incomingDT.row.add(rowData).draw(false);
-        } else {
-            const tbody = document.querySelector('#incomingTable tbody');
-            if (!tbody) return;
+    const prioridadHtml = `
+        <span class="priority-pill priority-${prioridadSlug}">
+            ${prioridadLabel}
+        </span>
+    `;
 
-            const tr = document.createElement('tr');
-            tr.setAttribute('data-ticket-id', ticket.id);
-            tr.innerHTML = `
-                <td>${rowData[0]}</td>
-                <td>${rowData[1]}</td>
-                <td>${rowData[2]}</td>
-                <td>${rowData[3]}</td>
-                <td>${rowData[4]}</td>
-                <td>${rowData[5]}</td>
-            `;
-            tbody.prepend(tr);
-        }
+    const rowData = [
+        ticket.id,
+        ticket.fecha || '',
+        ticket.usuario || '',
+        ticket.problema || '',
+        prioridadHtml,
+        ticket.descripcion || '',
+        `<button type="button"
+                 class="btn-assign-ticket"
+                 data-ticket-id="${ticket.id}">
+            Asignar
+         </button>`
+    ];
+
+    if (incomingDT) {
+        incomingDT.row.add(rowData).draw(false);
+    } else {
+        const tbody = document.querySelector('#incomingTable tbody');
+        if (!tbody) return;
+
+        const tr = document.createElement('tr');
+        tr.setAttribute('data-ticket-id', ticket.id);
+        tr.innerHTML = `
+            <td>${rowData[0]}</td>
+            <td>${rowData[1]}</td>
+            <td>${rowData[2]}</td>
+            <td>${rowData[3]}</td>
+            <td>${prioridadHtml}</td>
+            <td>${rowData[5]}</td>
+            <td>${rowData[6]}</td>
+        `;
+        tbody.prepend(tr);
     }
+}
+
 
     function pollNewTickets() {
         fetch('/HelpDesk_EQF/modules/ticket/check_new.php?last_id=' + lastTicketId)

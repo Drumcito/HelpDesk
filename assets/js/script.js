@@ -357,6 +357,116 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+ // ---------- CAMBIO DE ESTATUS EN MIS TICKETS ----------
+document.addEventListener('change', function (e) {
+    const select = e.target.closest('.ticket-status-select');
+    if (!select) return;
+
+    const ticketId  = select.dataset.ticketId;
+    const newStatus = select.value;
+    if (!ticketId || !newStatus) return;
+
+
+  const classes = select.className.split(' ').filter(c => !c.startsWith('status-'));
+    classes.push('status-' + newStatus);           // agregamos la nueva
+    select.className = classes.join(' ');
+
+    
+    fetch('/HelpDesk_EQF/modules/ticket/update_status.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'ticket_id=' + encodeURIComponent(ticketId) +
+              '&estado='   + encodeURIComponent(newStatus)
+    })
+    .then(async (r) => {
+        const raw = await r.text();
+        let data;
+        try {
+            data = JSON.parse(raw);
+        } catch (e) {
+            console.error('Respuesta no es JSON válido en update_status:', raw);
+            alert('Error al actualizar el estatus.');
+            return;
+        }
+
+        if (!data.ok) {
+            alert(data.msg || 'No se pudo actualizar el estatus.');
+            return;
+        }
+
+        // Actualizar valor y clases de color
+        select.value = data.estado;
+
+        // quitar clases anteriores status-*
+        select.className = select.className
+            .split(' ')
+            .filter(c => !c.startsWith('status-'))
+            .join(' ');
+        // agregar la nueva
+        select.classList.add('status-' + data.estado);
+
+        showTicketToast(
+            'Estatus del ticket #' + ticketId +
+            ' actualizado a "' + data.estado_label + '".'
+        );
+    })
+    .catch(err => {
+        console.error('Error actualizando estatus:', err);
+        alert('Error al actualizar el estatus.');
+    });
+});
+function addIncomingTicketRow(ticket) {
+    if (!ticket || !ticket.id) return;
+
+    const prioridadRaw   = (ticket.prioridad || 'media').toLowerCase();
+    const prioridadLabel = prioridadRaw === 'alta'   ? 'Alta'
+                         : prioridadRaw === 'baja'   ? 'Baja'
+                         : prioridadRaw === 'critica' || prioridadRaw === 'crítica' ? 'Crítica'
+                         : 'Media';
+
+    const prioridadHtml = `
+        <span class="priority-pill priority-${prioridadRaw}">
+            ${prioridadLabel}
+        </span>
+    `;
+
+    const rowData = [
+        ticket.id,
+        ticket.fecha || '',
+        ticket.usuario || '',
+        ticket.problema || '',
+        prioridadHtml,
+        ticket.descripcion || '',
+        `<button type="button"
+                 class="btn-assign-ticket"
+                 data-ticket-id="${ticket.id}">
+            Asignar
+         </button>`
+    ];
+
+    if (incomingDT) {
+        incomingDT.row.add(rowData).draw(false);
+    } else {
+        const tbody = document.querySelector('#incomingTable tbody');
+        if (!tbody) return;
+
+        const tr = document.createElement('tr');
+        tr.setAttribute('data-ticket-id', ticket.id);
+        tr.innerHTML = `
+            <td>${rowData[0]}</td>
+            <td>${rowData[1]}</td>
+            <td>${rowData[2]}</td>
+            <td>${rowData[3]}</td>
+            <td>${rowData[4]}</td>
+            <td>${rowData[5]}</td>
+            <td>${rowData[6]}</td>
+        `;
+        tbody.prepend(tr);
+    }
+}
+
+
+
     // -----------------------------
     // Área de soporte → lista de problemas
     // -----------------------------
@@ -492,3 +602,4 @@ Colapsar Sidebar
 function toggleSidebar() {
     document.body.classList.toggle('sidebar-collapsed');
 }
+

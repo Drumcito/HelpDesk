@@ -8,6 +8,8 @@
     --eqf-yellow: #F2C94C;
     --eqf-combined: #6e1c5c;
     --eqf-combined-light: #a02f87;
+    --eqf-red-dark: #7f1d1d;
+    --eqf-status-gray: #AAAAAA;
     --eqf-bg: #f4f6fb;
     --eqf-bg-header: #EBEEF2;
     --eqf-black: #211915;
@@ -210,7 +212,24 @@ body {
 }
 
 
-/* Botón principal */
+/* --------------------------------
+           Botón principal 
+    -----------------------------*/
+.btn-main-combined {
+    margin-top: 12px;
+    width: 100%;
+    border: none;
+    border-radius: 999px;
+    background-color: var(--eqf-combined-light);
+    color: #ffffff;
+    font-size: 0.95rem;
+    font-weight: 600;
+    padding: 10px 14px;
+    cursor: pointer;
+    transition: transform 0.08s ease, box-shadow 0.08s ease, background-color 0.08s ease;
+}
+
+
 .btn-login {
     margin-top: 12px;
     width: 100%;
@@ -1674,4 +1693,79 @@ footer {
     max-height: 160px;
     border-radius: 8px;
     display: block;
+}
+
+/* -----------------------------------
+        CAMBIOS DE STATUS SELECT 
+------------------------------------*/
+
+/* ---------- STATUS PILL (select) ---------- */
+.ticket-status-select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    border: none;
+    border-radius: 999px;
+    padding: 4px 14px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    color: #fff;
+    background: #9ca3af; /* gris por defecto */
+    outline: none;
+    text-align: center;
+}
+
+/* flechita simple */
+.ticket-status-select::-ms-expand {
+    display: none;
+}
+
+/* Colores por estado */
+.ticket-status-select.status-abierto {
+    background: var(--eqf-blue); 
+}
+
+.ticket-status-select.status-en_proceso {
+    background: var(--eqf-yellow); 
+    color: #1f2937;      
+}
+
+.ticket-status-select.status-resuelto {
+    background: var(--eqf-green); 
+}
+
+.ticket-status-select.status-cerrado {
+    background: var(--eqf-status-gray); 
+}
+
+/* ---------- PRIORITY PILL ---------- */
+.priority-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 70px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #fff;
+}
+
+.priority-alta {
+    background: var(--eqf-red);
+}
+
+.priority-media {
+    background: var(--eqf-yellow);
+    color: #1f2937;
+}
+
+.priority-baja {
+    background: var(--eqf-green);
+}
+
+.priority-critica,
+.priority-crítica {
+    background: var(--eqf-red-dark);
 }
