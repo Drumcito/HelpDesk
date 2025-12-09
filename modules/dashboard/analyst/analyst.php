@@ -259,17 +259,19 @@ $historyTickets = $stmtHistory->fetchAll();
                                             <?php echo htmlspecialchars(prioridadLabel($t['prioridad'] ?? 'media'), ENT_QUOTES, 'UTF-8'); ?>
                                         </span>
                                     </td>
-                                    <td>
+<td>
+    <?php $estado = $t['estado']; ?>
     <select
-        class="ticket-status-select status-<?php echo htmlspecialchars(strtolower($t['estado']), ENT_QUOTES, 'UTF-8'); ?>"
+        class="ticket-status-select status-<?php echo htmlspecialchars($estado, ENT_QUOTES, 'UTF-8'); ?>"
         data-ticket-id="<?php echo (int)$t['id']; ?>"
     >
-        <option value="abierto"    <?php echo $t['estado'] === 'abierto'    ? 'selected' : ''; ?>>Abierto</option>
-        <option value="en_proceso"<?php echo $t['estado'] === 'en_proceso' ? 'selected' : ''; ?>>En proceso</option>
-        <option value="resuelto"   <?php echo $t['estado'] === 'resuelto'   ? 'selected' : ''; ?>>Resuelto</option>
-        <option value="cerrado"    <?php echo $t['estado'] === 'cerrado'    ? 'selected' : ''; ?>>Cerrado</option>
+        <option value="abierto"    <?php echo $estado === 'abierto'    ? 'selected' : ''; ?>>Abierto</option>
+        <option value="en_proceso" <?php echo $estado === 'en_proceso' ? 'selected' : ''; ?>>En proceso</option>
+        <option value="resuelto"   <?php echo $estado === 'resuelto'   ? 'selected' : ''; ?>>Resuelto</option>
+        <option value="cerrado"    <?php echo $estado === 'cerrado'    ? 'selected' : ''; ?>>Cerrado</option>
     </select>
 </td>
+
                                     <td>
                                         <button type="button"
                                                 class="btn-main-combined"
@@ -756,23 +758,27 @@ document.addEventListener('click', function (e) {
         });
     }
 
+function renderPriorityPill(priorityRaw) {
+    const p = (priorityRaw || 'media').toLowerCase();
+    let label = 'Media';
+
+    if (p === 'alta')      label = 'Alta';
+    else if (p === 'baja') label = 'Baja';
+    else if (p === 'critica' || p === 'crítica') label = 'Crítica';
+
+    return `<span class="priority-pill priority-${p}">${label}</span>`;
+}
+
 function addIncomingTicketRow(ticket) {
     if (!ticket || !ticket.id) return;
 
-    const prioridadSlug = (ticket.prioridad || 'media').toLowerCase();
-    const prioridadLabel = ticket.prioridad_label || ticket.prioridad || 'Media';
-
-    const prioridadHtml = `
-        <span class="priority-pill priority-${prioridadSlug}">
-            ${prioridadLabel}
-        </span>
-    `;
+    const prioridadHtml = renderPriorityPill(ticket.prioridad);
 
     const rowData = [
         ticket.id,
-        ticket.fecha || '',
-        ticket.usuario || '',
-        ticket.problema || '',
+        ticket.fecha_envio || ticket.fecha || '',
+        ticket.usuario    || ticket.nombre || '',
+        ticket.problema   || '',
         prioridadHtml,
         ticket.descripcion || '',
         `<button type="button"
@@ -783,6 +789,7 @@ function addIncomingTicketRow(ticket) {
     ];
 
     if (incomingDT) {
+        // DataTables admite HTML en las celdas
         incomingDT.row.add(rowData).draw(false);
     } else {
         const tbody = document.querySelector('#incomingTable tbody');
@@ -804,23 +811,75 @@ function addIncomingTicketRow(ticket) {
 }
 
 
+
     function pollNewTickets() {
-        fetch('/HelpDesk_EQF/modules/ticket/check_new.php?last_id=' + lastTicketId)
-            .then(r => r.json())
-            .then(data => {
-                if (!data || !data.new) return;
+    fetch('/HelpDesk_EQF/modules/ticket/check_new.php?last_id=' + lastTicketId)
+        .then(r => r.json())
+        .then(data => {
+            if (!data || !data.new) return;
 
-                lastTicketId = data.id;
-                const msg = 'Nuevo ticket #' + data.id + ' – ' + (data.problema || '');
-                showInPageToast(msg);
-                showDesktopNotification(data);
-                addIncomingTicketRow(data);
-            })
-            .catch(err => console.error('Error comprobando nuevos tickets:', err));
-    }
+            lastTicketId = data.id;
 
-    setInterval(pollNewTickets, 10000);
+            const msg = 'Nuevo ticket #' + data.id + ' – ' + (data.problema || '');
+            showInPageToast(msg);
+            showDesktopNotification(data);
+
+            //  aquí se pinta en la tabla inmediatamente
+            addIncomingTicketRow(data);
+        })
+        .catch(err => console.error('Error comprobando nuevos tickets:', err));
+}
 });
+
+
+// quita todas y aplica la clase correcta según el estado
+function applyStatusClass(select, estado) {
+    const classes = [
+        'status-abierto',
+        'status-en_proceso',
+        'status-resuelto',
+        'status-cerrado'
+    ];
+    select.classList.remove(...classes);
+    select.classList.add('status-' + estado);
+}
+
+document.addEventListener('change', function (e) {
+    const select = e.target.closest('.ticket-status-select');
+    if (!select) return;
+
+    const nuevoEstado = select.value;
+    const ticketId    = select.dataset.ticketId;
+
+    // Deshabilitamos mientras va la petición
+    select.disabled = true;
+
+    fetch('/HelpDesk_EQF/modules/ticket/update_status.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'ticket_id=' + encodeURIComponent(ticketId) +
+              '&estado='   + encodeURIComponent(nuevoEstado)
+    })
+    .then(r => r.json())
+    .then(data => {
+        select.disabled = false;
+
+        if (!data.ok) {
+            alert(data.msg || 'Error al actualizar el estatus.');
+            return;
+        }
+
+        applyStatusClass(select, data.estado);
+        // (el texto lo pone solo el <select>, ya que la opción seleccionada cambia)
+    })
+    .catch(err => {
+        console.error('Error update_status:', err);
+        select.disabled = false;
+        alert('Error al actualizar el estatus.');
+    });
+});
+
+
 </script>
 
 </body>

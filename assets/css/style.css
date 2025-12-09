@@ -1701,19 +1701,15 @@ footer {
 
 /* ---------- STATUS PILL (select) ---------- */
 .ticket-status-select {
-    appearance: none;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    border: none;
-    border-radius: 999px;
     padding: 4px 14px;
+    border-radius: 999px;
+    border: none;
     font-size: 0.8rem;
     font-weight: 600;
     cursor: pointer;
     color: #fff;
-    background: #9ca3af; /* gris por defecto */
     outline: none;
-    text-align: center;
+    appearance: none;
 }
 
 /* flechita simple */
