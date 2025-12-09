@@ -160,25 +160,7 @@ if ($rol === 3) {
         <span>Reportes y KPIs</span>
     </button>
 
-<?php if ($area === 'TI'): ?>
-        <button type="button" class="user-menu-item"
-                onclick="window.location.href='https://equilibriofarmaceutico.sharepoint.com/:f:/s/tecnologiasdelainformacion/IgD0BIEbVIjFR6wEGbwStJGfARirToBm_YXjnhw5RYGONYA?e=452xhO'">
-            <span class="user-menu-icon">📎</span>
-            <span>Programas (TI)</span>
-        </button>
-    <?php elseif ($area === 'SAP'): ?>
-        <button type="button" class="user-menu-item"
-                onclick="window.location.href='[URL_MANUALES_SAP]'">
-            <span class="user-menu-icon">📚</span>
-            <span>Manuales SAP</span>
-        </button>
-    <?php elseif ($area === 'MKT'): ?>
-        <button type="button" class="user-menu-item"
-                onclick="window.location.href='[URL_DOCUMENTOS_MKT]'">
-            <span class="user-menu-icon">📄</span>
-            <span>Documentos MKT</span>
-        </button>
-    <?php endif; ?>
+
 
 
         <?php elseif ($rol === 3): ?>

@@ -193,48 +193,7 @@ function problemaLabel(string $p): string {
         </section>
     </main>
 
-    <!-- CHATBOT FLOtANTE -->
-    <div class="chatbot-container" id="chatbot">
-        <button type="button" class="chatbot-toggle" onclick="toggleChatbot()">
-            💬
-        </button>
-
-        <div class="chatbot-panel">
-            <header class="chatbot-header">
-                <div class="chatbot-header-info">
-                    <span class="chatbot-avatar">🤖</span>
-                    <div>
-                        <p class="chatbot-title">CAPSULia</p>
-                        <p class="chatbot-subtitle">Asistente HelpDesk EQF</p>
-                    </div>
-                </div>
-                <button type="button" class="chatbot-close" onclick="toggleChatbot()">×</button>
-            </header>
-
-            <div class="chatbot-body">
-                <div class="chatbot-message chatbot-message-bot">
-                    <p>
-                        ¡Hola! Soy <strong>CAPSULia</strong>.
-                        Cuéntame tu problema y te ayudaré a resolverlo o a crear un ticket.
-                    </p>
-                </div>
-
-                <div class="chatbot-quick-actions">
-                    <button type="button" class="chatbot-chip">Cierre del día</button>
-                    <button type="button" class="chatbot-chip">No tengo acceso</button>
-                    <button type="button" class="chatbot-chip">No tengo internet</button>
-                    <button type="button" class="chatbot-chip chatbot-chip-outline">Otro</button>
-                </div>
-            </div>
-
-            <form class="chatbot-input-row" onsubmit="event.preventDefault();">
-                <button type="button" class="chatbot-attach">📎</button>
-                <input type="text" class="chatbot-input" placeholder="Escribe tu mensaje...">
-                <button type="submit" class="chatbot-send">Enviar</button>
-            </form>
-        </div>
-    </div>
-
+ 
     <!-- MODAL CREAR TICKET -->
     <div class="user-modal-backdrop" id="ticketModal">
         <div class="user-modal">
