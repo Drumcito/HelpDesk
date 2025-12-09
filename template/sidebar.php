@@ -127,19 +127,59 @@ if ($rol === 3) {
                 <span>Documentos importantes</span>
             </button>
 
-        <?php elseif ($rol === 2): ?>
-            <!-- ================= ADMIN ================= -->
-            <button type="button" class="user-menu-item"
-                    onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/admin/admin.php'">
-                <span class="user-menu-icon">🏢</span>
-                <span>Panel Admin</span>
-            </button>
+<?php elseif ($rol === 2): ?>
+    <!-- ================= ADMIN ================= -->
 
-            <button type="button" class="user-menu-item"
-                    onclick="window.location.href='/HelpDesk_EQF/modules/docs/important.php'">
-                <span class="user-menu-icon">📎</span>
-                <span>Documentos importantes</span>
-            </button>
+    <button type="button" class="user-menu-item"
+            onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/admin/admin.php'">
+        <span class="user-menu-icon">🏢</span>
+        <span>Panel Admin</span>
+    </button>
+
+    <button type="button" class="user-menu-item"
+            onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/admin/tickets_area.php'">
+        <span class="user-menu-icon">🎫</span>
+        <span>Tickets de mi área</span>
+    </button>
+
+    <button type="button" class="user-menu-item"
+            onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/admin/tasks.php'">
+        <span class="user-menu-icon">📝</span>
+        <span>Tareas a analistas</span>
+    </button>
+
+    <button type="button" class="user-menu-item"
+            onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/admin/analysts.php'">
+        <span class="user-menu-icon">👥</span>
+        <span>Analistas de mi área</span>
+    </button>
+
+    <button type="button" class="user-menu-item"
+            onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/admin/reports.php'">
+        <span class="user-menu-icon">📊</span>
+        <span>Reportes y KPIs</span>
+    </button>
+
+<?php if ($area === 'TI'): ?>
+        <button type="button" class="user-menu-item"
+                onclick="window.location.href='https://equilibriofarmaceutico.sharepoint.com/:f:/s/tecnologiasdelainformacion/IgD0BIEbVIjFR6wEGbwStJGfARirToBm_YXjnhw5RYGONYA?e=452xhO'">
+            <span class="user-menu-icon">📎</span>
+            <span>Programas (TI)</span>
+        </button>
+    <?php elseif ($area === 'SAP'): ?>
+        <button type="button" class="user-menu-item"
+                onclick="window.location.href='[URL_MANUALES_SAP]'">
+            <span class="user-menu-icon">📚</span>
+            <span>Manuales SAP</span>
+        </button>
+    <?php elseif ($area === 'MKT'): ?>
+        <button type="button" class="user-menu-item"
+                onclick="window.location.href='[URL_DOCUMENTOS_MKT]'">
+            <span class="user-menu-icon">📄</span>
+            <span>Documentos MKT</span>
+        </button>
+    <?php endif; ?>
+
 
         <?php elseif ($rol === 3): ?>
             <!-- ================= ANALISTA ================= -->
@@ -158,7 +198,14 @@ if ($rol === 3) {
                 <span>Mis tickets</span>
             </button>
 
-            <button type="button" class="user-menu-item" onclick="scrollToSection('history-section')">
+            <button type="button" class="user-menu-item" 
+                onclick="window.location.href='/HelpDesk_EQF/modules/ticket/history.php'">
+                <span class="user-menu-icon">📈</span>
+                <span>KPI</span>
+            </button>
+
+            <button type="button" class="user-menu-item" 
+                    onclick="window.location.href='/HelpDesk_EQF/modules/ticket/history.php'">
                 <span class="user-menu-icon">📚</span>
                 <span>Historial</span>
             </button>

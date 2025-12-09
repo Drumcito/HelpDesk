@@ -94,28 +94,18 @@ foreach ($incomingTickets as $t) {
 }
 
 /* Mis tickets */
+/* Mis tickets activos (solo abiertos y en proceso) */
 $stmtMy = $pdo->prepare("
     SELECT id, sap, nombre, email, problema, descripcion, fecha_envio, estado, prioridad
     FROM tickets
     WHERE area = :area
       AND asignado_a = :uid
-      AND estado IN ('abierto','en_proceso','resuelto','cerrado')
+      AND estado IN ('abierto','en_proceso')
     ORDER BY fecha_envio DESC
 ");
 $stmtMy->execute([':area' => $userArea, ':uid' => $userId]);
 $myTickets = $stmtMy->fetchAll();
 
-/* Historial (resueltos / cerrados) */
-$stmtHistory = $pdo->prepare("
-    SELECT id, sap, nombre, email, problema, descripcion, fecha_envio, estado, fecha_resolucion, prioridad
-    FROM tickets
-    WHERE area = :area
-      AND asignado_a = :uid
-      AND estado IN ('resuelto','cerrado')
-    ORDER BY fecha_resolucion DESC, fecha_envio DESC
-");
-$stmtHistory->execute([':area' => $userArea, ':uid' => $userId]);
-$historyTickets = $stmtHistory->fetchAll();
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -261,14 +251,15 @@ $historyTickets = $stmtHistory->fetchAll();
                                     </td>
 <td>
     <?php $estado = $t['estado']; ?>
-    <select
-        class="ticket-status-select status-<?php echo htmlspecialchars($estado, ENT_QUOTES, 'UTF-8'); ?>"
+<select
+        class="ticket-status-select status-<?php echo htmlspecialchars($t['estado'], ENT_QUOTES, 'UTF-8'); ?>"
         data-ticket-id="<?php echo (int)$t['id']; ?>"
+        data-prev="<?php echo htmlspecialchars($t['estado'], ENT_QUOTES, 'UTF-8'); ?>"
     >
-        <option value="abierto"    <?php echo $estado === 'abierto'    ? 'selected' : ''; ?>>Abierto</option>
-        <option value="en_proceso" <?php echo $estado === 'en_proceso' ? 'selected' : ''; ?>>En proceso</option>
-        <option value="resuelto"   <?php echo $estado === 'resuelto'   ? 'selected' : ''; ?>>Resuelto</option>
-        <option value="cerrado"    <?php echo $estado === 'cerrado'    ? 'selected' : ''; ?>>Cerrado</option>
+<option value="abierto"    <?php if ($t['estado'] === 'abierto')    echo 'selected'; ?>>Abierto</option>
+        <option value="en_proceso" <?php if ($t['estado'] === 'en_proceso') echo 'selected'; ?>>En proceso</option>
+        <option value="resuelto"   <?php if ($t['estado'] === 'resuelto')   echo 'selected'; ?>>Resuelto</option>
+        <option value="cerrado"    <?php if ($t['estado'] === 'cerrado')    echo 'selected'; ?>>Cerrado</option>
     </select>
 </td>
 
@@ -286,45 +277,7 @@ $historyTickets = $stmtHistory->fetchAll();
                 <?php endif; ?>
             </div>
 
-            <!-- HISTORIAL -->
-            <div id="history-section" class="user-info-card">
-                <h3>Historial de tickets atendidos</h3>
-                <?php if (empty($historyTickets)): ?>
-                    <p>Todavía no tienes tickets resueltos o cerrados.</p>
-                <?php else: ?>
-                    <table id="historyTable" class="data-table display">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Fecha envío</th>
-                                <th>Fecha resolución</th>
-                                <th>Usuario</th>
-                                <th>Problema</th>
-                                <th>Prioridad</th>
-                                <th>Estatus</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($historyTickets as $t): ?>
-                                <tr>
-                                    <td>#<?php echo (int)$t['id']; ?></td>
-                                    <td><?php echo htmlspecialchars($t['fecha_envio'], ENT_QUOTES, 'UTF-8'); ?></td>
-                                    <td><?php echo htmlspecialchars($t['fecha_resolucion'] ?? '-', ENT_QUOTES, 'UTF-8'); ?></td>
-                                    <td><?php echo htmlspecialchars($t['nombre'], ENT_QUOTES, 'UTF-8'); ?></td>
-                                    <td><?php echo htmlspecialchars(problemaLabel($t['problema']), ENT_QUOTES, 'UTF-8'); ?></td>
-                                    <td>
-                                        <span class="priority-pill priority-<?php echo htmlspecialchars(strtolower($t['prioridad'] ?? 'media'), ENT_QUOTES, 'UTF-8'); ?>">
-                                            <?php echo htmlspecialchars(prioridadLabel($t['prioridad'] ?? 'media'), ENT_QUOTES, 'UTF-8'); ?>
-                                        </span>
-                                    </td>
-                                    <td><?php echo htmlspecialchars($t['estado'], ENT_QUOTES, 'UTF-8'); ?></td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                <?php endif; ?>
-            </div>
-
+            
         </section>
     </section>
 </main>
@@ -616,34 +569,62 @@ document.addEventListener('DOMContentLoaded', function () {
         order: [[1, 'desc']]
     });
 
-    // ---------- CAMBIO DE ESTATUS EN MIS TICKETS ----------
-    document.addEventListener('change', function (e) {
-        const select = e.target.closest('.ticket-status-select');
-        if (!select) return;
+    // ===============================
+//  Cambio de estatus desde el select
+// ===============================
+document.addEventListener('change', function (e) {
+    const select = e.target.closest('.ticket-status-select');
+    if (!select) return;
 
-        const ticketId  = select.dataset.ticketId;
-        const newStatus = select.value;
-        if (!ticketId || !newStatus) return;
+    const ticketId   = select.dataset.ticketId;
+    const nuevoEstado = select.value;
+    const prevEstado  = select.dataset.prev || 'abierto';
+    const rowEl       = select.closest('tr');
 
-        fetch('/HelpDesk_EQF/modules/ticket/update_status.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: 'ticket_id=' + encodeURIComponent(ticketId) +
-                  '&estado='   + encodeURIComponent(newStatus)
-        })
-        .then(r => r.json())
-        .then(data => {
-            if (!data.ok) {
-                alert(data.msg || 'No se pudo actualizar el estatus.');
-                return;
+    if (!ticketId) return;
+
+    fetch('/HelpDesk_EQF/modules/ticket/update_status.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'ticket_id=' + encodeURIComponent(ticketId) +
+              '&estado='   + encodeURIComponent(nuevoEstado)
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (!data.ok) {
+            alert(data.msg || 'Error al actualizar el estatus.');
+            // regresar al valor anterior
+            select.value = prevEstado;
+            return;
+        }
+
+        // guardar nuevo estado como "previo"
+        select.dataset.prev = nuevoEstado;
+
+        // actualizar clases de color
+        select.className = 'ticket-status-select status-' + nuevoEstado;
+
+        // 🔥 si quedó RESUELTO o CERRADO, lo quitamos de la tabla "Mis tickets"
+        if (nuevoEstado === 'resuelto' || nuevoEstado === 'cerrado') {
+            if (rowEl) {
+                // Si la tabla está en DataTables
+                if (window.jQuery && $.fn.dataTable && $.fn.dataTable.isDataTable('#myTicketsTable')) {
+                    const dtMy = $('#myTicketsTable').DataTable();
+                    dtMy.row($(rowEl)).remove().draw(false);
+                } else {
+                    // Tabla normal
+                    rowEl.remove();
+                }
             }
-            showTicketToast('Estatus del ticket #' + ticketId + ' actualizado a "' + data.estado_label + '".');
-        })
-        .catch(err => {
-            console.error('Error actualizando estatus:', err);
-            alert('Error al actualizar el estatus.');
-        });
+        }
+    })
+    .catch(err => {
+        console.error('Error update_status:', err);
+        alert('Error interno al actualizar el estatus.');
+        select.value = prevEstado;
     });
+});
+
 
   // ---------- ASIGNAR TICKET ----------
 document.addEventListener('click', function (e) {
