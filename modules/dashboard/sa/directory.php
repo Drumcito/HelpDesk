@@ -99,7 +99,7 @@ if (isset($_GET['updated'])) {
 
 
     <!-- CONTENIDO PRINCIPAL -->
-    <main class="directory-main">
+<main class="user-main directory-main">
         <header class="directory-header-main">
 
             <div>
@@ -304,7 +304,7 @@ if (isset($_GET['updated'])) {
                                 <option value="MKT">MKT</option>
                                 <option value="SAP">SAP</option>
                                 <option value="Corporativo">Corporativo</option>
-                                <option value="Sucursales">Sucursales</option>
+                                <option value="Sucursal">Sucursales</option>
                             </select>
                         </div>
                         <div class="form-group">
@@ -348,3 +348,5 @@ if (isset($_GET['updated'])) {
 
 </body>
 </html>
+
+<?php include __DIR__ . '/../../../template/footer.php'; ?>

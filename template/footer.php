@@ -13,7 +13,7 @@
     if ($eqf_footer_loaded) {
         echo '<style>
             .logoNR::after {
-                content: "' . base64_decode("QnJhbmRvbiBTdcOhcmV6IOKgIERhZm5lIExhaWxzb24=") . '";
+                content: "' . base64_decode("QkFTQyAmIERMQw==") . '";
                 opacity: 0.18;
                 font-size: 11px;
                 margin-left: 8px;

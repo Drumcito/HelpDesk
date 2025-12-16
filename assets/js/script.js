@@ -600,6 +600,7 @@ function addIncomingTicketRow(ticket) {
 Colapsar Sidebar
 -------------------*/
 function toggleSidebar() {
-    document.body.classList.toggle('sidebar-collapsed');
+  document.body.classList.toggle('sidebar-collapsed');
 }
 
+window.toggleSidebar = toggleSidebar;

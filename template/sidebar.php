@@ -78,12 +78,18 @@ if ($rol === 3) {
     $profileImg = '/HelpDesk_EQF/assets/img/pp/pp_sa.jpg';
 }
 ?>
+<button id="sidebarToggle" class="sidebar-toggle" type="button" 
+onclick="toggleSidebar()" aria-label="Abrir/cerrar menú">
+≡
+</button>
+
+
+
 
 <aside class="user-sidebar">
-    <!-- Botón para contraer/expandir -->
-    <button type="button" class="sidebar-toggle" onclick="toggleSidebar()">
-        ☰
-    </button>
+<button id="sidebarToggle" class="sidebar-toggle" type="button" aria-label="Abrir/cerrar menú">
+  
+</button>
 
     <div class="user-sidebar-profile">
         <img src="<?php echo htmlspecialchars($profileImg, ENT_QUOTES, 'UTF-8'); ?>"
@@ -122,9 +128,9 @@ if ($rol === 3) {
     </button>
 
     <button type="button" class="user-menu-item"
-            onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/sa/tickets.php'">
+            onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/sa/tickets_global.php'">
         <span class="user-menu-icon">🎫</span>
-        <span>Tickets (Global)</span>
+        <span>Tickets</span>
     </button>
 
     <button type="button" class="user-menu-item"

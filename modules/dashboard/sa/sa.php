@@ -206,7 +206,7 @@ try {
     <!-- CARD GRANDE: Resumen al día de hoy -->
     <section class="panel-card panel-card-wide">
         <div class="panel-card-head">
-            <h2>Resumen al día de hoy</h2>
+            <h2>Resumen al día</h2>
             <span class="panel-date"><?= h($todayLabel) ?></span>
         </div>
 
@@ -271,10 +271,6 @@ try {
                     </tbody>
                 </table>
             </div>
-
-            <p class="panel-help">
-                Al atender se envía correo con contraseña temporal <b>12345a</b> al solicitante.
-            </p>
         </section>
 
         <!-- Gráficas generales (placeholder ahora, Power BI después) -->
@@ -327,5 +323,6 @@ try {
         </section>
     </section>
 </main>
+<script src="/HelpDesk_EQF/assets/js/script.js?v=20251208a"></script>
 
 <?php include __DIR__ . '/../../../template/footer.php'; ?>
