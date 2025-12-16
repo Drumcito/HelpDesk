@@ -465,50 +465,70 @@ function addIncomingTicketRow(ticket) {
     }
 }
 
-
-
     // -----------------------------
     // Área de soporte → lista de problemas
     // -----------------------------
-    if (areaSoporte && problemaSelect) {
+if (areaSoporte && problemaSelect) {
 
-        const problemOptions = {
-            TI: [
-                { value: 'no_internet',   label: 'No tengo internet' },
-                { value: 'no_checador',   label: 'No funciona checador' },
-                { value: 'no_legado',     label: 'No tengo acceso a legado/legacy' },
-                { value: 'cierre',       label: 'Cierre de día' },
-                { value: 'otro',          label: 'Otro (TI)' }
-            ],
-            SAP: [
-                { value: 'cierre_dia',    label: 'Cierre de día' },
-                { value: 'replica',       label: 'Replica' },
-                { value: 'no_sap',        label: 'No tengo acceso a SAP' },
-                { value: 'otro',          label: 'Otro (SAP)' }
-            ],
-            MKT: [
-                { value: 'update_cliente', label: 'Modificación de cliente' },
-                { value: 'alta_cliente',   label: 'Alta de cliente' },
-                { value: 'Descuentos',     label: 'Descuentos' },
-                { value: 'otro',           label: 'Otro (MKT / Diseño)' }
-            ]
-        };
+        async function fetchProblemas(areaRaw) {
+            const area = (areaRaw || '').toUpperCase().trim();
+            if (!area) return [];
 
-        function fillProblemas(areaRaw) {
+            const res = await fetch(
+                `/HelpDesk_EQF/modules/dashboard/user/get_problems.php?area=${encodeURIComponent(area)}`
+            );
+            const data = await res.json();
+            if (!data.ok) return [];
+            return Array.isArray(data.items) ? data.items : [];
+        }
+
+        function resetProblemas() {
+            problemaSelect.innerHTML = '';
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = 'Selecciona primero un área de soporte';
+            problemaSelect.appendChild(opt);
+            problemaSelect.value = '';
+
+            if (adjuntoContainer) adjuntoContainer.style.display = 'none';
+
+            if (prioridadDisplay && prioridadHidden) {
+                prioridadDisplay.value = 'Media';
+                prioridadHidden.value  = 'media';
+            }
+        }
+
+        async function fillProblemas(areaRaw) {
             const area = (areaRaw || '').toUpperCase().trim();
 
             problemaSelect.innerHTML = '';
+            problemaSelect.disabled = true;
 
-            if (!area || !problemOptions[area]) {
+            if (!area) {
+                resetProblemas();
+                problemaSelect.disabled = false;
+                return;
+            }
+
+            // placeholder loading
+            let loading = document.createElement('option');
+            loading.value = '';
+            loading.textContent = 'Cargando...';
+            problemaSelect.appendChild(loading);
+
+            const items = await fetchProblemas(area);
+
+            problemaSelect.innerHTML = '';
+
+            if (!items.length) {
                 const opt = document.createElement('option');
                 opt.value = '';
-                opt.textContent = 'Selecciona primero un área de soporte';
+                opt.textContent = 'No hay problemas para esta área';
                 problemaSelect.appendChild(opt);
                 problemaSelect.value = '';
+                problemaSelect.disabled = false;
 
                 if (adjuntoContainer) adjuntoContainer.style.display = 'none';
-
-                // Reinicia prioridad a media
                 if (prioridadDisplay && prioridadHidden) {
                     prioridadDisplay.value = 'Media';
                     prioridadHidden.value  = 'media';
@@ -521,17 +541,19 @@ function addIncomingTicketRow(ticket) {
             placeholder.textContent = 'Selecciona un problema';
             problemaSelect.appendChild(placeholder);
 
-            problemOptions[area].forEach(p => {
+            items.forEach(p => {
                 const opt = document.createElement('option');
-                opt.value = p.value;
+                // OJO: mandamos value como id o "otro"
+                opt.value = String(p.id);
                 opt.textContent = p.label;
                 problemaSelect.appendChild(opt);
             });
 
             problemaSelect.value = '';
+            problemaSelect.disabled = false;
+
             if (adjuntoContainer) adjuntoContainer.style.display = 'none';
 
-            // Al cambiar área, reinicia prioridad a media por default
             if (prioridadDisplay && prioridadHidden) {
                 prioridadDisplay.value = 'Media';
                 prioridadHidden.value  = 'media';
@@ -540,6 +562,34 @@ function addIncomingTicketRow(ticket) {
 
         areaSoporte.addEventListener('change', function () {
             fillProblemas(this.value);
+        });
+
+        // Problema cambia prioridad y adjuntos (TU MISMA LÓGICA, intacta)
+        problemaSelect.addEventListener('change', function () {
+            const value = this.value;
+
+            if (adjuntoContainer) {
+                adjuntoContainer.style.display = (value === 'otro') ? 'block' : 'none';
+            }
+
+            if (!prioridadDisplay || !prioridadHidden) return;
+
+            if (value === 'otro' || value === '') {
+                prioridadDisplay.value = 'Media';
+                prioridadHidden.value  = 'media';
+            } else {
+                prioridadDisplay.value = 'Alta';
+                prioridadHidden.value  = 'alta';
+            }
+        });
+
+        // si el área ya viene seleccionada al abrir
+        if (areaSoporte.value) {
+            fillProblemas(areaSoporte.value);
+        } else {
+            resetProblemas();
+        }
+    }
         });
 
         // Problema cambia prioridad y adjuntos
@@ -573,7 +623,7 @@ function addIncomingTicketRow(ticket) {
                 }
             });
         }
-    }
+    
 
     // -----------------------------
     // Antes de enviar, sincronizar los hidden con lo que esté en pantalla
@@ -593,7 +643,6 @@ function addIncomingTicketRow(ticket) {
             else                           prioridadHidden.value = 'media';
         }
     });
-});
 
 
 /*------------------

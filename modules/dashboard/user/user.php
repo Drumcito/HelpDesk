@@ -268,10 +268,10 @@ function problemaLabel(string $p): string {
                 <div class="form-group">
                     <label>Problema</label>
                     <select name="problema" id="problemaSelect" required>
-                        <option value="">Selecciona primero un área de soporte</option>
+                        <option value="">Selecciona primero un área</option>
                     </select>
                 </div>
-
+<!--
                 <div class="form-group">
                     <label>Prioridad</label>
                     <input type="text"
@@ -279,15 +279,8 @@ function problemaLabel(string $p): string {
                            value="Media"
                            disabled>
                 </div>
+                            -->
                 <input type="hidden" name="prioridad" id="prioridadValue" value="media">
-
-                <div class="form-group form-group-full">
-                    <label>Descripción</label>
-                    <textarea name="descripcion" rows="3"
-                              placeholder="Describe el problema "
-                              required></textarea>
-                </div>
-
                 <div class="form-group form-group-full" id="adjuntoContainer" style="display:none;">
                     <label>Adjuntar archivos</label>
                     <input type="file"
@@ -295,6 +288,14 @@ function problemaLabel(string $p): string {
                            multiple
                            accept=".pdf,.jpg,.jpeg,.webp,.docx,.png,.xls,.xlsx,.csv">
                 </div>
+                <div class="form-group form-group-full">
+                    <label>Descripción</label>
+                    <textarea name="descripcion" rows="3"
+                              placeholder="Describe el problema "
+                              required></textarea>
+                </div>
+
+
 
                 <div class="modal-actions">
                     <button type="button" class="btn-secondary" onclick="closeTicketModal()">Cancelar</button>
