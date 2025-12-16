@@ -407,15 +407,6 @@ body {
     align-items: center;
 }
 
-/* ACTIVO (se activa con PHP) */
-.user-menu-item.active {
-    background: var(--eqf-combined-light);
-    font-weight: bold;
-}
-
-.user-menu-item.active .user-menu-icon {
-    background: #fff;
-}
 
 /* CONTENIDO DESPLAZADO */
 .user-main {
@@ -1065,133 +1056,10 @@ body.sidebar-collapsed .user-main {
 
 .user-body {
     background: #f3f4f6 url("/HelpDesk_EQF/assets/img/icon_opacity50.png")  no-repeat center center !important;
-    background-size: 140px auto;
+    background-size: cover;
+    background-attachment: fixed;
 }
 
-/* SIDEBAR IZQUIERDO */
-.user-sidebar {
-    position: fixed;
-    top: 70px; /* altura aproximada de tu header eqf */
-    left: 0;
-    width: 230px;
-    bottom: 0;
-    background: #ffffff;
-    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
-    border-radius: 0 24px 24px 0;
-    padding: 18px 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 18px;
-    z-index: 40;
-}
-
-.user-sidebar-profile {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid #e5e7eb;
-}
-
-.user-sidebar-avatar {
-    width: 80px;
-    height: 80px;
-    border-radius: 999px;
-    object-fit: cover;
-    border: 3px solid #14378A;
-}
-
-.user-sidebar-info {
-    text-align: center;
-}
-
-.user-sidebar-name {
-    font-size: 14px;
-    font-weight: 600;
-    color: #111827;
-    margin: 0;
-}
-
-.user-sidebar-area {
-    font-size: 12px;
-    color: #6b7280;
-    margin: 0;
-}
-
-/* Menú lateral */
-.user-sidebar-menu {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin-top: 10px;
-}
-
-.user-menu-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    padding: 8px 10px;
-    border-radius: 999px;
-    border: none;
-    background: transparent;
-    cursor: pointer;
-    font-size: 13px;
-    color: #374151;
-    text-align: left;
-    transition: background 0.15s ease, transform 0.05s ease;
-}
-
-.user-menu-item:hover {
-    background: #f3f4ff;
-    transform: translateX(1px);
-}
-
-.user-menu-icon {
-    font-size: 15px;
-}
-
-/* CONTENIDO PRINCIPAL */
-.user-main {
-    margin-left: 260px; /* espacio por sidebar */
-    margin-top: 80px;
-    padding: 20px 40px;
-}
-
-.user-main-inner {
-    max-width: 980px;
-    margin: 0 auto;
-    display: flex;
-    flex-direction: column;
-    gap: 18px;
-}
-
-/* Título principal */
-.user-main-header {
-    display: flex;
-    align-items: flex-end;
-    justify-content: space-between;
-}
-
-.user-main-title {
-    font-size: 26px;
-    font-weight: 700;
-    color: #111827;
-    margin-bottom: 4px;
-}
-
-.user-main-subtitle {
-    font-size: 13px;
-    color: #6b7280;
-}
-
-/* Contenido central */
-.user-main-content {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-}
 
 .user-info-card {
     background: rgba(255, 255, 255, 0.96);
@@ -1748,10 +1616,3 @@ footer {
     text-decoration: underline;
 }
 
-body{
-  background-image: url("/HelpDesk_EQF/assets/img/icon2.png");
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: cover;
-  background-attachment: fixed;
-}
