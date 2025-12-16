@@ -284,17 +284,21 @@ body {
 |                   SIDEBAR 
 =========================================== */
 .user-sidebar {
-    position: fixed;
+     position: fixed;
     top: 0;
     left: 0;
     bottom: 0;
     width: 260px;
+    height: 100vh; /* 🔑 importante */
     background: #ffffff;
     box-shadow: 2px 0 18px rgba(0,0,0,0.08);
     z-index: 900;
+
     display: flex;
     flex-direction: column;
+
     padding: 18px;
+    overflow: hidden; /* 🔑 el aside NO scrollea */
     transition: transform 0.3s ease, width 0.3s ease;
 }
 
@@ -323,6 +327,7 @@ body {
     align-items: center;
     gap: 12px;
     margin-bottom: 24px;
+    flex: 0 0 auto;
 }
 
 .user-sidebar-avatar {
@@ -352,11 +357,27 @@ body {
 
 /* MENÚ */
 .user-sidebar-menu {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
+   flex: 1 1 auto;
+  min-height: 0;       /* 🔥 CLAVE: permite que flex “recorte” y aparezca overflow */
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  padding-right: 6px;  /* espacio para scrollbar */
+  padding-bottom: 10px;
 }
 
+.user-sidebar-menu::-webkit-scrollbar {
+    width: 8px;
+}
+
+.user-sidebar-menu::-webkit-scrollbar-thumb {
+    background: rgba(0,0,0,0.2);
+    border-radius: 10px;
+}
+
+.user-sidebar-menu::-webkit-scrollbar-thumb:hover {
+    background: rgba(0,0,0,0.35);
+}
 .user-menu-item {
     display: flex;
     align-items: center;
@@ -1240,169 +1261,6 @@ body.sidebar-collapsed .user-main {
 }
 
 
-/* CHATBOT FLOtANTE */
-.chatbot-container {
-    position: fixed;
-    right: 24px;
-    bottom: 24px;
-    z-index: 50;
-}
-
-.chatbot-toggle {
-    width: 54px;
-    height: 54px;
-    border-radius: 999px;
-    border: none;
-    background: #14378A;
-    color: #ffffff;
-    font-size: 22px;
-    cursor: pointer;
-    box-shadow: 0 16px 30px rgba(15, 23, 42, 0.4);
-}
-
-.chatbot-panel {
-    position: fixed;
-    right: 24px;
-    bottom: 90px;
-    width: 340px;
-    max-height: 480px;
-    background: #ffffff;
-    border-radius: 20px;
-    box-shadow: 0 20px 40px rgba(15, 23, 42, 0.35);
-    display: none;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-}
-
-.chatbot-container.is-open .chatbot-panel {
-    display: flex;
-}
-
-.chatbot-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 12px;
-    background: #14378A;
-    color: #ffffff;
-}
-
-.chatbot-header-info {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.chatbot-avatar {
-    width: 30px;
-    height: 30px;
-    border-radius: 999px;
-    background: #ffffff1a;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 17px;
-}
-
-.chatbot-title {
-    font-size: 14px;
-    font-weight: 600;
-    margin: 0;
-}
-
-.chatbot-subtitle {
-    font-size: 11px;
-    margin: 0;
-}
-
-.chatbot-close {
-    border: none;
-    background: transparent;
-    color: #ffffff;
-    font-size: 18px;
-    cursor: pointer;
-}
-
-/* Cuerpo chatbot */
-.chatbot-body {
-    padding: 10px 12px;
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.chatbot-message {
-    padding: 8px 10px;
-    border-radius: 16px;
-    font-size: 13px;
-    line-height: 1.4;
-}
-
-.chatbot-message-bot {
-    background: #f3f4ff;
-    color: #111827;
-    border-radius: 16px 16px 16px 4px;
-}
-
-.chatbot-quick-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 4px;
-}
-
-.chatbot-chip {
-    border-radius: 999px;
-    border: none;
-    padding: 5px 10px;
-    font-size: 12px;
-    cursor: pointer;
-    background: #14378A;
-    color: #ffffff;
-}
-
-.chatbot-chip-outline {
-    background: #ffffff;
-    color: #14378A;
-    border: 1px solid #14378A;
-}
-
-/* Input inferior chatbot */
-.chatbot-input-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 10px;
-    border-top: 1px solid #e5e7eb;
-}
-
-.chatbot-attach {
-    border: none;
-    background: transparent;
-    font-size: 18px;
-    cursor: pointer;
-}
-
-.chatbot-input {
-    flex: 1;
-    border-radius: 999px;
-    border: 1px solid #e5e7eb;
-    padding: 7px 10px;
-    font-size: 13px;
-}
-
-.chatbot-send {
-    border-radius: 999px;
-    border: none;
-    padding: 6px 14px;
-    background: #14378A;
-    color: #ffffff;
-    font-size: 13px;
-    cursor: pointer;
-}
-
 /* MODAL CREAR TICKET */
 .user-modal-backdrop {
     position: fixed;
@@ -1867,4 +1725,33 @@ footer {
 .admin-empty {
     font-size: 13px;
     color: #777;
+}
+
+
+/* ===============================
+   Olvidé mi contraseña (login)
+================================ */
+.forgot-password {
+    margin: 6px 0 10px;
+    text-align: right;
+}
+
+.forgot-password span {
+    font-size: 13px;
+    color: #9aa0a6; /* gris suave */
+    cursor: pointer;
+    transition: color .2s ease;
+}
+
+.forgot-password span:hover {
+    color: #14378A; /* azul EQF */
+    text-decoration: underline;
+}
+
+body{
+  background-image: url("/HelpDesk_EQF/assets/img/icon2.png");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;
+  background-attachment: fixed;
 }

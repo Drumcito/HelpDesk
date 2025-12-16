@@ -131,7 +131,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         required
                     >
                 </div>
-
+    <div class="forgot-password">
+        <span id="openForgotModal">Olvidé mi contraseña</span>
+    </div>
                 <label for="session_open" class="remember-label">
                     <input type="checkbox" id="session_open" name="session_open" value="1">
                     Mantener sesión iniciada
@@ -144,5 +146,72 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </form>
         </div>
     </div>
+
+
+<div class="user-modal-backdrop" id="forgotModal" style="display:none;">
+  <div class="user-modal">
+    <header class="user-modal-header">
+      <h2>Recuperación de contraseña</h2>
+      <button type="button" class="user-modal-close" id="closeForgotModal">✕</button>
+    </header>
+
+    <form id="forgotForm">
+      <label class="form-label">Correo electrónico</label>
+      <input class="user-input" type="email" name="email" id="forgotEmail" placeholder="ejemplo@eqf.mx" required>
+
+      <!-- ALERTA (usa tu mismo estilo de alerts) -->
+      <div id="forgotAlert" class="alert" style="display:none;"></div>
+
+      <div class="modal-actions">
+        <button type="submit" class="btn-primary">Enviar</button>
+      </div>
+
+      <p class="muted" style="margin-top:10px;">
+        Se enviará una notificación al Administrador para atender tu solicitud.
+      </p>
+    </form>
+  </div>
+</div>
 </body>
+<script>
+const forgotModal = document.getElementById('forgotModal');
+document.getElementById('openForgotModal')?.addEventListener('click', () => forgotModal.style.display = 'flex');
+document.getElementById('closeForgotModal')?.addEventListener('click', () => forgotModal.style.display = 'none');
+
+document.getElementById('forgotForm')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const alertBox = document.getElementById('forgotAlert');
+  alertBox.style.display = 'none';
+
+  const email = document.getElementById('forgotEmail').value.trim();
+  if (!email) return;
+
+  const formData = new FormData();
+  formData.append('email', email);
+
+  const res = await fetch('/HelpDesk_EQF/auth/forgot_password_request.php', {
+    method: 'POST',
+    body: formData
+  });
+
+  const data = await res.json().catch(() => ({}));
+
+  alertBox.style.display = 'block';
+  alertBox.className = 'alert ' + (data.ok ? 'alert-success' : 'alert-error');
+  alertBox.textContent = data.message || (data.ok ? 'Enviado con éxito.' : 'Ocurrió un error.');
+
+  if (data.ok) {
+    document.getElementById('forgotEmail').value = '';
+  }
+});
+</script>
+
+    <script>
+document.getElementById('openForgotModal')?.addEventListener('click', () => {
+    const modal = document.getElementById('forgotModal');
+    if (modal) modal.style.display = 'flex';
+});
+</script>
 </html>
+
+

@@ -109,23 +109,53 @@ if ($rol === 3) {
     <nav class="user-sidebar-menu">
         <?php if ($rol === 1): ?>
             <!-- ================= SA ================= -->
-            <button type="button" class="user-menu-item"
-                    onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/sa/sa.php'">
-                <span class="user-menu-icon">⭐</span>
-                <span>Panel SA</span>
-            </button>
+<button type="button" class="user-menu-item"
+            onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/sa/sa.php'">
+        <span class="user-menu-icon">⭐</span>
+        <span>Super Admin</span>
+    </button>
 
-            <button type="button" class="user-menu-item"
-                    onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/sa/directory.php'">
-                <span class="user-menu-icon">📇</span>
-                <span>Directorio</span>
-            </button>
+    <button type="button" class="user-menu-item"
+            onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/sa/directory.php'">
+        <span class="user-menu-icon">👥</span>
+        <span>Usuarios</span>
+    </button>
 
-            <button type="button" class="user-menu-item"
-                    onclick="window.location.href='/HelpDesk_EQF/modules/docs/important.php'">
-                <span class="user-menu-icon">📎</span>
-                <span>Documentos importantes</span>
-            </button>
+    <button type="button" class="user-menu-item"
+            onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/sa/tickets.php'">
+        <span class="user-menu-icon">🎫</span>
+        <span>Tickets (Global)</span>
+    </button>
+
+    <button type="button" class="user-menu-item"
+            onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/sa/documents.php'">
+        <span class="user-menu-icon">📁</span>
+        <span>Documentos</span>
+    </button>
+
+    <button type="button" class="user-menu-item"
+            onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/sa/reports.php'">
+        <span class="user-menu-icon">📊</span>
+        <span>Reportes & KPIs</span>
+    </button>
+
+    <button type="button" class="user-menu-item"
+            onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/sa/catalogs.php'">
+        <span class="user-menu-icon">⚙️</span>
+        <span>Catálogos</span>
+    </button>
+
+    <button type="button" class="user-menu-item"
+            onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/sa/sla.php'">
+        <span class="user-menu-icon">⏱️</span>
+        <span>SLA Global</span>
+    </button>
+
+    <button type="button" class="user-menu-item"
+            onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/sa/audit.php'">
+        <span class="user-menu-icon">🧾</span>
+        <span>Auditoría</span>
+    </button>
 
 <?php elseif ($rol === 2): ?>
     <!-- ================= ADMIN ================= -->
@@ -159,7 +189,6 @@ if ($rol === 3) {
         <span class="user-menu-icon">📊</span>
         <span>Reportes y KPIs</span>
     </button>
-
 
 
 
