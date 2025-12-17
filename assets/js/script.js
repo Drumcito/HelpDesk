@@ -316,6 +316,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!sapDisplay || !nombreDisplay || !emailDisplay || !sapValueHidden || !nombreValueHidden || !ticketForm) {
         return;
     }
+    if (adjuntoContainer) adjuntoContainer.style.display = 'block';
 
     const originalSap    = sapDisplay.value;
     const originalNombre = nombreDisplay.value;
@@ -490,8 +491,6 @@ if (areaSoporte && problemaSelect) {
             problemaSelect.appendChild(opt);
             problemaSelect.value = '';
 
-            if (adjuntoContainer) adjuntoContainer.style.display = 'none';
-
             if (prioridadDisplay && prioridadHidden) {
                 prioridadDisplay.value = 'Media';
                 prioridadHidden.value  = 'media';
@@ -528,7 +527,6 @@ if (areaSoporte && problemaSelect) {
                 problemaSelect.value = '';
                 problemaSelect.disabled = false;
 
-                if (adjuntoContainer) adjuntoContainer.style.display = 'none';
                 if (prioridadDisplay && prioridadHidden) {
                     prioridadDisplay.value = 'Media';
                     prioridadHidden.value  = 'media';
@@ -552,8 +550,6 @@ if (areaSoporte && problemaSelect) {
             problemaSelect.value = '';
             problemaSelect.disabled = false;
 
-            if (adjuntoContainer) adjuntoContainer.style.display = 'none';
-
             if (prioridadDisplay && prioridadHidden) {
                 prioridadDisplay.value = 'Media';
                 prioridadHidden.value  = 'media';
@@ -567,10 +563,6 @@ if (areaSoporte && problemaSelect) {
         // Problema cambia prioridad y adjuntos (TU MISMA LÓGICA, intacta)
         problemaSelect.addEventListener('change', function () {
             const value = this.value;
-
-            if (adjuntoContainer) {
-                adjuntoContainer.style.display = (value === 'otro') ? 'block' : 'none';
-            }
 
             if (!prioridadDisplay || !prioridadHidden) return;
 
@@ -591,39 +583,6 @@ if (areaSoporte && problemaSelect) {
         }
     }
         });
-
-        // Problema cambia prioridad y adjuntos
-        if (problemaSelect) {
-            problemaSelect.addEventListener('change', function () {
-                const value = this.value;
-
-                // Adjuntos solo en "otro"
-                if (adjuntoContainer) {
-                    if (value === 'otro') {
-                        adjuntoContainer.style.display = 'block';
-                    } else {
-                        adjuntoContainer.style.display = 'none';
-                    }
-                }
-
-                // PRIORIDAD:
-                // - "otro"  => media
-                // - cualquier otro problema de la lista => alta
-                if (!prioridadDisplay || !prioridadHidden) return;
-
-                if (value === 'otro') {
-                    prioridadDisplay.value = 'Media';
-                    prioridadHidden.value  = 'media';
-                } else if (value === '') {
-                    prioridadDisplay.value = 'Media';
-                    prioridadHidden.value  = 'media';
-                } else {
-                    prioridadDisplay.value = 'Alta';
-                    prioridadHidden.value  = 'alta';
-                }
-            });
-        }
-    
 
     // -----------------------------
     // Antes de enviar, sincronizar los hidden con lo que esté en pantalla

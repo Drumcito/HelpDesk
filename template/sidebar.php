@@ -152,7 +152,7 @@ onclick="toggleSidebar()" aria-label="Abrir/cerrar menú">
     </button>
 
     <button type="button" class="user-menu-item"
-            onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/sa/sla.php'">
+            onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/sa/sla_global.php'">
         <span class="user-menu-icon">⏱️</span>
         <span>SLA Global</span>
     </button>

@@ -218,22 +218,37 @@ function problemaLabel(string $p): string {
                        value="<?php echo htmlspecialchars($userArea, ENT_QUOTES, 'UTF-8'); ?>">
                 <input type="hidden" name="email"
                        value="<?php echo htmlspecialchars($userEmail, ENT_QUOTES, 'UTF-8'); ?>">
-
+<!--
                 <div class="user-modal-grid">
                     <div class="form-group">
                         <label># SAP</label>
                         <input type="text"
                                id="sapDisplay"
                                value="<?php echo htmlspecialchars($userSap, ENT_QUOTES, 'UTF-8'); ?>"
-                               disabled>
+                               disabled>  
                     </div>
-
                     <div class="form-group">
                         <label>Nombre</label>
                         <input type="text"
                                id="nombreDisplay"
                                value="<?php echo htmlspecialchars($userName, ENT_QUOTES, 'UTF-8'); ?>"
                                disabled>
+                    </div>
+                            -->
+ <div class="form-group form-row">
+                    <div class="field">
+                        <label># SAP</label>
+                        <input type="text"
+                               id="sapDisplay"
+                               value="<?php echo htmlspecialchars($userSap, ENT_QUOTES, 'UTF-8'); ?>"
+                               disabled>  
+                    </div>
+                    <div class="field">
+                        <label>Nombre</label>
+                        <input type="text"
+                               id="nombreDisplay"
+                               value="<?php echo htmlspecialchars($userName, ENT_QUOTES, 'UTF-8'); ?>"
+                               disabled>  
                     </div>
 
                     <div class="form-group">
@@ -281,13 +296,7 @@ function problemaLabel(string $p): string {
                 </div>
                             -->
                 <input type="hidden" name="prioridad" id="prioridadValue" value="media">
-                <div class="form-group form-group-full" id="adjuntoContainer" style="display:none;">
-                    <label>Adjuntar archivos</label>
-                    <input type="file"
-                           name="adjuntos[]"
-                           multiple
-                           accept=".pdf,.jpg,.jpeg,.webp,.docx,.png,.xls,.xlsx,.csv">
-                </div>
+
                 <div class="form-group form-group-full">
                     <label>Descripción</label>
                     <textarea name="descripcion" rows="3"
@@ -295,7 +304,13 @@ function problemaLabel(string $p): string {
                               required></textarea>
                 </div>
 
-
+                    <div class="form-group form-group-full" id="adjuntoContainer">
+                    <label>Adjuntar archivos</label>
+                    <input type="file"
+                           name="adjuntos[]"
+                           multiple
+                           accept=".pdf,.jpg,.jpeg,.webp,.docx,.png,.xls,.xlsx,.csv">
+                </div>
 
                 <div class="modal-actions">
                     <button type="button" class="btn-secondary" onclick="closeTicketModal()">Cancelar</button>

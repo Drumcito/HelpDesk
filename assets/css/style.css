@@ -145,6 +145,60 @@ body {
     margin-bottom: 18px;
 }
 
+
+/* Fila de 2 campos (SAP + Nombre) */
+.form-group.form-row{
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+}
+
+.form-group.form-row .field{
+    flex: 1;
+    min-width: 0;
+}
+
+.form-group.form-row label{
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #6b7280;
+    margin-bottom: 4px;
+}
+
+.form-group.form-row input{
+    width: 100%;
+    border-radius: 10px;
+    border: 1px solid var(--eqf-border);
+    padding: 8px 10px;
+    font-size: 0.9rem;
+    background-color: #f9fafb;
+    outline: none;
+}
+
+.checkbox-container {
+    display: flex;
+    align-items: center;   /* 👈 CLAVE */
+    gap: 8px;
+}
+
+.checkbox-container label {
+    margin: 0;             /* evita que se baje */
+    font-size: 0.8rem;
+    color: var(--eqf-muted);
+    cursor: pointer;
+}
+
+.checkbox-container input[type="checkbox"] {
+    margin: 0;             /* quita offset raro del navegador */
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
+}
+
+
+
+
 .input-line {
     display: flex;
     align-items: center;
