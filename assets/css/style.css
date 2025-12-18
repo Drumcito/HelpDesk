@@ -428,11 +428,11 @@ body {
 
 /* MENÚ */
 .user-sidebar-menu {
-   flex: 1 1 auto;
+   flex: 1;
   min-height: 0;      
   overflow-y: auto;
   overflow-x: hidden;
-
+margin-bottom: 15px; /* Espacio antes del botón de salida */
   padding-right: 6px;  
   padding-bottom: 10px;
 }
@@ -451,37 +451,35 @@ body {
 }
 
 .cerrar-sesion-sidebar {
-    margin-top: auto;      /* Empuja el botón al fondo del sidebar */
-    margin-left: auto;     /* Centra horizontalmente */
-    margin-right: auto;    /* Centra horizontalmente */
-    
-    display: flex;
+display: flex;
     justify-content: center; 
     align-items: center;   
-    
-    /* Estilos estéticos para que sea un cuadro como en tu imagen */
     width: 42px;           
     height: 42px;          
-    background: #f9fafb;   /* Fondo muy claro */
-    border: 1px solid #d1d5db; /* Borde gris */
-    border-radius: 8px;    /* Bordes suavizados */
+    background: #f9fafb;   
+    border: 1px solid #d1d5db; 
+    border-radius: 8px;    
     cursor: pointer;
     transition: all 0.2s ease;
-    flex-shrink: 0;        /* Evita que el botón se aplaste */
 }
 
 .cerrar-sesion-sidebar:hover {
-    background: #fee2e2;   /* Fondo rojizo suave al pasar el mouse */
-    border-color: #ef4444; /* Borde rojo */
-    color: #ef4444;        /* Icono rojo */
+    background: #fee2e2;   
+    border-color: #ef4444;
+    color: #ef4444;     
 }
 
-/* Ajuste opcional para el icono dentro del botón de salida */
 .cerrar-sesion-sidebar .user-menu-icon {
-    background: transparent; /* Quitamos el círculo gris del icono solo aquí */
+    background: transparent;
     font-size: 1.2rem;
 }
-
+.sidebar-footer {
+    padding-top: 15px;
+    border-top: 1px solid #f3f4f6; /* Opcional: una línea divisoria sutil */
+    display: flex;
+    justify-content: center;
+    flex-shrink: 0; /* Evita que se encoja */
+}
 .user-menu-item {
     display: flex;
     align-items: center;
@@ -2009,4 +2007,140 @@ footer {
 
 .action-delete {
     color: var(--eqf-red);
+}
+
+/* ==========================================
+   FIX LAYOUT DASHBOARDS (USER/ADMIN/ANALYST)
+   - Espaciado + contenedores + DataTables
+========================================== */
+
+/* Contenedor principal */
+.user-main {
+  padding: 22px 26px;
+}
+
+.user-main-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* Header de cada vista */
+.user-main-header {
+  background: rgba(255,255,255,0.96);
+  border: 1px solid rgba(0,0,0,0.06);
+  border-radius: 18px;
+  padding: 16px 18px;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.user-main-subtitle {
+  margin-top: 6px;
+  font-size: 14px;
+  color: #4b5563;
+}
+
+/* Zona de contenido */
+.user-main-content {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Filtros (formulario) */
+.user-filters-row {
+  background: rgba(255,255,255,0.96);
+  border: 1px solid rgba(0,0,0,0.06);
+  border-radius: 18px;
+  padding: 14px 16px;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.06);
+
+  display: grid;
+  grid-template-columns: 220px 220px 1fr auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.user-filters-row .form-group {
+  margin: 0; /* evita que se “estire” raro */
+}
+
+.user-filters-row label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: #6b7280;
+  margin-bottom: 6px;
+}
+
+.user-filters-row select,
+.user-filters-row input[type="text"],
+.user-filters-row input[type="date"] {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid var(--eqf-border);
+  padding: 10px 12px;
+  font-size: 13px;
+  background: #fff;
+  outline: none;
+}
+
+.user-filters-row select:focus,
+.user-filters-row input:focus {
+  border-color: var(--eqf-blue);
+  box-shadow: 0 0 0 2px rgba(20, 55, 138, 0.12);
+}
+
+/* Wrapper tabla */
+.user-tickets-table-wrapper {
+  background: rgba(255,255,255,0.96);
+  border: 1px solid rgba(0,0,0,0.06);
+  border-radius: 18px;
+  padding: 12px 12px;
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.06);
+  overflow: auto;
+}
+
+/* DataTables ajustes */
+.dataTables_wrapper .dataTables_filter input,
+.dataTables_wrapper .dataTables_length select {
+  border-radius: 10px;
+  border: 1px solid var(--eqf-border);
+  padding: 6px 10px;
+  outline: none;
+}
+
+table.dataTable thead th {
+  background: var(--eqf-blue);
+  color: #fff;
+  border-bottom: none !important;
+}
+
+table.dataTable tbody td {
+  padding: 10px 10px !important;
+  font-size: 13px;
+}
+
+table.dataTable tbody tr:hover {
+  background: #f3f4f6;
+}
+
+/* Responsive */
+@media (max-width: 980px) {
+  .user-main { padding: 16px; }
+  .user-filters-row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+  .user-main-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }

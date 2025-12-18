@@ -168,32 +168,37 @@ onclick="toggleSidebar()" aria-label="Abrir/cerrar menú">
 
     <button type="button" class="user-menu-item"
             onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/admin/admin.php'">
-        <span class="user-menu-icon">🏢</span>
-        <span>Panel Admin</span>
+        <span class="user-menu-icon">⭐</span>
+        <span>Admin</span>
     </button>
 
     <button type="button" class="user-menu-item"
             onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/admin/tickets_area.php'">
         <span class="user-menu-icon">🎫</span>
-        <span>Tickets de mi área</span>
+        <span>Tickets</span>
+    </button>
+
+        <button type="button" class="user-menu-item"
+            onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/admin/analysts.php'">
+        <span class="user-menu-icon">👥</span>
+        <span>Analistas</span>
     </button>
 
     <button type="button" class="user-menu-item"
             onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/admin/tasks.php'">
         <span class="user-menu-icon">📝</span>
-        <span>Tareas a analistas</span>
-    </button>
-
-    <button type="button" class="user-menu-item"
-            onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/admin/analysts.php'">
-        <span class="user-menu-icon">👥</span>
-        <span>Analistas de mi área</span>
+        <span>Tareas</span>
     </button>
 
     <button type="button" class="user-menu-item"
             onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/admin/reports.php'">
         <span class="user-menu-icon">📊</span>
         <span>Reportes y KPIs</span>
+    </button>
+        <button type="button" class="user-menu-item"
+            onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/admin/users_area.php'">
+        <span class="user-menu-icon">🗣️</span>
+        <span>Usuarios</span>
     </button>
 
         <?php elseif ($rol === 3): ?>
@@ -245,10 +250,10 @@ onclick="toggleSidebar()" aria-label="Abrir/cerrar menú">
             </button>
         <?php endif; ?>
 
+    </nav>
         <!-- Común a todos -->
         <button type="button" class="cerrar-sesion-sidebar"
                 onclick="window.location.href='/HelpDesk_EQF/auth/logout.php'">
             <span class="user-menu-icon">⏻</span>
         </button>
-    </nav>
 </aside>
