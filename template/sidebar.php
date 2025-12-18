@@ -196,8 +196,6 @@ onclick="toggleSidebar()" aria-label="Abrir/cerrar menú">
         <span>Reportes y KPIs</span>
     </button>
 
-
-
         <?php elseif ($rol === 3): ?>
             <!-- ================= ANALISTA ================= -->
             <button type="button" class="user-menu-item" onclick="scrollToSection('analyst-dashboard')">
@@ -248,10 +246,9 @@ onclick="toggleSidebar()" aria-label="Abrir/cerrar menú">
         <?php endif; ?>
 
         <!-- Común a todos -->
-        <button type="button" class="user-menu-item"
+        <button type="button" class="cerrar-sesion-sidebar"
                 onclick="window.location.href='/HelpDesk_EQF/auth/logout.php'">
-            <span class="user-menu-icon">🚪</span>
-            <span>Cerrar sesión</span>
+            <span class="user-menu-icon">⏻</span>
         </button>
     </nav>
 </aside>

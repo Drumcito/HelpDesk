@@ -381,7 +381,6 @@ body {
   align-items: center;
   justify-content: center;
 
-  /* 🔥 ESTO ES LO QUE FALTABA */
   color: #111827;
   font-size: 26px;
   font-weight: 900;
@@ -450,6 +449,39 @@ body {
 .user-sidebar-menu::-webkit-scrollbar-thumb:hover {
     background: rgba(0,0,0,0.35);
 }
+
+.cerrar-sesion-sidebar {
+    margin-top: auto;      /* Empuja el botón al fondo del sidebar */
+    margin-left: auto;     /* Centra horizontalmente */
+    margin-right: auto;    /* Centra horizontalmente */
+    
+    display: flex;
+    justify-content: center; 
+    align-items: center;   
+    
+    /* Estilos estéticos para que sea un cuadro como en tu imagen */
+    width: 42px;           
+    height: 42px;          
+    background: #f9fafb;   /* Fondo muy claro */
+    border: 1px solid #d1d5db; /* Borde gris */
+    border-radius: 8px;    /* Bordes suavizados */
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;        /* Evita que el botón se aplaste */
+}
+
+.cerrar-sesion-sidebar:hover {
+    background: #fee2e2;   /* Fondo rojizo suave al pasar el mouse */
+    border-color: #ef4444; /* Borde rojo */
+    color: #ef4444;        /* Icono rojo */
+}
+
+/* Ajuste opcional para el icono dentro del botón de salida */
+.cerrar-sesion-sidebar .user-menu-icon {
+    background: transparent; /* Quitamos el círculo gris del icono solo aquí */
+    font-size: 1.2rem;
+}
+
 .user-menu-item {
     display: flex;
     align-items: center;

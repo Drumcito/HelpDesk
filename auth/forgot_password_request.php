@@ -2,6 +2,7 @@
 session_start();
 require_once __DIR__ . '/../config/connectionBD.php';
 require_once __DIR__ . '/../config/audit.php';
+require_once __DIR__ . '/../helpers/Mailer.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -18,39 +19,50 @@ if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
 
 $pdo = Database::getConnection();
 
-// 1) Guardar solicitud en BD
 try {
+    // 1) Guardar solicitud
     $st = $pdo->prepare("INSERT INTO password_recovery_requests (requester_email) VALUES (?)");
     $st->execute([$email]);
 
-$requestId = (int)$pdo->lastInsertId();
+    $requestId = (int)$pdo->lastInsertId();
 
-audit_log($pdo, 'RECOVERY_REQUEST_CREATED', 'password_recovery_requests', $requestId, [
-  'requester_email' => $email
-]);
+    // 2) Auditar creación
+    audit_log($pdo, 'RECOVERY_REQUEST_CREATED', 'password_recovery_requests', $requestId, [
+        'requester_email' => $email
+    ]);
+
+    // 3) Enviar correo a SA
+    $subject = "Solicitud de recuperación de contraseña - HelpDesk EQF";
+    $bodyText =
+        "Buen día,\n\n" .
+        "Se recibió una solicitud de recuperación de contraseña.\n\n" .
+        "Usuario: {$email}\n\n" .
+        "Servicio de soporte\n" .
+        "HelpDesk EQF\n";
+
+    $ok = sendMailEQF(
+        ["sa_helpdesk@outlook.mx" => "HelpDesk"],
+        $subject,
+        $bodyText
+    );
+
+    // 4) Auditar resultado del envío
+    audit_log($pdo, $ok ? 'RECOVERY_EMAIL_SENT' : 'RECOVERY_EMAIL_FAILED', 'password_recovery_requests', $requestId, [
+        'to' => 'sa_helpdesk@outlook.mx',
+        'requester_email' => $email
+    ]);
+
+    echo json_encode([
+        'ok' => $ok,
+        'message' => $ok
+            ? 'Listo. Se registró tu solicitud y se notificó al Administrador.'
+            : 'Se registró la solicitud, pero no se pudo enviar el correo. (Revisar SMTP)'
+    ]);
+    exit;
 
 } catch (Throwable $e) {
+    // Si algo falla (BD / audit / etc)
+    error_log('RECOVERY REQUEST ERROR: ' . $e->getMessage());
     echo json_encode(['ok' => false, 'message' => 'No se pudo registrar la solicitud.']);
     exit;
 }
-
-// 2) Enviar correo a SA
-$to = "sa_helpdesk@outlook.mx";
-$subject = "Solicitud de recuperación de contraseña - HelpDesk EQF";
-
-$msg =
-"Buen día,\n\n".
-"Se recibió una solicitud de recuperación de contraseña.\n\n".
-"Usuario (correo): {$email}\n\n".
-"Favor de atenderla desde el dashboard de Super Admin.\n\n".
-"Servicio de soporte\n".
-"HelpDesk EQF\n";
-
-$headers = "From: no-reply@eqf.mx\r\n";
-@mail($to, $subject, $msg, $headers);
-
-// 3) Respuesta UI
-echo json_encode([
-  'ok' => true,
-  'message' => 'Enviado con éxito, en un momento tendrás tu contraseña.'
-]);
