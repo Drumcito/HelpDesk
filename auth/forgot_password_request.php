@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once __DIR__ . '/../config/connectionBD.php';
+require_once __DIR__ . '/../config/audit.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -21,6 +22,13 @@ $pdo = Database::getConnection();
 try {
     $st = $pdo->prepare("INSERT INTO password_recovery_requests (requester_email) VALUES (?)");
     $st->execute([$email]);
+
+$requestId = (int)$pdo->lastInsertId();
+
+audit_log($pdo, 'RECOVERY_REQUEST_CREATED', 'password_recovery_requests', $requestId, [
+  'requester_email' => $email
+]);
+
 } catch (Throwable $e) {
     echo json_encode(['ok' => false, 'message' => 'No se pudo registrar la solicitud.']);
     exit;

@@ -1,6 +1,10 @@
 <?php
 session_start();
+require_once __DIR__ . '/../config/connectionBD.php';
+require_once __DIR__ . '/../config/audit.php';
 
+$pdo = Database::getConnection();
+audit_log($pdo, 'AUTH_LOGOUT', 'auth');
 $_SESSION = [];
 
 if (session_id()) {
@@ -21,6 +25,5 @@ if (isset($_COOKIE[session_name()])) {
     );
 }
 
-/* 4) Redirigir al login */
 header("Location: /HelpDesk_EQF/auth/login.php");
 exit;

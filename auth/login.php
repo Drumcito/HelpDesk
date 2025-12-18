@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once __DIR__ . '/../config/connectionBD.php';
+require_once __DIR__ . '/../config/audit.php';
 
 $pdo = Database::getConnection();
 
@@ -33,6 +34,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['user_rol']   = $user['rol'];
             $_SESSION['user_area']  = $user['area'];
             $_SESSION['number_sap'] = $user['number_sap'];
+audit_log($pdo, 'AUTH_LOGIN_OK', 'users', (int)$user['id'], [
+  'email' => $user['email'],
+  'rol'   => (int)$user['rol'],
+  'area'  => $user['area'] ?? null
+]);
 
  // "Mantener sesión iniciada"
     if (!empty($_POST['session_open']) && $_POST['session_open'] === '1') {
@@ -54,6 +60,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 
     if ((int)$user['must_change_password'] === 1) {
+        audit_log($pdo, 'AUTH_FORCE_PASSWORD_CHANGE', 'users', (int)$user['id'], [
+      'email' => $user['email']
+    ]);
     header('Location: /HelpDesk_EQF/auth/change_password.php');
     exit;
 }
@@ -75,6 +84,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             exit;
         } else {
+            audit_log($pdo, 'AUTH_LOGIN_FAIL', 'users', null, [
+  'email_attempt' => $email
+]);
             $error = 'Credenciales incorrectas.';
         }
     }

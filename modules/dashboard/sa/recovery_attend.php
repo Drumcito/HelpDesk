@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once __DIR__ . '/../../../config/connectionBD.php';
+require_once __DIR__ . '/../../../config/audit.php';
 
 if (!isset($_SESSION['user_id']) || (int)($_SESSION['user_rol'] ?? 0) !== 1) {
     header('Location: /HelpDesk_EQF/auth/login.php');
@@ -53,7 +54,7 @@ try {
         exit;
     }
 
-    $email = trim((string)$row['requester_email']);
+       $email = trim((string)$row['requester_email']);
 
     // marcar atendido
     $stU = $pdo->prepare("
@@ -63,11 +64,18 @@ try {
     ");
     $stU->execute([(int)$_SESSION['user_id'], $id]);
 
+    audit_log($pdo, 'RECOVERY_REQUEST_ATTENDED', 'password_recovery_requests', $id, [
+      'requester_email' => $email
+      // Si NO quieres guardar la temporal por seguridad, déjalo así.
+      // 'temp_password' => '12345a'
+    ]);
+
     $pdo->commit();
 
     if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
         sendRecoveryEmailToUser($email);
     }
+
 
 } catch (Throwable $e) {
     if ($pdo->inTransaction()) $pdo->rollBack();

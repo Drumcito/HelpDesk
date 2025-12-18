@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once __DIR__ . '/../../config/connectionBD.php';
+require_once __DIR__ . '/../../config/audit.php';
 
 header('Content-Type: application/json');
 
@@ -88,6 +89,10 @@ try {
         ':estado' => $estado,
         ':id'     => $ticketId
     ]);
+audit_log($pdo, 'TICKET_STATUS_CHANGE', 'tickets', $ticketId, [
+  'from' => $oldStatus,
+  'to'   => $newStatus
+]);
 
     // 4) Label bonito
     $estadoLabel = match ($estado) {

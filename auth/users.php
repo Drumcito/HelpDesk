@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once __DIR__ . '/../config/connectionBD.php';
+require_once __DIR__ . '/../config/audit.php';
 
 $pdo = Database::getConnection();
 
@@ -53,6 +54,14 @@ if ($action === 'create') {
     header('Location: ../modules/dashboard/sa/directory.php?created=1');
     exit;
 }
+
+
+audit_log($pdo, 'USER_CREATE', 'users', $newUserId, [
+  'sap' => $_POST['number_sap'] ?? null,
+  'email' => $_POST['email'] ?? null,
+  'rol' => $_POST['rol'] ?? null,
+  'area' => $_POST['area'] ?? null
+]);
 
     /* ========== ACTUALIZAR USUARIO ========== */
     if ($action === 'update') {
@@ -131,6 +140,10 @@ if ($action === 'create') {
     header('Location: ../modules/dashboard/sa/directory.php?updated=1');
     exit;
 }
+audit_log($pdo, 'USER_UPDATE', 'users', $_POST['id'] ?? null, [
+  'changed' => ['number_sap','name','last_name','email','rol','area'],
+  'reset_password' => !empty($_POST['reset_password'])
+]);
 
     /* ========== ELIMINAR USUARIO ========== */
     if ($action === 'delete') {
@@ -147,6 +160,10 @@ if ($action === 'create') {
 header('Location: ../modules/dashboard/sa/directory.php?deleted=1');
         exit;
     }
+audit_log($pdo, 'USER_DELETE', 'users', $_POST['id'] ?? null, [
+  'sap' => $sap ?? null,
+  'email' => $email ?? null
+]);
 
     // Acción desconocida
     header('Location: ../modules/dashboard/sa/directory.php?error=accion');
@@ -158,4 +175,5 @@ header('Location: ../modules/dashboard/sa/directory.php?deleted=1');
     // exit;
     header('Location: ../modules/dashboard/sa/directory.php?error=db');
     exit;
+    
 }

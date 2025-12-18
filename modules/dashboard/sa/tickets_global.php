@@ -329,5 +329,6 @@ document.querySelectorAll('.ticket-row').forEach(tr=>{
     });
 });
 </script>
+<script src="/HelpDesk_EQF/assets/js/script.js?v=20251208a"></script>
 
 <?php include __DIR__ . '/../../../template/footer.php'; ?>
