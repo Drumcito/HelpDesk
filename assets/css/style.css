@@ -311,18 +311,18 @@ body {
     box-shadow: none;
 }
 
-.btn-secondary {
-    margin-top: 12px;
-    width: 30%;
-    border: none;
+.btn-primary, .btn-secondary {
+    height: 40px;          
+    width: 150px;           
     border-radius: 999px;
-    background-color: var(--eqf-red);
-    color: #ffffff;
-    font-size: 0.95rem;
+    border: none;
+    font-size: 14px;
     font-weight: 600;
-    padding: 10px 14px;
     cursor: pointer;
-    transition: transform 0.08s ease, box-shadow 0.08s ease, background-color 0.08s ease;
+    display: flex;         
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.08s ease;
 }
 
 .btn-secondary:hover {
@@ -1237,17 +1237,13 @@ body.sidebar-collapsed .sidebar-toggle{
 
 /* BOTONES GENERALES */
 .btn-primary {
-    border-radius: 999px;
-    padding: 8px 18px;
-    border: none;
-    background: #14378A;
+    background-color: var(--eqf-blue);
     color: #ffffff;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
 }
-
-
+.btn-secondary {
+    background-color: var(--eqf-red);
+    color: #ffffff;
+}
 /* MODAL CREAR TICKET */
 .user-modal-backdrop {
     position: fixed;
@@ -2144,3 +2140,4 @@ table.dataTable tbody tr:hover {
     align-items: flex-start;
   }
 }
+

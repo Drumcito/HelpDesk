@@ -195,11 +195,7 @@ onclick="toggleSidebar()" aria-label="Abrir/cerrar menú">
         <span class="user-menu-icon">📊</span>
         <span>Reportes y KPIs</span>
     </button>
-        <button type="button" class="user-menu-item"
-            onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/admin/users_area.php'">
-        <span class="user-menu-icon">🗣️</span>
-        <span>Usuarios</span>
-    </button>
+
 
         <?php elseif ($rol === 3): ?>
             <!-- ================= ANALISTA ================= -->

@@ -14,11 +14,13 @@ $userName  = trim(($_SESSION['user_name'] ?? '') . ' ' . ($_SESSION['user_last']
 $userEmail = $_SESSION['user_email'] ?? '';
 $areaAdmin = $_SESSION['user_area'] ?? '';
 
-$mensajeExito = '';
-$mensajeError = '';
+$mensajeExito = $_SESSION['flash_ok'] ?? '';
+$mensajeError = $_SESSION['flash_err'] ?? '';
+unset($_SESSION['flash_ok'], $_SESSION['flash_err']);
+
 
 // =============================
-// 2) Crear tarea (prioridad ALTA) para analista
+// 1) Crear tarea (prioridad ALTA) para analista
 // =============================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') === 'crear_tarea') {
     $analystId   = (int)($_POST['analyst_id'] ?? 0);
@@ -26,10 +28,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') === 'crear
     $descripcion = trim($_POST['descripcion'] ?? '');
     $fechaLimite = $_POST['fecha_limite'] ?? null;
 
-    // Convertir datetime-local (YYYY-MM-DDTHH:MM) a formato de BD
     $fechaLimiteDB = null;
     if (!empty($fechaLimite)) {
-        // Ej: 2025-12-09T12:30 => 2025-12-09 12:30:00
         $fechaLimiteDB = str_replace('T', ' ', $fechaLimite) . ':00';
     }
 
@@ -47,7 +47,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') === 'crear
         $destino        = $uploadDir . $nombreSeguro;
 
         if (move_uploaded_file($_FILES['archivo_tarea']['tmp_name'], $destino)) {
-            // Ruta relativa para usar en el href
             $archivoRuta = 'uploads/tasks/' . $nombreSeguro;
         }
     }
@@ -72,14 +71,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') === 'crear
             ':archivo_ruta' => $archivoRuta,
         ]);
 
-        $mensajeExito = "Tarea creada (prioridad alta) y asignada al analista.";
+        // (Opcional) Notificación al analista si ya tienes tabla notifications
+        // $pdo->prepare("INSERT INTO notifications (user_id,type,title,body,link) VALUES (?,?,?,?,?)")
+        //     ->execute([$analystId,'task_assigned','Nueva tarea asignada',$titulo,'/HelpDesk_EQF/modules/dashboard/analyst/tasks.php']);
+
+$_SESSION['flash_ok'] = "Tarea creada (prioridad alta) y asignada al analista.";
+header('Location: /HelpDesk_EQF/modules/dashboard/admin/admin.php');
+exit;
     } else {
-        $mensajeError = "Selecciona un analista y escribe un título.";
+$_SESSION['flash_err'] = "Selecciona un analista y escribe un título.";
+header('Location: /HelpDesk_EQF/modules/dashboard/admin/admin.php');
+exit;
     }
 }
 
 // =============================
-// 3) Analistas del área
+// 2) Analistas del área (select tareas)
 // =============================
 $stmtAnalysts = $pdo->prepare("
     SELECT id, name, last_name
@@ -92,20 +99,12 @@ $stmtAnalysts->execute([':area' => $areaAdmin]);
 $analysts = $stmtAnalysts->fetchAll(PDO::FETCH_ASSOC);
 
 // =============================
-// 4) KPIs del área
-// Estados asumidos en la BD: 'abierto','en_proceso','en_espera','vencido','cerrado'
+// 3) KPIs del área (cards)
 // =============================
-
-// Total de tickets del área
-$stmtTotal = $pdo->prepare("
-    SELECT COUNT(*)
-    FROM tickets
-    WHERE area = :area
-");
+$stmtTotal = $pdo->prepare("SELECT COUNT(*) FROM tickets WHERE area = :area");
 $stmtTotal->execute([':area' => $areaAdmin]);
 $totalTickets = (int)$stmtTotal->fetchColumn();
 
-// Tickets abiertos (abierto, en_proceso, en_espera)
 $stmtAbiertos = $pdo->prepare("
     SELECT COUNT(*)
     FROM tickets
@@ -115,7 +114,6 @@ $stmtAbiertos = $pdo->prepare("
 $stmtAbiertos->execute([':area' => $areaAdmin]);
 $totalAbiertos = (int)$stmtAbiertos->fetchColumn();
 
-// Tickets vencidos (SLA violado: estado = 'vencido')
 $stmtVencidos = $pdo->prepare("
     SELECT COUNT(*)
     FROM tickets
@@ -125,7 +123,27 @@ $stmtVencidos = $pdo->prepare("
 $stmtVencidos->execute([':area' => $areaAdmin]);
 $totalVencidos = (int)$stmtVencidos->fetchColumn();
 
-// Porcentaje de tickets cerrados (simple, sin SLA detallado)
+$stmtSinAsignar = $pdo->prepare("
+    SELECT COUNT(*)
+    FROM tickets
+    WHERE area = :area
+      AND (asignado_a IS NULL OR asignado_a = 0)
+      AND estado IN ('abierto','en_proceso','en_espera','vencido')
+");
+$stmtSinAsignar->execute([':area' => $areaAdmin]);
+$totalSinAsignar = (int)$stmtSinAsignar->fetchColumn();
+
+// Estancados (heurística: abiertos/en_proceso/en_espera con +48h desde fecha_envio)
+$stmtEstancados = $pdo->prepare("
+    SELECT COUNT(*)
+    FROM tickets
+    WHERE area = :area
+      AND estado IN ('abierto','en_proceso','en_espera')
+      AND fecha_envio <= (NOW() - INTERVAL 2 DAY)
+");
+$stmtEstancados->execute([':area' => $areaAdmin]);
+$totalEstancados = (int)$stmtEstancados->fetchColumn();
+
 $stmtCerrados = $pdo->prepare("
     SELECT COUNT(*)
     FROM tickets
@@ -135,13 +153,28 @@ $stmtCerrados = $pdo->prepare("
 $stmtCerrados->execute([':area' => $areaAdmin]);
 $totalCerrados = (int)$stmtCerrados->fetchColumn();
 
-$porcSLA = 0;
+$porcCierre = 0;
 if ($totalTickets > 0) {
-    $porcSLA = round(($totalCerrados / $totalTickets) * 100, 1);
+    $porcCierre = round(($totalCerrados / $totalTickets) * 100, 1);
+}
+
+// (Opcional) Transferencias (si aún no existe, esto quedará en 0 si las columnas no están)
+$totalEntrantes = 0;
+$totalSalientes = 0;
+try {
+    $stmtEntr = $pdo->prepare("SELECT COUNT(*) FROM tickets WHERE area = :area AND parent_ticket_id IS NOT NULL");
+    $stmtEntr->execute([':area' => $areaAdmin]);
+    $totalEntrantes = (int)$stmtEntr->fetchColumn();
+
+    $stmtSal = $pdo->prepare("SELECT COUNT(*) FROM tickets WHERE area = :area AND transferred_at IS NOT NULL");
+    $stmtSal->execute([':area' => $areaAdmin]);
+    $totalSalientes = (int)$stmtSal->fetchColumn();
+} catch (Throwable $e) {
+    // si no existen columnas todavía, ignoramos
 }
 
 // =============================
-// 5) Últimas tareas creadas por este Admin
+// 4) Últimas tareas creadas por este Admin
 // =============================
 $stmtTareas = $pdo->prepare("
     SELECT t.*, u.name, u.last_name
@@ -159,21 +192,37 @@ $stmtTareas->execute([
 $tareas = $stmtTareas->fetchAll(PDO::FETCH_ASSOC);
 
 // =============================
-// 6) Resumen rápido de tickets del área
+// 5) Resumen rápido de tickets del área
 // =============================
 $stmtTickets = $pdo->prepare("
     SELECT id, problema, estado, prioridad, fecha_envio
     FROM tickets
     WHERE area = :area
+      AND estado IN ('abierto','en_proceso')
     ORDER BY fecha_envio DESC
     LIMIT 8
 ");
+
 $stmtTickets->execute([':area' => $areaAdmin]);
 $ticketsArea = $stmtTickets->fetchAll(PDO::FETCH_ASSOC);
 
 // =============================
-// 7) Render: misma estructura que user.php / analyst.php
+// 6) (Opcional) Notificaciones del Admin
 // =============================
+$notificaciones = [];
+try {
+    $stmtNoti = $pdo->prepare("
+        SELECT id, title, body, link, is_read, created_at
+        FROM notifications
+        WHERE user_id = :uid
+        ORDER BY created_at DESC
+        LIMIT 8
+    ");
+    $stmtNoti->execute([':uid' => $userId]);
+    $notificaciones = $stmtNoti->fetchAll(PDO::FETCH_ASSOC);
+} catch (Throwable $e) {
+    // si no existe tabla, no pasa nada
+}
 
 include __DIR__ . '/../../../template/header.php';
 include __DIR__ . '/../../../template/sidebar.php';
@@ -196,8 +245,7 @@ include __DIR__ . '/../../../template/sidebar.php';
                     <span>HelpDesk </span><span class="eqf-e">E</span><span class="eqf-q">Q</span><span class="eqf-f">F</span>
                 </p>
                 <p class="user-main-subtitle">
-                    Panel de Admin – Área <?php echo htmlspecialchars($areaAdmin, ENT_QUOTES, 'UTF-8'); ?><br>
-                    <small>Bienvenid@, <?php echo htmlspecialchars($userName, ENT_QUOTES, 'UTF-8'); ?></small>
+                    Panel Admin – Área <?php echo htmlspecialchars($areaAdmin, ENT_QUOTES, 'UTF-8'); ?><br>
                 </p>
             </div>
         </header>
@@ -205,95 +253,103 @@ include __DIR__ . '/../../../template/sidebar.php';
         <section class="user-main-content">
 
             <?php if ($mensajeExito): ?>
-                <div class="alert alert-success">
-                    <?php echo htmlspecialchars($mensajeExito, ENT_QUOTES, 'UTF-8'); ?>
-                </div>
+                <div class="alert alert-success"><?php echo htmlspecialchars($mensajeExito, ENT_QUOTES, 'UTF-8'); ?></div>
             <?php endif; ?>
-
             <?php if ($mensajeError): ?>
-                <div class="alert alert-danger">
-                    <?php echo htmlspecialchars($mensajeError, ENT_QUOTES, 'UTF-8'); ?>
-                </div>
+                <div class="alert alert-danger"><?php echo htmlspecialchars($mensajeError, ENT_QUOTES, 'UTF-8'); ?></div>
             <?php endif; ?>
 
-            <!-- Tarjeta intro -->
-            <div class="user-info-card">
-                <h2>Resumen del área</h2>
-                <p>
-                    Desde este panel puedes ver un resumen general de los tickets de tu área,
-                    asignar tareas urgentes a los analistas y revisar actividades recientes.
-                </p>
-            </div>
-
-            <!-- KPIs -->
+            <!-- KPIs: cards clicables (atajos) -->
             <section class="admin-kpi-grid">
-                <div class="admin-kpi-card">
+                <a class="admin-kpi-card" href="/HelpDesk_EQF/modules/dashboard/admin/tickets_area.php" style="text-decoration:none;">
                     <span class="admin-kpi-label">Total de tickets del área</span>
                     <span class="admin-kpi-value"><?php echo $totalTickets; ?></span>
-                </div>
-                <div class="admin-kpi-card">
+                </a>
+
+                <a class="admin-kpi-card" href="/HelpDesk_EQF/modules/dashboard/admin/tickets_area.php?estado=abierto" style="text-decoration:none;">
                     <span class="admin-kpi-label">Tickets abiertos / en proceso / en espera</span>
                     <span class="admin-kpi-value"><?php echo $totalAbiertos; ?></span>
-                </div>
-                <div class="admin-kpi-card admin-kpi-danger">
-                    <span class="admin-kpi-label">Tickets vencidos (SLA)</span>
+                </a>
+
+                <a class="admin-kpi-card admin-kpi-danger" href="/HelpDesk_EQF/modules/dashboard/admin/tickets_area.php?estado=vencido" style="text-decoration:none;">
+                    <span class="admin-kpi-label">Tickets vencidos</span>
                     <span class="admin-kpi-value"><?php echo $totalVencidos; ?></span>
-                </div>
-                <div class="admin-kpi-card admin-kpi-success">
-                    <span class="admin-kpi-label">Cumplimiento (cerrados / total)</span>
-                    <span class="admin-kpi-value"><?php echo $porcSLA; ?>%</span>
-                </div>
+                </a>
+
+                <a class="admin-kpi-card" href="/HelpDesk_EQF/modules/dashboard/admin/tickets_area.php?sin_asignar=1" style="text-decoration:none;">
+                    <span class="admin-kpi-label">Sin asignar</span>
+                    <span class="admin-kpi-value"><?php echo $totalSinAsignar; ?></span>
+                </a>
+
+                <a class="admin-kpi-card" href="/HelpDesk_EQF/modules/dashboard/admin/tickets_area.php?estancados=1" style="text-decoration:none;">
+                    <span class="admin-kpi-label">Estancados (+48h)</span>
+                    <span class="admin-kpi-value"><?php echo $totalEstancados; ?></span>
+                </a>
+
+                <a class="admin-kpi-card admin-kpi-success" href="/HelpDesk_EQF/modules/dashboard/admin/reports.php" style="text-decoration:none;">
+                    <span class="admin-kpi-label">% cierre (cerrados / total)</span>
+                    <span class="admin-kpi-value"><?php echo $porcCierre; ?>%</span>
+                </a>
             </section>
 
-            <!-- Crear tarea urgente para analista -->
-            <section class="admin-card">
-                <h2>Crear tarea urgente para analista (prioridad alta)</h2>
-
-                <form method="POST" enctype="multipart/form-data" class="admin-task-form">
-                    <input type="hidden" name="accion" value="crear_tarea">
-
-                    <div class="form-group">
-                        <label for="analyst_id">Asignar a analista</label>
-                        <select name="analyst_id" id="analyst_id" required>
-                            <option value="">Selecciona un analista</option>
-                            <?php foreach ($analysts as $a): ?>
-                                <option value="<?php echo (int)$a['id']; ?>">
-                                    <?php echo htmlspecialchars($a['name'] . ' ' . $a['last_name'], ENT_QUOTES, 'UTF-8'); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="titulo">Título de la tarea</label>
-                        <input type="text" name="titulo" id="titulo" required maxlength="150">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="descripcion">Descripción</label>
-                        <textarea name="descripcion" id="descripcion" rows="3"></textarea>
-                    </div>
-
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="fecha_limite">Fecha y hora límite (opcional)</label>
-                            <input type="datetime-local" name="fecha_limite" id="fecha_limite">
-                        </div>
-                        <div class="form-group">
-                            <label for="archivo_tarea">Archivo adjunto (opcional)</label>
-                            <input type="file" name="archivo_tarea" id="archivo_tarea">
-                        </div>
-                    </div>
-
-                    <button type="submit" class="btn-primary">
-                        Crear tarea
-                    </button>
-                </form>
+        <section class="button">
+          <button type="button" class="btn-primary" onclick="openTaskModal () " style="width: 150px; height: 40px;">+ Crear tarea</button>
             </section>
+<div class="user-modal-backdrop" id="taskModal" style="display:none;">
+  <div class="user-modal">
+    <header class="user-modal-header">
+      <h2>Crear tarea </h2>
+      <button type="button" class="user-modal-close" onclick="closeTaskModal()">✕</button>
+    </header>
+
+    <form method="POST" enctype="multipart/form-data" class="admin-task-form">
+      <input type="hidden" name="accion" value="crear_tarea">
+
+      <div class="form-group">
+        <label for="analyst_id">Asignar a analista</label>
+        <select name="analyst_id" id="analyst_id" required>
+          <option value="">Selecciona un analista
+                <?php foreach ($analysts as $a): ?>
+                <option value="<?php echo (int)$a['id']; ?>">
+                <?php echo htmlspecialchars($a['name'] . ' ' . $a['last_name'], ENT_QUOTES, 'UTF-8'); ?>
+          </option>
+            <?php endforeach; ?>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="titulo">Título</label>
+        <input type="text" name="titulo" id="titulo" required maxlength="150">
+      </div>
+
+      <div class="form-group">
+        <label for="descripcion">Descripción</label><br>
+        <textarea name="descripcion" id="descripcion" rows="3"></textarea>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="fecha_limite">Fecha límite</label>
+          <input type="datetime-local" name="fecha_limite" id="fecha_limite">
+        </div>
+        <div class="form-group">
+          <label for="archivo_tarea">Adjunto</label>
+          <input type="file" name="archivo_tarea" id="archivo_tarea">
+        </div>
+      </div>
+
+      <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:12px;">
+        <button type="button" class="btn-secondary" onclick="closeTaskModal()">Cancelar</button>
+        <button type="submit" class="btn-primary">Crear</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 
             <!-- Tareas recientes -->
             <section class="admin-card">
-                <h2>Tareas recientes a analistas</h2>
+                <h2>Tareas activas</h2>
                 <?php if (empty($tareas)): ?>
                     <p class="admin-empty">No has creado tareas todavía.</p>
                 <?php else: ?>
@@ -311,22 +367,16 @@ include __DIR__ . '/../../../template/sidebar.php';
                                 </p>
 
                                 <?php if (!empty($t['fecha_limite'])): ?>
-                                    <p class="admin-task-meta">
-                                        Fecha límite: <?php echo htmlspecialchars($t['fecha_limite'], ENT_QUOTES, 'UTF-8'); ?>
-                                    </p>
+                                    <p class="admin-task-meta">Fecha límite: <?php echo htmlspecialchars($t['fecha_limite'], ENT_QUOTES, 'UTF-8'); ?></p>
                                 <?php endif; ?>
 
                                 <?php if (!empty($t['descripcion'])): ?>
-                                    <p class="admin-task-desc">
-                                        <?php echo nl2br(htmlspecialchars($t['descripcion'], ENT_QUOTES, 'UTF-8')); ?>
-                                    </p>
+                                    <p class="admin-task-desc"><?php echo nl2br(htmlspecialchars($t['descripcion'], ENT_QUOTES, 'UTF-8')); ?></p>
                                 <?php endif; ?>
 
                                 <?php if (!empty($t['archivo_ruta'])): ?>
                                     <p class="admin-task-meta">
-                                        <a href="/HelpDesk_EQF/<?php echo htmlspecialchars($t['archivo_ruta'], ENT_QUOTES, 'UTF-8'); ?>" target="_blank">
-                                            Ver archivo adjunto
-                                        </a>
+                                        <a href="/HelpDesk_EQF/<?php echo htmlspecialchars($t['archivo_ruta'], ENT_QUOTES, 'UTF-8'); ?>" target="_blank">Ver archivo adjunto</a>
                                     </p>
                                 <?php endif; ?>
                             </article>
@@ -335,9 +385,9 @@ include __DIR__ . '/../../../template/sidebar.php';
                 <?php endif; ?>
             </section>
 
-            <!-- Resumen rápido de tickets del área -->
+            <!-- Tickets recientes -->
             <section class="admin-card">
-                <h2>Resumen rápido de tickets del área</h2>
+                <h2>Tickets en proceso</h2>
                 <?php if (empty($ticketsArea)): ?>
                     <p class="admin-empty">No hay tickets registrados para esta área.</p>
                 <?php else: ?>
@@ -349,12 +399,10 @@ include __DIR__ . '/../../../template/sidebar.php';
                                     - <?php echo htmlspecialchars($tk['problema'], ENT_QUOTES, 'UTF-8'); ?>
                                 </strong>
                                 <div class="admin-ticket-meta">
-                                    Estado:
-                                    <?php echo htmlspecialchars($tk['estado'] ?? '', ENT_QUOTES, 'UTF-8'); ?>
-                                    · Prioridad:
-                                    <?php echo htmlspecialchars($tk['prioridad'] ?? '', ENT_QUOTES, 'UTF-8'); ?>
-                                    · Fecha:
-                                    <?php echo htmlspecialchars($tk['fecha_envio'] ?? '', ENT_QUOTES, 'UTF-8'); ?>
+                                    Estado: <?php echo htmlspecialchars($tk['estado'] ?? '', ENT_QUOTES, 'UTF-8'); ?>
+                                    · Prioridad: <?php echo htmlspecialchars($tk['prioridad'] ?? '', ENT_QUOTES, 'UTF-8'); ?>
+                                    · Fecha: <?php echo htmlspecialchars($tk['fecha_envio'] ?? '', ENT_QUOTES, 'UTF-8'); ?>
+                                    · <a href="/HelpDesk_EQF/modules/dashboard/admin/tickets_area.php">Abrir</a>
                                 </div>
                             </div>
                         <?php endforeach; ?>
@@ -364,7 +412,24 @@ include __DIR__ . '/../../../template/sidebar.php';
 
         </section>
     </section>
+    <script src="/HelpDesk_EQF/assets/js/script.js?v=20251208a"></script>
+
 </main>
+<?php include __DIR__ . '/../../../template/footer.php'; ?>
 
 </body>
 </html>
+<script>
+function openTaskModal(){
+  document.getElementById('taskModal').style.display = 'flex';
+}
+function closeTaskModal(){
+  document.getElementById('taskModal').style.display = 'none';
+}
+// cerrar si das click fuera
+document.addEventListener('click', function(e){
+  const backdrop = document.getElementById('taskModal');
+  if(!backdrop) return;
+  if(e.target === backdrop) closeTaskModal();
+});
+</script>
