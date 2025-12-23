@@ -3,6 +3,7 @@ session_start();
 require_once __DIR__ . '/../../../config/connectionBD.php';
 require_once __DIR__ . '/../../../config/audit.php';
 require_once __DIR__ . '/../../../helpers/Mailer.php';
+$pdo = Database::getConnection();
 
 if (!isset($_SESSION['user_id']) || (int)($_SESSION['user_rol'] ?? 0) !== 1) {
     header('Location: /HelpDesk_EQF/auth/login.php');
@@ -25,7 +26,7 @@ $pdo = Database::getConnection();
 function sendRecoveryEmailToUser(string $to): bool {
     $subject = "Recuperación de contraseña - HELP DESK EQF";
     $msg =
-"Buen día,\n\n".
+"Buen día, \n\n".
 "Se realizó la recuperación de contraseña del sistema Help Desk. Recuerde que al iniciar sesión por primera vez deberá cambiarla.\n\n".
 "👤: {$to}\n".
 "🔒: 12345a\n\n".

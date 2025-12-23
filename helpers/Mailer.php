@@ -1,6 +1,4 @@
 <?php
-// /HelpDesk_EQF/helpers/Mailer.php
-
 require_once __DIR__ . '/../vendor/autoload.php';
 
 use PHPMailer\PHPMailer\PHPMailer;
@@ -29,8 +27,13 @@ function sendMailEQF(array $to, string $subject, string $bodyText): bool
         $mail->SMTPAuth   = true;
         $mail->Username   = (string)($cfg['username'] ?? '');
         $mail->Password   = (string)($cfg['password'] ?? '');
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port       = (int)($cfg['port'] ?? 587);
+        $encryption = strtolower($cfg['encryption'] ?? 'tls');
+if ($encryption === 'ssl') {
+    $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS; 
+} else {
+    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS; 
+}
+$mail->Port = (int)($cfg['port'] ?? 587);
 
         $fromEmail = (string)($cfg['from_email'] ?? $mail->Username);
         $fromName  = (string)($cfg['from_name']  ?? 'HelpDesk');

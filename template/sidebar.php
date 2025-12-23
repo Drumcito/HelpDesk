@@ -200,7 +200,7 @@ onclick="toggleSidebar()" aria-label="Abrir/cerrar menú">
         <?php elseif ($rol === 3): ?>
             <!-- ================= ANALISTA ================= -->
             <button type="button" class="user-menu-item" onclick="scrollToSection('analyst-dashboard')">
-                <span class="user-menu-icon">📊</span>
+                <span class="user-menu-icon">⭐</span>
                 <span>Dashboard</span>
             </button>
 

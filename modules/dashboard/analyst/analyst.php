@@ -287,6 +287,13 @@ $myTickets = $stmtMy->fetchAll();
         </div>
 
         <form class="ticket-chat-form" onsubmit="sendTicketMessage(event)">
+            <div class="ticket-chat-internal-row" style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+  <input type="checkbox" id="ticketChatInternal" value="1">
+  <label for="ticketChatInternal" style="font-size:13px; opacity:.85;">
+    Nota interna (solo equipo)
+  </label>
+</div>
+
             <textarea id="ticketChatInput"
                       rows="2"
                       placeholder="Escribe tu mensaje..."
@@ -359,7 +366,7 @@ function openTicketChat(ticketId, tituloExtra) {
         modal.classList.add('show');
     }
 
-    // ✅ Cargar el historial transferido "bloqueado" (gris)
+    //  Cargar el historial transferido "bloqueado" (gris)
     fetch('/HelpDesk_EQF/modules/ticket/get_transfer_context.php?ticket_id=' + encodeURIComponent(currentTicketId))
       .then(r => r.json())
       .then(data => {
@@ -401,6 +408,15 @@ function appendChatMessage(msg) {
 
     const div = document.createElement('div');
     div.className = 'ticket-chat-message';
+if (String(msg.is_internal) === '1') {
+  const badge = document.createElement('span');
+  badge.textContent = 'NOTA ';
+  badge.style.fontSize = '12px';
+  badge.style.opacity = '.8';
+  badge.style.display = 'block';
+  badge.style.marginBottom = '4px';
+  div.appendChild(badge);
+}
 
     const senderId = parseInt(msg.sender_id, 10);
     const isMine   = (senderId === CURRENT_USER_ID);
@@ -587,6 +603,9 @@ function sendTicketMessage(ev) {
     if (fileInput) fileInput.disabled = true;
 
     const formData = new FormData();
+    const internalCb = document.getElementById('ticketChatInternal');
+    const isInternal = internalCb && internalCb.checked ? 1 : 0;
+    formData.append('interno', isInternal);
     formData.append('ticket_id', currentTicketId);
     formData.append('mensaje', texto);
     if (file) formData.append('adjunto', file);
@@ -600,6 +619,9 @@ function sendTicketMessage(ev) {
         if (fileInput) {
             fileInput.disabled = false;
             fileInput.value = '';
+            const internalCb = document.getElementById('ticketChatInternal');
+if (internalCb) internalCb.checked = false;
+
         }
 
         if (!response.ok) {

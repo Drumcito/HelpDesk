@@ -2,7 +2,7 @@
 session_start();
 require_once __DIR__ . '/../../config/connectionBD.php';
 
-header('Content-Type: application/json');
+header('Content-Type: application/json; charset=utf-8');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -21,7 +21,14 @@ $rol    = (int)($_SESSION['user_rol'] ?? 0);
 
 $ticketId = isset($_POST['ticket_id']) ? (int)$_POST['ticket_id'] : 0;
 $mensaje  = trim($_POST['mensaje'] ?? '');
-$isInternal = isset($_POST['interno']) ? (int)$_POST['interno'] : 0;
+
+// acepta cualquiera de los 2 nombres:
+$isInternal = 0;
+if (isset($_POST['interno'])) {
+    $isInternal = (int)$_POST['interno'];
+} elseif (isset($_POST['is_internal'])) {
+    $isInternal = (int)$_POST['is_internal'];
+}
 
 // Usuario final no puede marcar interno
 if ($rol === 4) {
@@ -55,8 +62,8 @@ try {
         exit;
     }
 
-    $ticketUserId   = (int)$ticket['user_id'];
-    $ticketAnalystId= (int)($ticket['asignado_a'] ?? 0);
+    $ticketUserId    = (int)$ticket['user_id'];
+    $ticketAnalystId = (int)($ticket['asignado_a'] ?? 0);
 
     $allowed = false;
     if ($rol === 4 && $userId === $ticketUserId) {
@@ -83,17 +90,17 @@ try {
 
     $pdo->beginTransaction();
 
-    // 1) Insertamos mensaje
+    // 1) Insertamos mensaje (con created_at explícito por seguridad)
     $stmtIns = $pdo->prepare("
-        INSERT INTO ticket_messages (ticket_id, sender_id, sender_role, mensaje, is_internal)
-        VALUES (:ticket_id, :sender_id, :sender_role, :mensaje, :is_internal)
+        INSERT INTO ticket_messages (ticket_id, sender_id, sender_role, mensaje, is_internal, created_at)
+        VALUES (:ticket_id, :sender_id, :sender_role, :mensaje, :is_internal, NOW())
     ");
     $stmtIns->execute([
         ':ticket_id'   => $ticketId,
         ':sender_id'   => $userId,
         ':sender_role' => $senderRole,
         ':mensaje'     => $mensaje !== '' ? $mensaje : '[Archivo adjunto]',
-        ':is_internal' => $isInternal
+        ':is_internal' => $isInternal ? 1 : 0
     ]);
 
     $msgId = (int)$pdo->lastInsertId();
@@ -102,19 +109,29 @@ try {
     $fileInfo = null;
 
     if ($hasFile && isset($_FILES['adjunto']) && $_FILES['adjunto']['error'] === UPLOAD_ERR_OK) {
+
+        // whitelist de extensiones (simple)
+        $allowedExt = ['jpg','jpeg','png','webp','pdf','doc','docx','xls','xlsx','csv'];
+        $origName = $_FILES['adjunto']['name'] ?? 'archivo';
+        $ext      = strtolower(pathinfo($origName, PATHINFO_EXTENSION));
+        if ($ext && !in_array($ext, $allowedExt, true)) {
+            $pdo->rollBack();
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'msg' => 'Tipo de archivo no permitido']);
+            exit;
+        }
+
         $uploadDir = __DIR__ . '/../../uploads/ticket_messages/';
         if (!is_dir($uploadDir)) {
             mkdir($uploadDir, 0775, true);
         }
 
-        $origName  = $_FILES['adjunto']['name'];
-        $tmpName   = $_FILES['adjunto']['tmp_name'];
-        $mimeType  = $_FILES['adjunto']['type'] ?? null;
-        $ext       = pathinfo($origName, PATHINFO_EXTENSION);
+        $tmpName  = $_FILES['adjunto']['tmp_name'];
+        $mimeType = $_FILES['adjunto']['type'] ?? null;
 
-        $safeExt   = preg_replace('/[^a-zA-Z0-9]/', '', $ext);
-        $newName   = 't' . $ticketId . '_m' . $msgId . '_' . uniqid() . ($safeExt ? '.' . $safeExt : '');
-        $destPath  = $uploadDir . $newName;
+        $safeExt  = preg_replace('/[^a-zA-Z0-9]/', '', $ext);
+        $newName  = 't' . $ticketId . '_m' . $msgId . '_' . uniqid() . ($safeExt ? '.' . $safeExt : '');
+        $destPath = $uploadDir . $newName;
 
         if (move_uploaded_file($tmpName, $destPath)) {
             $relPath = 'uploads/ticket_messages/' . $newName;
@@ -142,17 +159,15 @@ try {
     $pdo->commit();
 
     echo json_encode([
-        'ok'    => true,
-        'id'    => $msgId,
-        'file'  => $fileInfo
+        'ok'   => true,
+        'id'   => $msgId,
+        'file' => $fileInfo
     ]);
     exit;
 
-} catch (Exception $e) {
-    if ($pdo->inTransaction()) {
-        $pdo->rollBack();
-    }
-    error_log('Error en send_message: ' . $e->getMessage());
+} catch (Throwable $e) {
+    if ($pdo->inTransaction()) $pdo->rollBack();
+    error_log('Error en send_messages: ' . $e->getMessage());
     http_response_code(500);
     echo json_encode(['ok' => false, 'msg' => 'Error interno']);
     exit;

@@ -1,12 +1,13 @@
 <?php
 
 return [
-    'host' => 'smtp.gmail.com',
-    'port' => 587,
-    'username' => 'sa.helpdesk.eqf@gmail.com',
-    'password' => 'gclo aabx xofk ragn',
-    'from_email' => 'sa.helpdesk.eqf@gmail.com',
+    'host'       => 'secure.emailsrvr.com',
+    'port'       => '465',                  
+    'username'   => 'soporte@eqf.mx',
+    'password'   => 'Sistemas2025$$',     
+    'from_email' => 'soporte@eqf.mx',
     'from_name'  => 'HelpDesk EQF',
-    'encryption' => 'tls',   // tls | ssl
+    'encryption' => 'ssl',               
     'charset'    => 'UTF-8',
 ];
+?>

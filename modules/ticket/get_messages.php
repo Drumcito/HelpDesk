@@ -2,7 +2,7 @@
 session_start();
 require_once __DIR__ . '/../../config/connectionBD.php';
 
-header('Content-Type: application/json');
+header('Content-Type: application/json; charset=utf-8');
 
 if (!isset($_SESSION['user_id'])) {
     http_response_code(403);
@@ -25,7 +25,7 @@ if ($ticketId <= 0) {
 $pdo = Database::getConnection();
 
 try {
-    // Validar que el usuario tenga acceso al ticket
+    // Validar acceso al ticket
     $stmt = $pdo->prepare("
         SELECT id, user_id, asignado_a
         FROM tickets
@@ -61,7 +61,7 @@ try {
     }
 
     // Usuario final (rol 4) NO ve mensajes internos
-    $hideInternal = ($rol === 4) ? 1 : 0;
+    $hideInternal = ($rol === 4);
 
     $sql = "
         SELECT 
@@ -82,7 +82,7 @@ try {
     ";
 
     if ($hideInternal) {
-        $sql .= " AND m.is_internal = 0 ";
+        $sql .= " AND (m.is_internal = 0 OR m.is_internal IS NULL) ";
     }
 
     $sql .= " ORDER BY m.id ASC";
@@ -95,10 +95,8 @@ try {
 
     $rows = $stmtMsg->fetchAll(PDO::FETCH_ASSOC);
 
-    // Agregamos una URL completa al archivo para que el front solo la use
     foreach ($rows as &$r) {
         if (!empty($r['file_path'])) {
-            // Ruta pública
             $r['file_url'] = '/HelpDesk_EQF/' . ltrim($r['file_path'], '/');
         } else {
             $r['file_url'] = null;
@@ -112,7 +110,7 @@ try {
     ]);
     exit;
 
-} catch (Exception $e) {
+} catch (Throwable $e) {
     error_log('Error en get_messages: ' . $e->getMessage());
     http_response_code(500);
     echo json_encode(['ok' => false, 'msg' => 'Error interno']);

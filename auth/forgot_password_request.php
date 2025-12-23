@@ -41,14 +41,14 @@ try {
         "HelpDesk EQF\n";
 
     $ok = sendMailEQF(
-        ["sa_helpdesk@outlook.mx" => "HelpDesk"],
+        ["soporte@eqf.mx" => "HelpDesk"],
         $subject,
         $bodyText
     );
 
     // 4) Auditar resultado del envío
     audit_log($pdo, $ok ? 'RECOVERY_EMAIL_SENT' : 'RECOVERY_EMAIL_FAILED', 'password_recovery_requests', $requestId, [
-        'to' => 'sa_helpdesk@outlook.mx',
+        'to' => 'soporte@eqf.mx',
         'requester_email' => $email
     ]);
 
