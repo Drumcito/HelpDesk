@@ -2043,7 +2043,6 @@ footer {
   color: #4b5563;
 }
 
-/* Zona de contenido */
 .user-main-content {
   display: flex;
   flex-direction: column;
@@ -2141,3 +2140,48 @@ table.dataTable tbody tr:hover {
   }
 }
 
+.chat-transfer-block{
+  border: 1px dashed rgba(0,0,0,.18);
+  background: rgba(120,120,120,.08);
+  border-radius: 16px;
+  padding: 14px;
+  margin-bottom: 14px;
+}
+
+.chat-transfer-header{
+  display:flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 13px;
+  opacity: .85;
+  margin-bottom: 8px;
+}
+
+.chat-transfer-motivo{
+  font-size: 13px;
+  opacity: .85;
+  margin-bottom: 10px;
+}
+
+.chat-transfer-messages{
+  display:flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none; /* <- BLOQUEA interacción */
+  user-select: text;
+}
+
+.msg-transfer .msg-bubble{
+  background: rgba(120,120,120,.18);
+  color: rgba(0,0,0,.75);
+  border-radius: 14px;
+  padding: 10px 12px;
+  max-width: 75%;
+}
+
+.msg-transfer .msg-meta{
+  font-size: 12px;
+  opacity: .7;
+  margin-bottom: 4px;
+}

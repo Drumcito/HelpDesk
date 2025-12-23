@@ -49,7 +49,7 @@ $stmtOpen = $pdo->prepare("
     LIMIT 5
 ");
 $stmtOpen->execute([':uid' => $userId]);
-$openTickets = $stmtOpen->fetchAll();
+$openTickets = $stmtOpen->fetchAll(PDO::FETCH_ASSOC);
 
 function problemaLabel(string $p): string {
     return match ($p) {
@@ -193,7 +193,6 @@ function problemaLabel(string $p): string {
         </section>
     </main>
 
- 
     <!-- MODAL CREAR TICKET -->
     <div class="user-modal-backdrop" id="ticketModal">
         <div class="user-modal">
@@ -218,37 +217,21 @@ function problemaLabel(string $p): string {
                        value="<?php echo htmlspecialchars($userArea, ENT_QUOTES, 'UTF-8'); ?>">
                 <input type="hidden" name="email"
                        value="<?php echo htmlspecialchars($userEmail, ENT_QUOTES, 'UTF-8'); ?>">
-<!--
-                <div class="user-modal-grid">
-                    <div class="form-group">
+
+                <div class="form-group form-row">
+                    <div class="field">
                         <label># SAP</label>
                         <input type="text"
                                id="sapDisplay"
                                value="<?php echo htmlspecialchars($userSap, ENT_QUOTES, 'UTF-8'); ?>"
-                               disabled>  
+                               disabled>
                     </div>
-                    <div class="form-group">
+                    <div class="field">
                         <label>Nombre</label>
                         <input type="text"
                                id="nombreDisplay"
                                value="<?php echo htmlspecialchars($userName, ENT_QUOTES, 'UTF-8'); ?>"
                                disabled>
-                    </div>
-                            -->
- <div class="form-group form-row">
-                    <div class="field">
-                        <label># SAP</label>
-                        <input type="text"
-                               id="sapDisplay"
-                               value="<?php echo htmlspecialchars($userSap, ENT_QUOTES, 'UTF-8'); ?>"
-                               disabled>  
-                    </div>
-                    <div class="field">
-                        <label>Nombre</label>
-                        <input type="text"
-                               id="nombreDisplay"
-                               value="<?php echo htmlspecialchars($userName, ENT_QUOTES, 'UTF-8'); ?>"
-                               disabled>  
                     </div>
 
                     <div class="form-group">
@@ -286,15 +269,7 @@ function problemaLabel(string $p): string {
                         <option value="">Selecciona primero un área</option>
                     </select>
                 </div>
-<!--
-                <div class="form-group">
-                    <label>Prioridad</label>
-                    <input type="text"
-                           id="prioridadDisplay"
-                           value="Media"
-                           disabled>
-                </div>
-                            -->
+
                 <input type="hidden" name="prioridad" id="prioridadValue" value="media">
 
                 <div class="form-group form-group-full">
@@ -304,7 +279,7 @@ function problemaLabel(string $p): string {
                               required></textarea>
                 </div>
 
-                    <div class="form-group form-group-full" id="adjuntoContainer">
+                <div class="form-group form-group-full" id="adjuntoContainer">
                     <label>Adjuntar archivos</label>
                     <input type="file"
                            name="adjuntos[]"
@@ -407,6 +382,14 @@ function problemaLabel(string $p): string {
             modal.classList.add('show');
         }
 
+        // ✅ Cargar historial transferido (bloqueado)
+        fetch('/HelpDesk_EQF/modules/ticket/get_transfer_context.php?ticket_id=' + encodeURIComponent(currentTicketId))
+          .then(r => r.json())
+          .then(data => {
+            if (data && data.ok) renderTransferBlock(data);
+          })
+          .catch(err => console.error('Error transfer context:', err));
+
         fetchMessages(true);
 
         if (chatPollTimer) clearInterval(chatPollTimer);
@@ -426,6 +409,11 @@ function problemaLabel(string $p): string {
             clearInterval(chatPollTimer);
             chatPollTimer = null;
         }
+
+        // ✅ limpiar bloque transferido para evitar arrastre entre tickets
+        const old = document.getElementById('transfer-block');
+        if (old) old.remove();
+
         currentTicketId = null;
     }
 
@@ -490,6 +478,92 @@ function problemaLabel(string $p): string {
         bodyEl.scrollTop = bodyEl.scrollHeight;
     }
 
+    function escapeHtml(str){
+      return String(str ?? '')
+        .replaceAll('&','&amp;')
+        .replaceAll('<','&lt;')
+        .replaceAll('>','&gt;')
+        .replaceAll('"','&quot;')
+        .replaceAll("'","&#039;");
+    }
+
+    function renderTransferBlock(payload){
+      const bodyEl = document.getElementById('ticketChatBody');
+      if (!bodyEl) return;
+
+      // evita duplicado
+      const old = document.getElementById('transfer-block');
+      if (old) old.remove();
+
+      if (!payload || !payload.has_transfer) return;
+
+      const t = payload.transfer || {};
+      const msgs = Array.isArray(payload.messages) ? payload.messages : [];
+      const files = Array.isArray(payload.files) ? payload.files : [];
+
+      const wrap = document.createElement('div');
+      wrap.id = 'transfer-block';
+      wrap.className = 'ticket-transfer-block';
+
+      const header = document.createElement('div');
+      header.className = 'ticket-transfer-header';
+      header.innerHTML = `
+        <strong>Historial transferido</strong>
+        <div class="ticket-transfer-sub">
+          ${escapeHtml(t.from_area)} → ${escapeHtml(t.to_area)}
+          ${t.created_at ? ' · ' + escapeHtml(t.created_at) : ''}
+        </div>
+        ${t.motivo ? `<div class="ticket-transfer-motivo">Motivo: ${escapeHtml(t.motivo)}</div>` : ''}
+        <div class="ticket-transfer-note">Este historial es informativo (bloqueado).</div>
+      `;
+      wrap.appendChild(header);
+
+      const list = document.createElement('div');
+      list.className = 'ticket-transfer-messages';
+
+      if (!msgs.length) {
+        const empty = document.createElement('div');
+        empty.className = 'ticket-transfer-empty';
+        empty.textContent = 'Sin mensajes transferidos.';
+        list.appendChild(empty);
+      } else {
+        msgs.forEach(m => {
+          const item = document.createElement('div');
+          item.className = 'ticket-transfer-msg';
+          item.innerHTML = `
+            <div class="ticket-transfer-msg-top">
+              <span class="role">${escapeHtml(m.sender_role || '')}</span>
+              <span class="name">${escapeHtml(m.sender_name || '')}</span>
+              <span class="at">${escapeHtml(m.created_at || '')}</span>
+            </div>
+            <div class="ticket-transfer-msg-text">${escapeHtml(m.message || '')}</div>
+          `;
+          list.appendChild(item);
+        });
+      }
+
+      if (files.length) {
+        const fwrap = document.createElement('div');
+        fwrap.className = 'ticket-transfer-files';
+        fwrap.innerHTML = `<div class="ticket-transfer-files-title">Adjuntos transferidos</div>`;
+
+        files.forEach(f => {
+          const a = document.createElement('a');
+          a.className = 'ticket-transfer-file';
+          a.href = f.file_path;
+          a.target = '_blank';
+          a.rel = 'noopener';
+          a.textContent = '📎 ' + (f.file_name || 'archivo');
+          fwrap.appendChild(a);
+        });
+
+        list.appendChild(fwrap);
+      }
+
+      wrap.appendChild(list);
+      bodyEl.prepend(wrap);
+    }
+
     function fetchMessages(initial) {
         if (!currentTicketId) return;
 
@@ -523,9 +597,7 @@ function problemaLabel(string $p): string {
         const texto = input.value.trim();
         const file  = fileInput && fileInput.files.length > 0 ? fileInput.files[0] : null;
 
-        if (!texto && !file) {
-            return;
-        }
+        if (!texto && !file) return;
 
         input.disabled = true;
         if (fileInput) fileInput.disabled = true;
@@ -533,9 +605,7 @@ function problemaLabel(string $p): string {
         const formData = new FormData();
         formData.append('ticket_id', currentTicketId);
         formData.append('mensaje', texto);
-        if (file) {
-            formData.append('adjunto', file);
-        }
+        if (file) formData.append('adjunto', file);
 
         fetch('/HelpDesk_EQF/modules/ticket/send_messages.php', {
             method: 'POST',
@@ -570,6 +640,7 @@ function problemaLabel(string $p): string {
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
 <script src="/HelpDesk_EQF/assets/js/script.js?v=20251208a"></script>
+
 <script>
 document.addEventListener('DOMContentLoaded', function () {
 
@@ -600,26 +671,33 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function pollUserNotifications() {
-        fetch('/HelpDesk_EQF/modules/ticket/check_user_notifications.php')
-            .then(r => r.json())
-            .then(data => {
-                if (!data.ok || !data.has) return;
-                if (!Array.isArray(data.notifications)) return;
+    fetch('/HelpDesk_EQF/modules/ticket/check_user_notifications.php')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.ok || !data.has) return;
+            if (!Array.isArray(data.notifications)) return;
 
-                data.notifications.forEach(n => {
-                    const msg = n.mensaje || 'Tienes una actualización de tu ticket.';
-                    showUserToast(msg);
-                    showDesktopNotification(msg);
-                });
-            })
-            .catch(err => {
-                console.error('Error consultando notificaciones de usuario:', err);
+            data.notifications.forEach(n => {
+                const msg   = n.body  || 'Tienes una actualización de tu ticket.';
+                const title = n.title || 'HelpDesk EQF';
+
+                showUserToast(msg);
+
+                if ('Notification' in window && Notification.permission === 'granted') {
+                    new Notification(title, {
+                        body: msg,
+                        icon: '/HelpDesk_EQF/assets/img/icon_helpdesk.png'
+                    });
+                }
             });
-    }
+        })
+        .catch(err => {
+            console.error('Error consultando notificaciones de usuario:', err);
+        });
+}
 
     setInterval(pollUserNotifications, 10000);
 });
-
 </script>
 
 </body>

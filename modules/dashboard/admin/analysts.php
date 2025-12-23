@@ -12,7 +12,6 @@ $userId    = (int)($_SESSION['user_id'] ?? 0);
 $userName  = trim(($_SESSION['user_name'] ?? '') . ' ' . ($_SESSION['user_last'] ?? ''));
 $areaAdmin = $_SESSION['user_area'] ?? '';
 
-// Analistas del área
 $stmtAnalysts = $pdo->prepare("
     SELECT id, name, last_name, email, celular
     FROM users
@@ -22,7 +21,6 @@ $stmtAnalysts = $pdo->prepare("
 $stmtAnalysts->execute([':area' => $areaAdmin]);
 $analysts = $stmtAnalysts->fetchAll(PDO::FETCH_ASSOC);
 
-// Stats de tickets por analista
 $stmtStats = $pdo->prepare("
     SELECT 
         asignado_a AS analyst_id,
@@ -84,11 +82,6 @@ include __DIR__ . '/../../../template/sidebar.php';
 
         <section class="user-main-content">
 
-            <div class="user-info-card">
-                <h2>Equipo de analistas</h2>
-                <p>Aquí puedes ver a los analistas de tu área y un pequeño resumen de su carga de tickets.</p>
-            </div>
-
             <section class="admin-card">
                 <h2>Analistas</h2>
 
@@ -145,6 +138,7 @@ include __DIR__ . '/../../../template/sidebar.php';
         </section>
     </section>
 </main>
+<script src="/HelpDesk_EQF/assets/js/script.js?v=20251208a"></script>
 
 </body>
 </html>

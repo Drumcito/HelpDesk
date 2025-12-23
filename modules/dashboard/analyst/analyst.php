@@ -80,7 +80,6 @@ $stmtIncoming = $pdo->prepare("
       AND (asignado_a IS NULL OR asignado_a = 0)
     ORDER BY fecha_envio ASC
 ");
-
 $stmtIncoming->execute([':area' => $userArea]);
 $incomingTickets = $stmtIncoming->fetchAll();
 
@@ -88,12 +87,9 @@ $incomingTickets = $stmtIncoming->fetchAll();
 $maxIncomingId = 0;
 foreach ($incomingTickets as $t) {
     $tid = (int)$t['id'];
-    if ($tid > $maxIncomingId) {
-        $maxIncomingId = $tid;
-    }
+    if ($tid > $maxIncomingId) $maxIncomingId = $tid;
 }
 
-/* Mis tickets */
 /* Mis tickets activos (solo abiertos y en proceso) */
 $stmtMy = $pdo->prepare("
     SELECT id, sap, nombre, email, problema, descripcion, fecha_envio, estado, prioridad
@@ -105,7 +101,6 @@ $stmtMy = $pdo->prepare("
 ");
 $stmtMy->execute([':area' => $userArea, ':uid' => $userId]);
 $myTickets = $stmtMy->fetchAll();
-
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -249,20 +244,18 @@ $myTickets = $stmtMy->fetchAll();
                                             <?php echo htmlspecialchars(prioridadLabel($t['prioridad'] ?? 'media'), ENT_QUOTES, 'UTF-8'); ?>
                                         </span>
                                     </td>
-<td>
-    <?php $estado = $t['estado']; ?>
-<select
-        class="ticket-status-select status-<?php echo htmlspecialchars($t['estado'], ENT_QUOTES, 'UTF-8'); ?>"
-        data-ticket-id="<?php echo (int)$t['id']; ?>"
-        data-prev="<?php echo htmlspecialchars($t['estado'], ENT_QUOTES, 'UTF-8'); ?>"
-    >
-<option value="abierto"    <?php if ($t['estado'] === 'abierto')    echo 'selected'; ?>>Abierto</option>
-        <option value="en_proceso" <?php if ($t['estado'] === 'en_proceso') echo 'selected'; ?>>En proceso</option>
-        <option value="resuelto"   <?php if ($t['estado'] === 'resuelto')   echo 'selected'; ?>>Resuelto</option>
-        <option value="cerrado"    <?php if ($t['estado'] === 'cerrado')    echo 'selected'; ?>>Cerrado</option>
-    </select>
-</td>
-
+                                    <td>
+                                        <select
+                                            class="ticket-status-select status-<?php echo htmlspecialchars($t['estado'], ENT_QUOTES, 'UTF-8'); ?>"
+                                            data-ticket-id="<?php echo (int)$t['id']; ?>"
+                                            data-prev="<?php echo htmlspecialchars($t['estado'], ENT_QUOTES, 'UTF-8'); ?>"
+                                        >
+                                            <option value="abierto"    <?php if ($t['estado'] === 'abierto')    echo 'selected'; ?>>Abierto</option>
+                                            <option value="en_proceso" <?php if ($t['estado'] === 'en_proceso') echo 'selected'; ?>>En proceso</option>
+                                            <option value="resuelto"   <?php if ($t['estado'] === 'resuelto')   echo 'selected'; ?>>Resuelto</option>
+                                            <option value="cerrado"    <?php if ($t['estado'] === 'cerrado')    echo 'selected'; ?>>Cerrado</option>
+                                        </select>
+                                    </td>
                                     <td>
                                         <button type="button"
                                                 class="btn-main-combined"
@@ -277,7 +270,6 @@ $myTickets = $stmtMy->fetchAll();
                 <?php endif; ?>
             </div>
 
-            
         </section>
     </section>
 </main>
@@ -333,16 +325,10 @@ let chatPollTimer   = null;
 // ===============================
 //  Utilidades generales
 // ===============================
-function scrollToSection(id) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
 function showTicketToast(text) {
     const toast = document.createElement('div');
     toast.className = 'eqf-toast-ticket';
-    if (text) toast.textContent = text;
+    toast.textContent = text || '';
     document.body.appendChild(toast);
 
     setTimeout(() => {
@@ -364,9 +350,7 @@ function openTicketChat(ticketId, tituloExtra) {
     }
 
     const bodyEl = document.getElementById('ticketChatBody');
-    if (bodyEl) {
-        bodyEl.innerHTML = '';
-    }
+    if (bodyEl) bodyEl.innerHTML = '';
 
     const modal = document.getElementById('ticket-chat-modal');
     if (typeof openModal === 'function') {
@@ -374,6 +358,14 @@ function openTicketChat(ticketId, tituloExtra) {
     } else if (modal) {
         modal.classList.add('show');
     }
+
+    // ✅ Cargar el historial transferido "bloqueado" (gris)
+    fetch('/HelpDesk_EQF/modules/ticket/get_transfer_context.php?ticket_id=' + encodeURIComponent(currentTicketId))
+      .then(r => r.json())
+      .then(data => {
+        if (data && data.ok) renderTransferBlock(data);
+      })
+      .catch(err => console.error('Error transfer context:', err));
 
     fetchMessages(true);
 
@@ -393,6 +385,10 @@ function closeTicketChat() {
         clearInterval(chatPollTimer);
         chatPollTimer = null;
     }
+
+    const old = document.getElementById('transfer-block');
+    if (old) old.remove();
+
     currentTicketId = null;
 }
 
@@ -461,6 +457,94 @@ function appendChatMessage(msg) {
 }
 
 // ===============================
+//  Chat: transfer block (gris)
+// ===============================
+function escapeHtml(str){
+  return String(str ?? '')
+    .replaceAll('&','&amp;')
+    .replaceAll('<','&lt;')
+    .replaceAll('>','&gt;')
+    .replaceAll('"','&quot;')
+    .replaceAll("'","&#039;");
+}
+
+function renderTransferBlock(payload){
+  const bodyEl = document.getElementById('ticketChatBody');
+  if (!bodyEl) return;
+
+  const old = document.getElementById('transfer-block');
+  if (old) old.remove();
+
+  if (!payload || !payload.has_transfer) return;
+
+  const t = payload.transfer || {};
+  const msgs = Array.isArray(payload.messages) ? payload.messages : [];
+  const files = Array.isArray(payload.files) ? payload.files : [];
+
+  const wrap = document.createElement('div');
+  wrap.id = 'transfer-block';
+  wrap.className = 'ticket-transfer-block';
+
+  const header = document.createElement('div');
+  header.className = 'ticket-transfer-header';
+  header.innerHTML = `
+    <strong>Historial transferido</strong>
+    <div class="ticket-transfer-sub">
+      ${escapeHtml(t.from_area)} → ${escapeHtml(t.to_area)}
+      ${t.created_at ? ' · ' + escapeHtml(t.created_at) : ''}
+    </div>
+    ${t.motivo ? `<div class="ticket-transfer-motivo">Motivo: ${escapeHtml(t.motivo)}</div>` : ''}
+    <div class="ticket-transfer-note">Este historial es informativo (bloqueado).</div>
+  `;
+  wrap.appendChild(header);
+
+  const list = document.createElement('div');
+  list.className = 'ticket-transfer-messages';
+
+  if (!msgs.length) {
+    const empty = document.createElement('div');
+    empty.className = 'ticket-transfer-empty';
+    empty.textContent = 'Sin mensajes transferidos.';
+    list.appendChild(empty);
+  } else {
+    msgs.forEach(m => {
+      const item = document.createElement('div');
+      item.className = 'ticket-transfer-msg';
+      item.innerHTML = `
+        <div class="ticket-transfer-msg-top">
+          <span class="role">${escapeHtml(m.sender_role || '')}</span>
+          <span class="name">${escapeHtml(m.sender_name || '')}</span>
+          <span class="at">${escapeHtml(m.created_at || '')}</span>
+        </div>
+        <div class="ticket-transfer-msg-text">${escapeHtml(m.message || '')}</div>
+      `;
+      list.appendChild(item);
+    });
+  }
+
+  if (files.length) {
+    const fwrap = document.createElement('div');
+    fwrap.className = 'ticket-transfer-files';
+    fwrap.innerHTML = `<div class="ticket-transfer-files-title">Adjuntos transferidos</div>`;
+
+    files.forEach(f => {
+      const a = document.createElement('a');
+      a.className = 'ticket-transfer-file';
+      a.href = f.file_path;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.textContent = '📎 ' + (f.file_name || 'archivo');
+      fwrap.appendChild(a);
+    });
+
+    list.appendChild(fwrap);
+  }
+
+  wrap.appendChild(list);
+  bodyEl.prepend(wrap);
+}
+
+// ===============================
 //  Chat: obtener mensajes
 // ===============================
 function fetchMessages(initial) {
@@ -477,9 +561,7 @@ function fetchMessages(initial) {
 
             data.messages.forEach(m => {
                 appendChatMessage(m);
-                if (m.id > lastMessageId) {
-                    lastMessageId = m.id;
-                }
+                if (m.id > lastMessageId) lastMessageId = m.id;
             });
         })
         .catch(err => console.error('Error obteniendo mensajes:', err));
@@ -499,9 +581,7 @@ function sendTicketMessage(ev) {
     const texto = input.value.trim();
     const file  = fileInput && fileInput.files.length > 0 ? fileInput.files[0] : null;
 
-    if (!texto && !file) {
-        return;
-    }
+    if (!texto && !file) return;
 
     input.disabled = true;
     if (fileInput) fileInput.disabled = true;
@@ -509,9 +589,7 @@ function sendTicketMessage(ev) {
     const formData = new FormData();
     formData.append('ticket_id', currentTicketId);
     formData.append('mensaje', texto);
-    if (file) {
-        formData.append('adjunto', file);
-    }
+    if (file) formData.append('adjunto', file);
 
     fetch('/HelpDesk_EQF/modules/ticket/send_messages.php', {
         method: 'POST',
@@ -542,15 +620,13 @@ function sendTicketMessage(ev) {
 }
 
 // ===============================
-//  INIT: DataTables + asignación + notificaciones + estatus
+//  INIT: DataTables + asignación + estatus + polling
 // ===============================
 document.addEventListener('DOMContentLoaded', function () {
 
     function initOrGetTable(selector, options) {
         if (!window.jQuery || !$.fn.dataTable || !$(selector).length) return null;
-        if ($.fn.dataTable.isDataTable(selector)) {
-            return $(selector).DataTable();
-        }
+        if ($.fn.dataTable.isDataTable(selector)) return $(selector).DataTable();
         return $(selector).DataTable(options || {});
     }
 
@@ -564,169 +640,108 @@ document.addEventListener('DOMContentLoaded', function () {
         order: [[1, 'desc']]
     });
 
-    initOrGetTable('#historyTable', {
-        pageLength: 5,
-        order: [[1, 'desc']]
-    });
+    // ---------- CAMBIO DE ESTATUS ----------
+    document.addEventListener('change', function (e) {
+        const select = e.target.closest('.ticket-status-select');
+        if (!select) return;
 
-    // ===============================
-//  Cambio de estatus desde el select
-// ===============================
-document.addEventListener('change', function (e) {
-    const select = e.target.closest('.ticket-status-select');
-    if (!select) return;
+        const ticketId    = select.dataset.ticketId;
+        const nuevoEstado = select.value;
+        const prevEstado  = select.dataset.prev || 'abierto';
+        const rowEl       = select.closest('tr');
 
-    const ticketId   = select.dataset.ticketId;
-    const nuevoEstado = select.value;
-    const prevEstado  = select.dataset.prev || 'abierto';
-    const rowEl       = select.closest('tr');
+        if (!ticketId) return;
 
-    if (!ticketId) return;
+        fetch('/HelpDesk_EQF/modules/ticket/update_status.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'ticket_id=' + encodeURIComponent(ticketId) +
+                  '&estado='   + encodeURIComponent(nuevoEstado)
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (!data.ok) {
+                alert(data.msg || 'Error al actualizar el estatus.');
+                select.value = prevEstado;
+                return;
+            }
 
-    fetch('/HelpDesk_EQF/modules/ticket/update_status.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: 'ticket_id=' + encodeURIComponent(ticketId) +
-              '&estado='   + encodeURIComponent(nuevoEstado)
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (!data.ok) {
-            alert(data.msg || 'Error al actualizar el estatus.');
-            // regresar al valor anterior
-            select.value = prevEstado;
-            return;
-        }
+            select.dataset.prev = nuevoEstado;
+            select.className = 'ticket-status-select status-' + nuevoEstado;
 
-        // guardar nuevo estado como "previo"
-        select.dataset.prev = nuevoEstado;
-
-        // actualizar clases de color
-        select.className = 'ticket-status-select status-' + nuevoEstado;
-
-        // 🔥 si quedó RESUELTO o CERRADO, lo quitamos de la tabla "Mis tickets"
-        if (nuevoEstado === 'resuelto' || nuevoEstado === 'cerrado') {
-            if (rowEl) {
-                // Si la tabla está en DataTables
-                if (window.jQuery && $.fn.dataTable && $.fn.dataTable.isDataTable('#myTicketsTable')) {
-                    const dtMy = $('#myTicketsTable').DataTable();
-                    dtMy.row($(rowEl)).remove().draw(false);
-                } else {
-                    // Tabla normal
-                    rowEl.remove();
+            if (nuevoEstado === 'resuelto' || nuevoEstado === 'cerrado') {
+                if (rowEl) {
+                    if (window.jQuery && $.fn.dataTable && $.fn.dataTable.isDataTable('#myTicketsTable')) {
+                        const dtMy = $('#myTicketsTable').DataTable();
+                        dtMy.row($(rowEl)).remove().draw(false);
+                    } else {
+                        rowEl.remove();
+                    }
                 }
             }
-        }
-    })
-    .catch(err => {
-        console.error('Error update_status:', err);
-        alert('Error interno al actualizar el estatus.');
-        select.value = prevEstado;
+        })
+        .catch(err => {
+            console.error('Error update_status:', err);
+            alert('Error interno al actualizar el estatus.');
+            select.value = prevEstado;
+        });
     });
-});
 
+    // ---------- ASIGNAR TICKET ----------
+    document.addEventListener('click', function (e) {
+        const btn = e.target.closest('.btn-assign-ticket');
+        if (!btn) return;
 
-  // ---------- ASIGNAR TICKET ----------
-document.addEventListener('click', function (e) {
-    const btn = e.target.closest('.btn-assign-ticket');
-    if (!btn) return;
+        if (btn.dataset.loading === '1') return;
+        btn.dataset.loading = '1';
 
-    if (btn.dataset.loading === '1') return;
-    btn.dataset.loading = '1';
-
-    const rowEl   = btn.closest('tr');
-    const ticketId = btn.dataset.ticketId || (rowEl && rowEl.getAttribute('data-ticket-id'));
-    if (!ticketId || !rowEl) {
-        btn.dataset.loading = '0';
-        return;
-    }
-
-    const originalText = btn.textContent;
-    btn.disabled = true;
-    btn.textContent = 'Asignando...';
-
-    fetch('/HelpDesk_EQF/modules/ticket/assign.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: 'ticket_id=' + encodeURIComponent(ticketId)
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (!data.ok) {
-            alert(data.msg || 'No se pudo asignar el ticket.');
-            btn.disabled = false;
-            btn.textContent = originalText;
+        const rowEl    = btn.closest('tr');
+        const ticketId = btn.dataset.ticketId || (rowEl && rowEl.getAttribute('data-ticket-id'));
+        if (!ticketId || !rowEl) {
             btn.dataset.loading = '0';
             return;
         }
 
-        // 1) Quitar de "Tickets entrantes"
-        if (incomingDT) {
-            incomingDT.row($(rowEl)).remove().draw(false);
-        } else if (rowEl.parentNode) {
-            rowEl.parentNode.removeChild(rowEl);
-        }
+        const originalText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = 'Asignando...';
 
-        // 2) Agregar a "Mis tickets" en caliente
-        //    Data que nos regresa el assign.php
-        const t = data.ticket; // {id, fecha_envio, nombre, problema, estado, prioridad}
+        fetch('/HelpDesk_EQF/modules/ticket/assign.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'ticket_id=' + encodeURIComponent(ticketId)
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (!data.ok) {
+                alert(data.msg || 'No se pudo asignar el ticket.');
+                btn.disabled = false;
+                btn.textContent = originalText;
+                btn.dataset.loading = '0';
+                return;
+            }
 
-        const myTableEl = $('#myTicketsTable');
-        if (myTableEl.length && $.fn.dataTable.isDataTable('#myTicketsTable')) {
-            const myDT = myTableEl.DataTable();
+            // Quitar de "Tickets entrantes"
+            if (incomingDT) incomingDT.row($(rowEl)).remove().draw(false);
+            else rowEl.remove();
 
-            const statusSelectHtml = `
-                <select class="ticket-status-select status-${t.estado}"
-                        data-ticket-id="${t.id}">
-                    <option value="abierto"   ${t.estado === 'abierto'   ? 'selected' : ''}>Abierto</option>
-                    <option value="en_proceso"${t.estado === 'en_proceso'? 'selected' : ''}>En proceso</option>
-                    <option value="resuelto"  ${t.estado === 'resuelto'  ? 'selected' : ''}>Resuelto</option>
-                    <option value="cerrado"   ${t.estado === 'cerrado'   ? 'selected' : ''}>Cerrado</option>
-                </select>
-            `;
-
-            const chatButtonHtml = `
-                <button type="button"
-                        class="btn-login"
-                        onclick="openTicketChat(${t.id}, '${t.nombre.replace(/'/g, "\\'")}')">
-                    Ver chat
-                </button>
-            `;
-
-            myDT.row.add([
-                t.id,
-                t.fecha_envio || '',
-                t.nombre || '',
-                t.problema || '',
-                statusSelectHtml,
-                chatButtonHtml
-            ]).draw(false);
-        }
-
-        // 3) Mensaje dentro del sistema (toast)
-        showTicketToast('Ticket #' + ticketId + ' asignado a ti.');
-
-        btn.dataset.loading = '0';
-    })
-    .catch(err => {
-        console.error(err);
-        alert('Error al asignar el ticket.');
-        btn.disabled = false;
-        btn.textContent = originalText;
-        btn.dataset.loading = '0';
+            showTicketToast('Ticket #' + ticketId + ' asignado a ti.');
+            btn.dataset.loading = '0';
+        })
+        .catch(err => {
+            console.error(err);
+            alert('Error al asignar el ticket.');
+            btn.disabled = false;
+            btn.textContent = originalText;
+            btn.dataset.loading = '0';
+        });
     });
-});
 
-
-    // ---------- NOTIFICACIONES NUEVOS TICKETS ----------
+    // ---------- NOTIFICACIONES NUEVOS TICKETS (polling) ----------
     let lastTicketId = <?php echo (int)$maxIncomingId; ?>;
 
     if ('Notification' in window && Notification.permission === 'default') {
         Notification.requestPermission();
-    }
-
-    function showInPageToast(msg) {
-        showTicketToast(msg);
     }
 
     function showDesktopNotification(ticket) {
@@ -739,128 +754,97 @@ document.addEventListener('click', function (e) {
         });
     }
 
-function renderPriorityPill(priorityRaw) {
-    const p = (priorityRaw || 'media').toLowerCase();
-    let label = 'Media';
-
-    if (p === 'alta')      label = 'Alta';
-    else if (p === 'baja') label = 'Baja';
-    else if (p === 'critica' || p === 'crítica') label = 'Crítica';
-
-    return `<span class="priority-pill priority-${p}">${label}</span>`;
-}
-
-function addIncomingTicketRow(ticket) {
-    if (!ticket || !ticket.id) return;
-
-    const prioridadHtml = renderPriorityPill(ticket.prioridad);
-
-    const rowData = [
-        ticket.id,
-        ticket.fecha_envio || ticket.fecha || '',
-        ticket.usuario    || ticket.nombre || '',
-        ticket.problema   || '',
-        prioridadHtml,
-        ticket.descripcion || '',
-        `<button type="button"
-                 class="btn-assign-ticket"
-                 data-ticket-id="${ticket.id}">
-            Asignar
-         </button>`
-    ];
-
-    if (incomingDT) {
-        // DataTables admite HTML en las celdas
-        incomingDT.row.add(rowData).draw(false);
-    } else {
-        const tbody = document.querySelector('#incomingTable tbody');
-        if (!tbody) return;
-
-        const tr = document.createElement('tr');
-        tr.setAttribute('data-ticket-id', ticket.id);
-        tr.innerHTML = `
-            <td>${rowData[0]}</td>
-            <td>${rowData[1]}</td>
-            <td>${rowData[2]}</td>
-            <td>${rowData[3]}</td>
-            <td>${prioridadHtml}</td>
-            <td>${rowData[5]}</td>
-            <td>${rowData[6]}</td>
-        `;
-        tbody.prepend(tr);
+    function renderPriorityPill(priorityRaw) {
+        const p = (priorityRaw || 'media').toLowerCase();
+        let label = 'Media';
+        if (p === 'alta') label = 'Alta';
+        else if (p === 'baja') label = 'Baja';
+        else if (p === 'critica' || p === 'crítica') label = 'Crítica';
+        return `<span class="priority-pill priority-${p}">${label}</span>`;
     }
-}
 
+    function addIncomingTicketRow(ticket) {
+        if (!ticket || !ticket.id) return;
 
+        const prioridadHtml = renderPriorityPill(ticket.prioridad);
 
-    function pollNewTickets() {
-    fetch('/HelpDesk_EQF/modules/ticket/check_new.php?last_id=' + lastTicketId)
+        const rowData = [
+            ticket.id,
+            ticket.fecha_envio || ticket.fecha || '',
+            ticket.usuario || ticket.nombre || '',
+            ticket.problema || '',
+            prioridadHtml,
+            ticket.descripcion || '',
+            `<button type="button" class="btn-assign-ticket" data-ticket-id="${ticket.id}">Asignar</button>`
+        ];
+
+        if (incomingDT) {
+            incomingDT.row.add(rowData).draw(false);
+        } else {
+            const tbody = document.querySelector('#incomingTable tbody');
+            if (!tbody) return;
+
+            const tr = document.createElement('tr');
+            tr.setAttribute('data-ticket-id', ticket.id);
+            tr.innerHTML = `
+                <td>${rowData[0]}</td>
+                <td>${rowData[1]}</td>
+                <td>${rowData[2]}</td>
+                <td>${rowData[3]}</td>
+                <td>${prioridadHtml}</td>
+                <td>${rowData[5]}</td>
+                <td>${rowData[6]}</td>
+            `;
+            tbody.prepend(tr);
+        }
+    }
+function pollStaffNotifications() {
+    fetch('/HelpDesk_EQF/modules/ticket/check_staff_notifications.php')
         .then(r => r.json())
         .then(data => {
-            if (!data || !data.new) return;
+            if (!data.ok || !data.has) return;
+            if (!Array.isArray(data.notifications)) return;
 
-            lastTicketId = data.id;
+            data.notifications.forEach(n => {
+                const msg   = n.body  || 'Tienes una notificación nueva.';
+                const title = n.title || 'HelpDesk EQF';
 
-            const msg = 'Nuevo ticket #' + data.id + ' – ' + (data.problema || '');
-            showInPageToast(msg);
-            showDesktopNotification(data);
+                showTicketToast(msg);
 
-            //  aquí se pinta en la tabla inmediatamente
-            addIncomingTicketRow(data);
+                if ('Notification' in window && Notification.permission === 'granted') {
+                    new Notification(title, {
+                        body: msg,
+                        icon: '/HelpDesk_EQF/assets/img/icon_helpdesk.png'
+                    });
+                }
+            });
         })
-        .catch(err => console.error('Error comprobando nuevos tickets:', err));
-}
-});
-
-
-// quita todas y aplica la clase correcta según el estado
-function applyStatusClass(select, estado) {
-    const classes = [
-        'status-abierto',
-        'status-en_proceso',
-        'status-resuelto',
-        'status-cerrado'
-    ];
-    select.classList.remove(...classes);
-    select.classList.add('status-' + estado);
+        .catch(err => {
+            console.error('Error consultando notificaciones staff:', err);
+        });
 }
 
-document.addEventListener('change', function (e) {
-    const select = e.target.closest('.ticket-status-select');
-    if (!select) return;
+    function pollNewTickets() {
+        fetch('/HelpDesk_EQF/modules/ticket/check_new.php?last_id=' + lastTicketId)
+            .then(r => r.json())
+            .then(data => {
+                if (!data || !data.new) return;
 
-    const nuevoEstado = select.value;
-    const ticketId    = select.dataset.ticketId;
+                lastTicketId = data.id;
 
-    // Deshabilitamos mientras va la petición
-    select.disabled = true;
+                const msg = 'Nuevo ticket #' + data.id + ' – ' + (data.problema || '');
+                showTicketToast(msg);
+                showDesktopNotification(data);
 
-    fetch('/HelpDesk_EQF/modules/ticket/update_status.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: 'ticket_id=' + encodeURIComponent(ticketId) +
-              '&estado='   + encodeURIComponent(nuevoEstado)
-    })
-    .then(r => r.json())
-    .then(data => {
-        select.disabled = false;
+                addIncomingTicketRow(data);
+            })
+            .catch(err => console.error('Error comprobando nuevos tickets:', err));
+    }
 
-        if (!data.ok) {
-            alert(data.msg || 'Error al actualizar el estatus.');
-            return;
-        }
-
-        applyStatusClass(select, data.estado);
-        // (el texto lo pone solo el <select>, ya que la opción seleccionada cambia)
-    })
-    .catch(err => {
-        console.error('Error update_status:', err);
-        select.disabled = false;
-        alert('Error al actualizar el estatus.');
-    });
+    // ✅ Inicia polling
+    pollNewTickets();
+    setInterval(pollNewTickets, 10000);
 });
-
-
 </script>
 
 </body>
