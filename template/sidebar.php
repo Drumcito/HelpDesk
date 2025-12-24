@@ -186,9 +186,14 @@ onclick="toggleSidebar()" aria-label="Abrir/cerrar menú">
 
     <button type="button" class="user-menu-item"
             onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/admin/tasks.php'">
-        <span class="user-menu-icon">📝</span>
+        <span class="user-menu-icon">📒</span>
         <span>Tareas</span>
     </button>
+            <button type="button" class="user-menu-item" 
+                onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/shared/internal_notes.php'">
+                <span class="user-menu-icon">📝</span>
+                <span>NOTAS</span>
+            </button>
 
     <button type="button" class="user-menu-item"
             onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/admin/reports.php'">
@@ -218,6 +223,12 @@ onclick="toggleSidebar()" aria-label="Abrir/cerrar menú">
                 onclick="window.location.href='/HelpDesk_EQF/modules/ticket/history.php'">
                 <span class="user-menu-icon">📈</span>
                 <span>KPI</span>
+            </button>
+
+            <button type="button" class="user-menu-item" 
+                onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/shared/internal_notes.php'">
+                <span class="user-menu-icon">📝</span>
+                <span>Notas</span>
             </button>
 
             <button type="button" class="user-menu-item" 
