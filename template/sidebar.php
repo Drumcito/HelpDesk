@@ -179,7 +179,7 @@ onclick="toggleSidebar()" aria-label="Abrir/cerrar menú">
     </button>
 
         <button type="button" class="user-menu-item"
-            onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/admin/analysts.php'">
+            onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/admin/analysts_cards.php'">
         <span class="user-menu-icon">👥</span>
         <span>Analistas</span>
     </button>
@@ -192,7 +192,7 @@ onclick="toggleSidebar()" aria-label="Abrir/cerrar menú">
             <button type="button" class="user-menu-item" 
                 onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/shared/internal_notes.php'">
                 <span class="user-menu-icon">📝</span>
-                <span>NOTAS</span>
+                <span>Notas</span>
             </button>
 
     <button type="button" class="user-menu-item"
