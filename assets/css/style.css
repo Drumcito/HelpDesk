@@ -2185,3 +2185,14 @@ table.dataTable tbody tr:hover {
   opacity: .7;
   margin-bottom: 4px;
 }
+
+.analysts-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.analyst-card {
+  flex: 0 0 260px;
+}
+

@@ -612,3 +612,5 @@ function toggleSidebar() {
 }
 
 window.toggleSidebar = toggleSidebar;
+
+

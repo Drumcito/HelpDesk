@@ -242,25 +242,26 @@ $now = new DateTime('now');
                 $lunchTxt = 'Comida: <strong>' . h(substr($a['lunch_start'],0,5)) . '–' . h(substr($a['lunch_end'],0,5)) . '</strong><br>';
             }
           ?>
-          <div class="analyst-card">
+          <div class="analyst-card" data-user-id="<?php echo (int)$a['id']; ?>">
             <div class="analyst-top">
+              
               <div>
                 <div class="analyst-name"><?php echo h($a['name'].' '.$a['last_name']); ?></div>
                 <div class="analyst-email"><?php echo h($a['email']); ?></div>
               </div>
-              <div class="badge <?php echo $badgeClass; ?>">
+              <div class="badge <?php echo $badgeClass; ?>" id="badge-<?php echo (int)$a['id']; ?>">
                 <?php echo h($badgeText); ?>
               </div>
             </div>
 
             <div class="analyst-meta">
               <?php echo $lunchTxt; ?>
-              Turno (L-V): <strong><?php echo h($shiftLbl); ?></strong><br>
-              Sábados: <strong><?php echo h($satLbl); ?></strong> <span style="opacity:.7;">(08:00–14:00)</span><br>
-              <?php if ($extraTxt): ?>
-                <div style="opacity:.9;margin-top:6px;"><?php echo $extraTxt; ?></div>
-              <?php endif; ?>
-            </div>
+              <br>Turno (L-V): <strong><?php echo h($shiftLbl); ?></strong><br><br>
+              Sábados: <strong><?php echo h($satLbl); ?></strong><br>
+                <div id="extra-<?php echo (int)$a['id']; ?>" style="opacity:.9;margin-top:6px; <?php echo $extraTxt ? '' : 'display:none;'; ?>">
+                  <?php echo $extraTxt; ?>
+                  </div>
+                </div>
 
             <div class="btn-row">
               <button class="btn-mini secondary"
@@ -283,7 +284,7 @@ $now = new DateTime('now');
                   '<?php echo h($a['name'].' '.$a['last_name']); ?>'
                 )"
               >
-                Ausencia / Estado
+                Ausencia
               </button>
             </div>
           </div>
@@ -348,7 +349,7 @@ $now = new DateTime('now');
 <div class="modal-backdrop" id="overrideModal">
   <div class="modal-card">
     <div class="modal-header">
-      <h3 id="ov_title">Ausencia / Estado</h3>
+      <h3 id="ov_title">Ausencia</h3>
       <button class="modal-close" type="button" onclick="closeOverrideModal()">✕</button>
     </div>
 
@@ -444,5 +445,47 @@ document.addEventListener('click', (e) => {
 
 <script src="/HelpDesk_EQF/assets/js/script.js?v=20251208a"></script>
 <?php include __DIR__ . '/../../../template/footer.php'; ?>
+<script>
+function updateAvailabilityUI(items){
+  if (!Array.isArray(items)) return;
+
+  items.forEach(it => {
+    const badge = document.getElementById('badge-' + it.id);
+    const extra = document.getElementById('extra-' + it.id);
+
+    if (badge) {
+      // limpia clases b-*
+      badge.classList.remove('b-ok','b-warn','b-gray','b-bad');
+      if (it.badge_class) badge.classList.add(it.badge_class);
+      badge.textContent = it.badge_text || '';
+    }
+
+    if (extra) {
+      if (it.extra_html && it.extra_html.trim() !== '') {
+        extra.innerHTML = it.extra_html;
+        extra.style.display = '';
+      } else {
+        extra.innerHTML = '';
+        extra.style.display = 'none';
+      }
+    }
+  });
+}
+
+function pollAvailability(){
+  fetch('/HelpDesk_EQF/modules/dashboard/admin/availability_data.php', { cache: 'no-store' })
+    .then(r => r.json())
+    .then(data => {
+      if (!data || !data.ok) return;
+      updateAvailabilityUI(data.data);
+    })
+    .catch(err => console.error('availability poll error:', err));
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  pollAvailability();
+  setInterval(pollAvailability, 10000); // 10s
+});
+</script>
 </body>
 </html>
