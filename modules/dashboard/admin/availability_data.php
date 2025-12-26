@@ -36,7 +36,7 @@ function saturdayWeekIndex(DateTime $d): int {
 }
 
 function satWorksToday(string $pattern, DateTime $now): bool {
-    // pattern: all | 1_3 | 2_4
+    // pattern: all | 1y3 | 2y4
     if ((int)$now->format('N') !== 6) return false;
 
     // regla: si hay 5 sábados, trabajan todos
@@ -44,11 +44,13 @@ function satWorksToday(string $pattern, DateTime $now): bool {
 
     $idx = saturdayWeekIndex($now); // 1..4
     if ($pattern === 'all') return true;
-    if ($pattern === '1_3') return in_array($idx, [1,3], true);
-    if ($pattern === '2_4') return in_array($idx, [2,4], true);
+    if ($pattern === '1y3') return in_array($idx, [1,3], true);
+    if ($pattern === '2y4') return in_array($idx, [2,4], true);
 
-    return false;
+    // default
+    return in_array($idx, [1,3], true);
 }
+
 
 function resolveAvailability(array $a, DateTime $now): array {
     // Prioridad:
@@ -131,9 +133,18 @@ function toBadgePayload(array $av): array {
     } elseif ($av['status'] === 'FUERA_DE_HORARIO') {
         $badgeClass='b-gray'; $badgeText='Fuera de horario';
     } else {
-        // override
         $badgeClass='b-bad';
-        $badgeText = ucfirst(strtolower($av['status']));
+
+        $map = [
+          'VACACIONES'    => 'Vacaciones',
+          'INCAPACIDAD'   => 'Incapacidad',
+          'PERMISO'       => 'Permiso',
+          'SUCURSAL'      => 'Sucursal',
+          'NO_DISPONIBLE' => 'No disponible',
+          'DISPONIBLE'    => 'Disponible',
+        ];
+        $badgeText = $map[$av['status']] ?? $av['status'];
+
         if (!empty($av['start']) && !empty($av['end'])) {
             $extraHtml = 'Desde: ' . htmlspecialchars($av['start']) . '<br>Hasta: ' . htmlspecialchars($av['end']);
         }
@@ -146,6 +157,7 @@ function toBadgePayload(array $av): array {
         'extra_html'  => $extraHtml
     ];
 }
+
 
 /* ---------------------------
    Query: analistas del área + horario + última override
@@ -173,14 +185,16 @@ try {
                ON s.user_id = u.id
 
         LEFT JOIN (
-            SELECT x.*
-            FROM analyst_status_overrides x
-            INNER JOIN (
-                SELECT user_id, MAX(id) AS max_id
-                FROM analyst_status_overrides
-                GROUP BY user_id
-            ) m ON m.user_id = x.user_id AND m.max_id = x.id
-        ) o ON o.user_id = u.id
+    SELECT x.*
+    FROM analyst_status_overrides x
+    INNER JOIN (
+        SELECT user_id, MAX(id) AS max_id
+        FROM analyst_status_overrides
+        WHERE :now BETWEEN starts_at AND ends_at
+        GROUP BY user_id
+    ) m ON m.user_id = x.user_id AND m.max_id = x.id
+) o ON o.user_id = u.id
+
 
         WHERE u.rol = 3
           AND u.area = :area
@@ -188,10 +202,14 @@ try {
     ";
 
     $stmt = $pdo->prepare($sql);
-    $stmt->execute([':area' => $areaAdmin]);
+    $stmt->execute([
+        ':area' => $areaAdmin,
+        ':now' => $nowStr
+    ]);
     $analysts = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     $now = new DateTime();
+    $nowStr = $now->format('Y-m-d H:i:s');
 
     $out = [];
     foreach ($analysts as $a) {

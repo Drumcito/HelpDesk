@@ -57,7 +57,7 @@ try {
     // Tu tabla real:
     // analyst_status_override(user_id UNIQUE, status, starts_at, ends_at, updated_at)
     $stmtUp = $pdo->prepare("
-        INSERT INTO analyst_status_override (user_id, status, starts_at, ends_at)
+        INSERT INTO analyst_status_overrides (user_id, status, starts_at, ends_at)
         VALUES (:uid, :status, :s, :e)
         ON DUPLICATE KEY UPDATE
           status    = VALUES(status),

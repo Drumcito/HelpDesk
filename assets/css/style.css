@@ -808,6 +808,7 @@ body.sidebar-collapsed .sidebar-toggle{
     max-width: 640px;
     box-shadow: 0 25px 60px rgba(15, 23, 42, 0.25);
     border: 1px solid #e5e7eb;
+    overflow: visible;
 }
 
 .modal-header {
@@ -2194,5 +2195,12 @@ table.dataTable tbody tr:hover {
 
 .analyst-card {
   flex: 0 0 260px;
+}
+
+.field select{
+  appearance: auto;
+  background: #fff;
+  height: 42px;
+  line-height: 42px;
 }
 

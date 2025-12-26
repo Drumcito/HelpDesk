@@ -10,7 +10,6 @@ if (!isset($_SESSION['user_id']) || (int)($_SESSION['user_rol'] ?? 0) !== 2) {
 }
 
 $pdo = Database::getConnection();
-
 $adminArea = trim($_SESSION['user_area'] ?? '');
 
 date_default_timezone_set('America/Mexico_City');
@@ -29,13 +28,12 @@ function satPatternLabel(string $p): string {
     return match ($p) {
         '1y3' => '1° y 3° sábado',
         '2y4' => '2° y 4° sábado',
-        'all' => 'Todos (incluye 5°)',
+        'all' => 'Todos',
         default => $p,
     };
 }
 
 function getWeekShiftTimes(string $shift): array {
-    // L-V dependen del turno
     return match ($shift) {
         '9_1830' => ['09:00:00', '18:30:00'],
         default  => ['08:00:00', '17:30:00'],
@@ -43,20 +41,19 @@ function getWeekShiftTimes(string $shift): array {
 }
 
 function getSaturdayTimes(): array {
-    // Sábado fijo
     return ['08:00:00', '14:00:00'];
 }
 
 function nthSaturdayOfMonth(DateTime $d): int {
     $day = (int)$d->format('j');
-    return (int)floor(($day - 1) / 7) + 1; // 1..5
+    return (int)floor(($day - 1) / 7) + 1;
 }
 
 function isSaturdayWorking(DateTime $now, string $satPattern): bool {
     if ($now->format('N') != 6) return false;
 
     $nth = nthSaturdayOfMonth($now);
-    if ($nth === 5) return true; // 5° sábado => trabajan todos
+    if ($nth === 5) return true;
 
     return match ($satPattern) {
         '1y3' => in_array($nth, [1,3], true),
@@ -68,17 +65,15 @@ function isSaturdayWorking(DateTime $now, string $satPattern): bool {
 
 function isWorkingNow(array $a, DateTime $now): bool {
     $dow = (int)$now->format('N'); // 1..7
-    if ($dow === 7) return false;  // domingo nunca
+    if ($dow === 7) return false;
 
     $t = $now->format('H:i:s');
 
-    // L-V
     if ($dow >= 1 && $dow <= 5) {
         [$start, $end] = getWeekShiftTimes((string)$a['shift']);
         return ($t >= $start && $t <= $end);
     }
 
-    // Sábado
     if ($dow === 6) {
         if (!isSaturdayWorking($now, (string)$a['sat_pattern'])) return false;
         [$start, $end] = getSaturdayTimes();
@@ -93,12 +88,9 @@ function isLunchNow(array $a, DateTime $now): bool {
     $le = $a['lunch_end'] ?? null;
     if (!$ls || !$le) return false;
 
-    $t = $now->format('H:i:s');
-
-    // Solo cuenta comida si está dentro de jornada
-    // (si quieres que comida aplique aunque esté fuera de jornada, quita esto)
     if (!isWorkingNow($a, $now)) return false;
 
+    $t = $now->format('H:i:s');
     return ($t >= $ls && $t <= $le);
 }
 
@@ -130,6 +122,7 @@ function resolveAvailability(array $a, DateTime $now): array {
 
 // =====================
 // Query analistas del área + schedule + override
+// OJO: la tabla correcta es analyst_status_override (singular)
 // =====================
 $sql = "
 SELECT
@@ -194,7 +187,8 @@ $now = new DateTime('now');
     .form-row{display:flex;gap:10px}
     .field{flex:1}
     .field label{display:block;font-weight:800;font-size:12px;margin-bottom:6px}
-    .field input,.field select{width:100%;padding:10px 12px;border-radius:12px;border:1px solid #e5e7eb}
+    .field input,.field select{width:100%;padding:10px 12px;border-radius:12px;border:1px solid #e5e7eb;background:#fff;color:#111}
+    .field select option{color:#111}
     .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:12px}
     .hint{font-size:12px;opacity:.75;margin-top:6px}
   </style>
@@ -223,12 +217,26 @@ $now = new DateTime('now');
             $badgeText  = 'Auto';
             $extraTxt   = '';
 
-            if ($av['status'] === 'DISPONIBLE') { $badgeClass='b-ok'; $badgeText='Disponible'; }
-            elseif ($av['status'] === 'EN_COMIDA') { $badgeClass='b-warn'; $badgeText='En comida'; }
-            elseif ($av['status'] === 'FUERA_DE_HORARIO') { $badgeClass='b-gray'; $badgeText='Fuera de horario'; }
-            else {
+            // Estado final (badge)
+            if ($av['status'] === 'DISPONIBLE') {
+                $badgeClass='b-ok'; $badgeText='Disponible';
+            } elseif ($av['status'] === 'EN_COMIDA') {
+                $badgeClass='b-warn'; $badgeText='En comida';
+            } elseif ($av['status'] === 'FUERA_DE_HORARIO') {
+                $badgeClass='b-gray'; $badgeText='Fuera de horario';
+            } else {
+                // OVERRIDE (vacaciones, sucursal, etc.)
                 $badgeClass='b-bad';
-                $badgeText = ucfirst(strtolower($av['status']));
+                $map = [
+                    'VACACIONES' => 'Vacaciones',
+                    'INCAPACIDAD'=> 'Incapacidad',
+                    'PERMISO'    => 'Permiso',
+                    'SUCURSAL'   => 'Sucursal (campo)',
+                    'NO_DISPONIBLE' => 'No disponible',
+                    'DISPONIBLE' => 'Disponible (manual)',
+                ];
+                $badgeText = $map[$av['status']] ?? ucfirst(strtolower($av['status']));
+
                 if (!empty($av['start']) && !empty($av['end'])) {
                     $extraTxt = 'Desde: ' . h($av['start']) . '<br>Hasta: ' . h($av['end']);
                 }
@@ -244,7 +252,6 @@ $now = new DateTime('now');
           ?>
           <div class="analyst-card" data-user-id="<?php echo (int)$a['id']; ?>">
             <div class="analyst-top">
-              
               <div>
                 <div class="analyst-name"><?php echo h($a['name'].' '.$a['last_name']); ?></div>
                 <div class="analyst-email"><?php echo h($a['email']); ?></div>
@@ -258,10 +265,11 @@ $now = new DateTime('now');
               <?php echo $lunchTxt; ?>
               <br>Turno (L-V): <strong><?php echo h($shiftLbl); ?></strong><br><br>
               Sábados: <strong><?php echo h($satLbl); ?></strong><br>
-                <div id="extra-<?php echo (int)$a['id']; ?>" style="opacity:.9;margin-top:6px; <?php echo $extraTxt ? '' : 'display:none;'; ?>">
-                  <?php echo $extraTxt; ?>
-                  </div>
-                </div>
+
+              <div id="extra-<?php echo (int)$a['id']; ?>" style="opacity:.9;margin-top:6px; <?php echo $extraTxt ? '' : 'display:none;'; ?>">
+                <?php echo $extraTxt; ?>
+              </div>
+            </div>
 
             <div class="btn-row">
               <button class="btn-mini secondary"
@@ -360,13 +368,12 @@ $now = new DateTime('now');
         <div class="field">
           <label>Estado</label>
           <select name="status" id="ov_status" required>
-            <option value="AUTO">AUTO (según horario)</option>
-            <option value="DISPONIBLE">Disponible (manual)</option>
-            <option value="NO_DISPONIBLE">No disponible (manual)</option>
+            <option value="DISPONIBLE">Disponible</option>
+            <option value="NO_DISPONIBLE">No disponible</option>
             <option value="VACACIONES">Vacaciones</option>
             <option value="INCAPACIDAD">Incapacidad</option>
             <option value="PERMISO">Permiso</option>
-            <option value="SUCURSAL">Sucursal (campo)</option>
+            <option value="SUCURSAL">Sucursal</option>
           </select>
         </div>
 
@@ -378,14 +385,12 @@ $now = new DateTime('now');
         <div class="field">
           <label>Hasta</label>
           <input type="datetime-local" name="ends_at" id="ov_end" required>
-        </div>
+      </div>
       </div>
 
-      <div class="hint">Mientras esté dentro del rango (desde→hasta), se mostrará como no disponible según el estado.</div>
-
       <div class="modal-actions">
-        <button class="btn-mini secondary" type="button" onclick="closeOverrideModal()">Cancelar</button>
-        <button class="btn-mini primary" type="submit">Guardar</button>
+        <button class="btn-secondary" type="button" onclick="closeOverrideModal()">Cancelar</button>
+        <button class="btn-primary" type="submit">Guardar</button>
       </div>
     </form>
   </div>
@@ -413,11 +418,9 @@ function openOverrideModal(userId, fullName){
   document.getElementById('ov_title').textContent = 'Ausencia / Estado – ' + (fullName || '');
   document.getElementById('ov_status').value = 'AUTO';
 
-  // default: desde ahora, hasta + 4 horas
   const now = new Date();
   const end = new Date(Date.now() + 4*60*60*1000);
   const pad = n => String(n).padStart(2,'0');
-
   const toLocal = (d) => (
     d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate())
     + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes())
@@ -445,6 +448,7 @@ document.addEventListener('click', (e) => {
 
 <script src="/HelpDesk_EQF/assets/js/script.js?v=20251208a"></script>
 <?php include __DIR__ . '/../../../template/footer.php'; ?>
+
 <script>
 function updateAvailabilityUI(items){
   if (!Array.isArray(items)) return;
@@ -454,7 +458,6 @@ function updateAvailabilityUI(items){
     const extra = document.getElementById('extra-' + it.id);
 
     if (badge) {
-      // limpia clases b-*
       badge.classList.remove('b-ok','b-warn','b-gray','b-bad');
       if (it.badge_class) badge.classList.add(it.badge_class);
       badge.textContent = it.badge_text || '';
@@ -487,5 +490,6 @@ document.addEventListener('DOMContentLoaded', () => {
   setInterval(pollAvailability, 10000); // 10s
 });
 </script>
+
 </body>
 </html>
