@@ -5,185 +5,202 @@ include __DIR__ . '/../../../template/header.php';
 include __DIR__ . '/../../../template/sidebar.php';
 
 if (!isset($_SESSION['user_id']) || (int)($_SESSION['user_rol'] ?? 0) !== 2) {
-  header('Location: /HelpDesk_EQF/auth/login.php');
-  exit;
+    header('Location: /HelpDesk_EQF/auth/login.php');
+    exit;
 }
 
 $pdo = Database::getConnection();
 
 $adminArea = trim($_SESSION['user_area'] ?? '');
 
-// Trae analistas del área + su schedule + override
-$stmt = $pdo->prepare("
-  SELECT
-    u.id,
-    u.name,
-    u.last_name,
-    u.email,
-    u.area,
-    COALESCE(s.shift, '8_1730') AS shift,
-    COALESCE(s.sat_pattern, '1y3') AS sat_pattern,
-    COALESCE(o.status, 'AUTO') AS ov_status,
-    o.until_at AS ov_until
-  FROM users u
-  LEFT JOIN analyst_schedules s ON s.user_id = u.id
-  LEFT JOIN analyst_status_overrides o ON o.user_id = u.id
-  WHERE u.rol = 3 AND u.area = :area
-  ORDER BY u.last_name ASC, u.name ASC
-");
-$stmt->execute([':area' => $adminArea]);
-$analysts = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-// ---------- Helpers (AUTO disponibilidad) ----------
 date_default_timezone_set('America/Mexico_City');
 
-function monthHasFiveSaturdays(DateTime $dt): bool {
-  $y = (int)$dt->format('Y');
-  $m = (int)$dt->format('m');
-  $first = new DateTime("$y-$m-01");
-  // sábado = 6 (1=lunes..7=domingo en ISO), en PHP: N (1-7)
-  $firstSat = clone $first;
-  while ((int)$firstSat->format('N') !== 6) $firstSat->modify('+1 day');
+function h($s): string { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 
-  $sats = 0;
-  $cur = clone $firstSat;
-  while ((int)$cur->format('m') === $m) {
-    $sats++;
-    $cur->modify('+7 day');
-  }
-  return $sats >= 5;
+function shiftLabel(string $shift): string {
+    return match ($shift) {
+        '8_1730' => '08:00 – 17:30',
+        '9_1830' => '09:00 – 18:30',
+        default  => $shift,
+    };
 }
 
-function nthSaturdayOfMonth(DateTime $dt): int {
-  // si no es sábado, devuelve 0
-  if ((int)$dt->format('N') !== 6) return 0;
+function satPatternLabel(string $p): string {
+    return match ($p) {
+        '1y3' => '1° y 3° sábado',
+        '2y4' => '2° y 4° sábado',
+        'all' => 'Todos (incluye 5°)',
+        default => $p,
+    };
+}
 
-  $y = (int)$dt->format('Y');
-  $m = (int)$dt->format('m');
-  $first = new DateTime("$y-$m-01");
-  $firstSat = clone $first;
-  while ((int)$firstSat->format('N') !== 6) $firstSat->modify('+1 day');
+function getWeekShiftTimes(string $shift): array {
+    // L-V dependen del turno
+    return match ($shift) {
+        '9_1830' => ['09:00:00', '18:30:00'],
+        default  => ['08:00:00', '17:30:00'],
+    };
+}
 
-  $diffDays = (int)$firstSat->diff($dt)->days;
-  return (int)floor($diffDays / 7) + 1; // 1..5
+function getSaturdayTimes(): array {
+    // Sábado fijo
+    return ['08:00:00', '14:00:00'];
+}
+
+function nthSaturdayOfMonth(DateTime $d): int {
+    $day = (int)$d->format('j');
+    return (int)floor(($day - 1) / 7) + 1; // 1..5
+}
+
+function isSaturdayWorking(DateTime $now, string $satPattern): bool {
+    if ($now->format('N') != 6) return false;
+
+    $nth = nthSaturdayOfMonth($now);
+    if ($nth === 5) return true; // 5° sábado => trabajan todos
+
+    return match ($satPattern) {
+        '1y3' => in_array($nth, [1,3], true),
+        '2y4' => in_array($nth, [2,4], true),
+        'all' => true,
+        default => in_array($nth, [1,3], true),
+    };
 }
 
 function isWorkingNow(array $a, DateTime $now): bool {
-  $shift = $a['shift'] ?? '8_1730';
-  $satPattern = $a['sat_pattern'] ?? '1y3';
+    $dow = (int)$now->format('N'); // 1..7
+    if ($dow === 7) return false;  // domingo nunca
 
-  // horarios
-  if ($shift === '9_1830') {
-    $start = '09:00';
-    $end   = '18:30';
-  } else {
-    $start = '08:00';
-    $end   = '17:30';
-  }
+    $t = $now->format('H:i:s');
 
-  $todayN = (int)$now->format('N'); // 1..7
-  $time   = $now->format('H:i');
-
-  // Lun-Vie
-  if ($todayN >= 1 && $todayN <= 5) {
-    return ($time >= $start && $time <= $end);
-  }
-
-  // Sábado
-  if ($todayN === 6) {
-    // si el mes tiene 5 sábados -> trabajan todos (regla)
-    if (monthHasFiveSaturdays($now)) {
-      return ($time >= $start && $time <= $end);
+    // L-V
+    if ($dow >= 1 && $dow <= 5) {
+        [$start, $end] = getWeekShiftTimes((string)$a['shift']);
+        return ($t >= $start && $t <= $end);
     }
 
-    $nth = nthSaturdayOfMonth($now); // 1..4 normalmente
-    $ok = false;
+    // Sábado
+    if ($dow === 6) {
+        if (!isSaturdayWorking($now, (string)$a['sat_pattern'])) return false;
+        [$start, $end] = getSaturdayTimes();
+        return ($t >= $start && $t <= $end);
+    }
 
-    if ($satPattern === 'todos') $ok = true;
-    elseif ($satPattern === 'ninguno') $ok = false;
-    elseif ($satPattern === '1y3') $ok = in_array($nth, [1,3], true);
-    elseif ($satPattern === '2y4') $ok = in_array($nth, [2,4], true);
+    return false;
+}
 
-    return $ok && ($time >= $start && $time <= $end);
-  }
+function isLunchNow(array $a, DateTime $now): bool {
+    $ls = $a['lunch_start'] ?? null;
+    $le = $a['lunch_end'] ?? null;
+    if (!$ls || !$le) return false;
 
-  // Domingo nunca
-  return false;
+    $t = $now->format('H:i:s');
+
+    // Solo cuenta comida si está dentro de jornada
+    // (si quieres que comida aplique aunque esté fuera de jornada, quita esto)
+    if (!isWorkingNow($a, $now)) return false;
+
+    return ($t >= $ls && $t <= $le);
 }
 
 function resolveAvailability(array $a, DateTime $now): array {
-  // Override válido?
-  $ov = $a['ov_status'] ?? 'AUTO';
-  $until = $a['ov_until'] ?? null;
+    // 1) Override por rango
+    $ovStatus = strtoupper(trim((string)($a['ov_status'] ?? 'AUTO')));
+    $ovStart  = $a['ov_start'] ?? null;
+    $ovEnd    = $a['ov_end'] ?? null;
 
-  if ($ov !== 'AUTO') {
-    if ($until) {
-      $u = new DateTime($until);
-      if ($now <= $u) {
-        return ['mode' => 'OVERRIDE', 'status' => $ov];
-      }
-      // expiró override -> caer a AUTO
-    } else {
-      return ['mode' => 'OVERRIDE', 'status' => $ov];
+    if ($ovStatus !== '' && $ovStatus !== 'AUTO' && $ovStart && $ovEnd) {
+        try {
+            $s = new DateTime($ovStart);
+            $e = new DateTime($ovEnd);
+            if ($now >= $s && $now <= $e) {
+                return ['mode' => 'OVERRIDE', 'status' => $ovStatus, 'start' => $ovStart, 'end' => $ovEnd];
+            }
+        } catch (Throwable $e) {}
     }
-  }
 
-  $auto = isWorkingNow($a, $now) ? 'DISPONIBLE' : 'FUERA_DE_HORARIO';
-  return ['mode' => 'AUTO', 'status' => $auto];
+    // 2) AUTO por horario
+    if (!isWorkingNow($a, $now)) {
+        return ['mode' => 'AUTO', 'status' => 'FUERA_DE_HORARIO'];
+    }
+    if (isLunchNow($a, $now)) {
+        return ['mode' => 'AUTO', 'status' => 'EN_COMIDA'];
+    }
+    return ['mode' => 'AUTO', 'status' => 'DISPONIBLE'];
 }
 
-// ---------- KPIs por analista (activos/abiertos/en_proceso) ----------
-$ids = array_map(fn($x) => (int)$x['id'], $analysts);
-$kpis = [];
-if ($ids) {
-  $in = implode(',', array_fill(0, count($ids), '?'));
+// =====================
+// Query analistas del área + schedule + override
+// =====================
+$sql = "
+SELECT
+  u.id,
+  u.name,
+  u.last_name,
+  u.email,
+  u.area,
 
-  $stmtK = $pdo->prepare("
-    SELECT
-      asignado_a AS analyst_id,
-      SUM(estado='abierto') AS abiertos,
-      SUM(estado='en_proceso') AS en_proceso,
-      SUM(estado IN ('abierto','en_proceso')) AS activos
-    FROM tickets
-    WHERE asignado_a IN ($in)
-    GROUP BY asignado_a
-  ");
-  $stmtK->execute($ids);
-  foreach ($stmtK->fetchAll(PDO::FETCH_ASSOC) as $r) {
-    $kpis[(int)$r['analyst_id']] = $r;
-  }
-}
+  COALESCE(s.shift, '8_1730')      AS shift,
+  COALESCE(s.sat_pattern, '1y3')  AS sat_pattern,
+  s.lunch_start,
+  s.lunch_end,
 
-$now = new DateTime();
+  COALESCE(o.status, 'AUTO')      AS ov_status,
+  o.starts_at                     AS ov_start,
+  o.ends_at                       AS ov_end
+
+FROM users u
+LEFT JOIN analyst_schedules s
+  ON s.user_id = u.id
+LEFT JOIN analyst_status_overrides o
+  ON o.user_id = u.id
+WHERE u.rol = 3
+  AND u.area = :area
+ORDER BY u.last_name ASC, u.name ASC
+";
+
+$stmt = $pdo->prepare($sql);
+$stmt->execute([':area' => $adminArea]);
+$analysts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+$now = new DateTime('now');
 ?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Analistas | Admin</title>
+  <title>Analistas | Admin EQF</title>
   <link rel="stylesheet" href="/HelpDesk_EQF/assets/css/style.css?v=<?php echo time(); ?>">
+
   <style>
-    .analyst-cards-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:14px;}
-    .analyst-card{background:#fff;border-radius:18px;padding:14px 14px;box-shadow:0 12px 28px rgba(0,0,0,.08);}
-    .analyst-card-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;}
-    .analyst-name{font-weight:800;font-size:15px;line-height:1.1}
-    .analyst-mail{font-size:12px;opacity:.75;margin-top:4px}
-    .analyst-badge{font-size:12px;font-weight:800;padding:6px 10px;border-radius:999px;white-space:nowrap}
-    .b-ok{background:#eaf7ef;color:#166534}
-    .b-off{background:#eef2ff;color:#1e3a8a}
-    .b-warn{background:#fff7ed;color:#9a3412}
-    .b-busy{background:#fee2e2;color:#991b1b}
-    .analyst-kpis{display:flex;gap:10px;margin-top:12px}
-    .analyst-kpi{flex:1;background:#f5f6fb;border-radius:14px;padding:10px;text-align:center}
-    .analyst-kpi .v{font-size:18px;font-weight:900}
-    .analyst-kpi .l{font-size:11px;opacity:.75}
-    .analyst-meta{margin-top:10px;font-size:12px;opacity:.8}
-    .analyst-actions{display:flex;gap:10px;margin-top:12px}
-    .analyst-actions button{flex:1}
+    .cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px}
+    .analyst-card{background:#fff;border-radius:18px;padding:14px 14px 12px;box-shadow:0 10px 25px rgba(0,0,0,.08)}
+    .analyst-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+    .analyst-name{font-weight:800}
+    .analyst-email{font-size:12px;opacity:.75}
+    .analyst-meta{margin-top:10px;font-size:13px;line-height:1.35}
+    .badge{display:inline-flex;align-items:center;gap:8px;border-radius:999px;padding:6px 10px;font-size:12px;font-weight:800}
+    .b-ok{background:#e8fff1}
+    .b-warn{background:#fff4db}
+    .b-bad{background:#ffe6e6}
+    .b-gray{background:#eff2f6}
+    .btn-row{display:flex;gap:8px;margin-top:12px}
+    .btn-mini{border:0;border-radius:12px;padding:9px 10px;font-weight:800;cursor:pointer}
+    .btn-mini.primary{background:var(--eqf-combined);color:#fff}
+    .btn-mini.secondary{background:#eff2f6}
+    .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;z-index:9999}
+    .modal-card{width:min(560px,92vw);background:#fff;border-radius:18px;padding:14px}
+    .modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+    .modal-close{border:0;background:transparent;font-size:20px;cursor:pointer}
+    .form-row{display:flex;gap:10px}
+    .field{flex:1}
+    .field label{display:block;font-weight:800;font-size:12px;margin-bottom:6px}
+    .field input,.field select{width:100%;padding:10px 12px;border-radius:12px;border:1px solid #e5e7eb}
+    .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:12px}
+    .hint{font-size:12px;opacity:.75;margin-top:6px}
   </style>
 </head>
-<body class="user-body">
 
+<body class="user-body">
 <main class="user-main">
   <section class="user-main-inner">
     <header class="user-main-header">
@@ -191,75 +208,83 @@ $now = new DateTime();
         <p class="login-brand">
           <span>HelpDesk </span><span class="eqf-e">E</span><span class="eqf-q">Q</span><span class="eqf-f">F</span>
         </p>
-        <p class="user-main-subtitle">Analistas del área – <?php echo htmlspecialchars($adminArea, ENT_QUOTES, 'UTF-8'); ?></p>
+        <p class="user-main-subtitle">Analistas – Área: <?php echo h($adminArea); ?></p>
       </div>
     </header>
 
     <section class="user-main-content">
-      <div class="user-info-card">
-        <h2>Disponibilidad y carga</h2>
-        <p>Vista rápida por analista (AUTO por horario + override manual).</p>
-      </div>
 
-      <div class="analyst-cards-grid">
-        <?php foreach ($analysts as $a):
-          $id = (int)$a['id'];
-          $av = resolveAvailability($a, $now);
+      <div class="cards-grid">
+        <?php foreach ($analysts as $a): ?>
+          <?php
+            $av = resolveAvailability($a, $now);
 
-          $k = $kpis[$id] ?? ['abiertos'=>0,'en_proceso'=>0,'activos'=>0];
+            $badgeClass = 'b-gray';
+            $badgeText  = 'Auto';
+            $extraTxt   = '';
 
-          $badgeClass = 'b-off';
-          $badgeText  = 'Fuera de horario';
+            if ($av['status'] === 'DISPONIBLE') { $badgeClass='b-ok'; $badgeText='Disponible'; }
+            elseif ($av['status'] === 'EN_COMIDA') { $badgeClass='b-warn'; $badgeText='En comida'; }
+            elseif ($av['status'] === 'FUERA_DE_HORARIO') { $badgeClass='b-gray'; $badgeText='Fuera de horario'; }
+            else {
+                $badgeClass='b-bad';
+                $badgeText = ucfirst(strtolower($av['status']));
+                if (!empty($av['start']) && !empty($av['end'])) {
+                    $extraTxt = 'Desde: ' . h($av['start']) . '<br>Hasta: ' . h($av['end']);
+                }
+            }
 
-          if ($av['status'] === 'DISPONIBLE') { $badgeClass='b-ok'; $badgeText='Disponible'; }
-          elseif ($av['status'] === 'OCUPADO') { $badgeClass='b-busy'; $badgeText='Ocupado'; }
-          elseif ($av['status'] === 'AUSENTE') { $badgeClass='b-warn'; $badgeText='Ausente'; }
-          elseif ($av['status'] === 'VACACIONES') { $badgeClass='b-warn'; $badgeText='Vacaciones'; }
-          elseif ($av['status'] === 'FUERA_DE_HORARIO') { $badgeClass='b-off'; $badgeText='Fuera de horario'; }
+            $shiftLbl = shiftLabel((string)$a['shift']);
+            $satLbl   = satPatternLabel((string)$a['sat_pattern']);
 
-          $shiftLabel = ($a['shift']==='9_1830') ? '09:00–18:30' : '08:00–17:30';
-          $satLabel = match($a['sat_pattern']){
-            '1y3' => 'Sábados 1 y 3',
-            '2y4' => 'Sábados 2 y 4',
-            'todos' => 'Todos los sábados',
-            'ninguno' => 'Sin sábados',
-            default => 'Sábados'
-          };
-        ?>
+            $lunchTxt = '';
+            if (!empty($a['lunch_start']) && !empty($a['lunch_end'])) {
+                $lunchTxt = 'Comida: <strong>' . h(substr($a['lunch_start'],0,5)) . '–' . h(substr($a['lunch_end'],0,5)) . '</strong><br>';
+            }
+          ?>
           <div class="analyst-card">
-            <div class="analyst-card-top">
+            <div class="analyst-top">
               <div>
-                <div class="analyst-name"><?php echo htmlspecialchars($a['name'].' '.$a['last_name'], ENT_QUOTES, 'UTF-8'); ?></div>
-                <div class="analyst-mail"><?php echo htmlspecialchars($a['email'], ENT_QUOTES, 'UTF-8'); ?></div>
+                <div class="analyst-name"><?php echo h($a['name'].' '.$a['last_name']); ?></div>
+                <div class="analyst-email"><?php echo h($a['email']); ?></div>
               </div>
-              <span class="analyst-badge <?php echo $badgeClass; ?>">
-                <?php echo $badgeText; ?>
-              </span>
-            </div>
-
-            <div class="analyst-kpis">
-              <div class="analyst-kpi">
-                <div class="v"><?php echo (int)$k['activos']; ?></div>
-                <div class="l">Activos</div>
-              </div>
-              <div class="analyst-kpi">
-                <div class="v"><?php echo (int)$k['abiertos']; ?></div>
-                <div class="l">Abiertos</div>
-              </div>
-              <div class="analyst-kpi">
-                <div class="v"><?php echo (int)$k['en_proceso']; ?></div>
-                <div class="l">En proceso</div>
+              <div class="badge <?php echo $badgeClass; ?>">
+                <?php echo h($badgeText); ?>
               </div>
             </div>
 
             <div class="analyst-meta">
-              Turno: <strong><?php echo $shiftLabel; ?></strong><br>
-              <?php echo $satLabel; ?> (si hay 5 sábados: todos).
+              <?php echo $lunchTxt; ?>
+              Turno (L-V): <strong><?php echo h($shiftLbl); ?></strong><br>
+              Sábados: <strong><?php echo h($satLbl); ?></strong> <span style="opacity:.7;">(08:00–14:00)</span><br>
+              <?php if ($extraTxt): ?>
+                <div style="opacity:.9;margin-top:6px;"><?php echo $extraTxt; ?></div>
+              <?php endif; ?>
             </div>
 
-            <div class="analyst-actions">
-              <button class="btn-main-combined" type="button" onclick="openScheduleModal(<?php echo $id; ?>,'<?php echo $a['shift']; ?>','<?php echo $a['sat_pattern']; ?>')">Horario</button>
-              <button class="btn-main-combined" type="button" onclick="openOverrideModal(<?php echo $id; ?>,'<?php echo $a['ov_status']; ?>')">Override</button>
+            <div class="btn-row">
+              <button class="btn-mini secondary"
+                type="button"
+                onclick="openScheduleModal(
+                  <?php echo (int)$a['id']; ?>,
+                  '<?php echo h($a['shift']); ?>',
+                  '<?php echo h($a['sat_pattern']); ?>',
+                  '<?php echo h($a['lunch_start'] ?? ''); ?>',
+                  '<?php echo h($a['lunch_end'] ?? ''); ?>'
+                )"
+              >
+                Editar horario
+              </button>
+
+              <button class="btn-mini primary"
+                type="button"
+                onclick="openOverrideModal(
+                  <?php echo (int)$a['id']; ?>,
+                  '<?php echo h($a['name'].' '.$a['last_name']); ?>'
+                )"
+              >
+                Ausencia / Estado
+              </button>
             </div>
           </div>
         <?php endforeach; ?>
@@ -269,109 +294,155 @@ $now = new DateTime();
   </section>
 </main>
 
-<!-- MODAL: Horario -->
-<div class="user-modal-backdrop" id="scheduleModal" style="display:none;">
-  <div class="user-modal">
-    <header class="user-modal-header">
-      <h2>Editar horario</h2>
-      <button type="button" class="user-modal-close" onclick="closeScheduleModal()">✕</button>
-    </header>
+<!-- MODAL: HORARIO -->
+<div class="modal-backdrop" id="scheduleModal">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3>Editar horario</h3>
+      <button class="modal-close" type="button" onclick="closeScheduleModal()">✕</button>
+    </div>
 
     <form method="POST" action="/HelpDesk_EQF/modules/dashboard/admin/save_schedule.php">
-      <input type="hidden" name="user_id" id="sch_user_id" value="">
+      <input type="hidden" name="user_id" id="sch_user_id">
 
-      <div class="form-group">
-        <label>Turno</label>
-        <select name="shift" id="sch_shift" required>
-          <option value="8_1730">08:00 – 17:30</option>
-          <option value="9_1830">09:00 – 18:30</option>
-        </select>
+      <div class="form-row">
+        <div class="field">
+          <label>Turno (L-V)</label>
+          <select name="shift" id="sch_shift" required>
+            <option value="8_1730">08:00 – 17:30</option>
+            <option value="9_1830">09:00 – 18:30</option>
+          </select>
+          <div class="hint">Sábado siempre es 08:00–14:00</div>
+        </div>
+
+        <div class="field">
+          <label>Sábados</label>
+          <select name="sat_pattern" id="sch_sat" required>
+            <option value="1y3">1° y 3° sábado</option>
+            <option value="2y4">2° y 4° sábado</option>
+            <option value="all">Todos (incluye 5°)</option>
+          </select>
+        </div>
       </div>
 
-      <div class="form-group">
-        <label>Patrón de sábados</label>
-        <select name="sat_pattern" id="sch_sat" required>
-          <option value="1y3">1º y 3º</option>
-          <option value="2y4">2º y 4º</option>
-          <option value="todos">Todos</option>
-          <option value="ninguno">Ninguno</option>
-        </select>
+      <div class="form-row" style="margin-top:10px;">
+        <div class="field">
+          <label>Comida inicio</label>
+          <input type="time" name="lunch_start" id="sch_lunch_start">
+        </div>
+        <div class="field">
+          <label>Comida fin</label>
+          <input type="time" name="lunch_end" id="sch_lunch_end">
+        </div>
       </div>
 
-      <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:12px;">
-        <button type="button" class="btn-secondary" onclick="closeScheduleModal()">Cancelar</button>
-        <button type="submit" class="btn-primary">Guardar</button>
+      <div class="modal-actions">
+        <button class="btn-mini secondary" type="button" onclick="closeScheduleModal()">Cancelar</button>
+        <button class="btn-mini primary" type="submit">Guardar</button>
       </div>
     </form>
   </div>
 </div>
 
-<!-- MODAL: Override -->
-<div class="user-modal-backdrop" id="overrideModal" style="display:none;">
-  <div class="user-modal">
-    <header class="user-modal-header">
-      <h2>Override de disponibilidad</h2>
-      <button type="button" class="user-modal-close" onclick="closeOverrideModal()">✕</button>
-    </header>
+<!-- MODAL: OVERRIDE / AUSENCIA -->
+<div class="modal-backdrop" id="overrideModal">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3 id="ov_title">Ausencia / Estado</h3>
+      <button class="modal-close" type="button" onclick="closeOverrideModal()">✕</button>
+    </div>
 
     <form method="POST" action="/HelpDesk_EQF/modules/dashboard/admin/save_override.php">
-      <input type="hidden" name="user_id" id="ov_user_id" value="">
+      <input type="hidden" name="user_id" id="ov_user_id">
 
-      <div class="form-group">
-        <label>Estado</label>
-        <select name="status" id="ov_status" required>
-          <option value="AUTO">AUTO (por horario)</option>
-          <option value="DISPONIBLE">Disponible</option>
-          <option value="OCUPADO">Ocupado</option>
-          <option value="AUSENTE">Ausente</option>
-          <option value="SUCURSAL">Sucursal</option>
-          <option value="VACACIONES">Vacaciones</option>
-        </select>
+      <div class="form-row">
+        <div class="field">
+          <label>Estado</label>
+          <select name="status" id="ov_status" required>
+            <option value="AUTO">AUTO (según horario)</option>
+            <option value="DISPONIBLE">Disponible (manual)</option>
+            <option value="NO_DISPONIBLE">No disponible (manual)</option>
+            <option value="VACACIONES">Vacaciones</option>
+            <option value="INCAPACIDAD">Incapacidad</option>
+            <option value="PERMISO">Permiso</option>
+            <option value="SUCURSAL">Sucursal (campo)</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Desde</label>
+          <input type="datetime-local" name="starts_at" id="ov_start" required>
+        </div>
+
+        <div class="field">
+          <label>Hasta</label>
+          <input type="datetime-local" name="ends_at" id="ov_end" required>
+        </div>
       </div>
 
-      <div class="form-group">
-        <label>Hasta (opcional)</label>
-        <input type="datetime-local" name="until_at" id="ov_until">
-      </div>
+      <div class="hint">Mientras esté dentro del rango (desde→hasta), se mostrará como no disponible según el estado.</div>
 
-      <div class="form-group">
-        <label>Nota (opcional)</label>
-        <input type="text" name="note" maxlength="255" placeholder="Ej: comida, visita, incapacidad...">
-      </div>
-
-      <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:12px;">
-        <button type="button" class="btn-secondary" onclick="closeOverrideModal()">Cancelar</button>
-        <button type="submit" class="btn-primary">Guardar</button>
+      <div class="modal-actions">
+        <button class="btn-mini secondary" type="button" onclick="closeOverrideModal()">Cancelar</button>
+        <button class="btn-mini primary" type="submit">Guardar</button>
       </div>
     </form>
   </div>
 </div>
 
 <script>
-function openScheduleModal(userId, shift, sat){
+function openScheduleModal(userId, shift, sat, lunchStart, lunchEnd){
   document.getElementById('sch_user_id').value = userId;
   document.getElementById('sch_shift').value = shift || '8_1730';
   document.getElementById('sch_sat').value = sat || '1y3';
+
+  document.getElementById('sch_lunch_start').value = (lunchStart || '').toString().slice(0,5);
+  document.getElementById('sch_lunch_end').value   = (lunchEnd || '').toString().slice(0,5);
+
   document.getElementById('scheduleModal').style.display = 'flex';
-  document.body.style.overflow='hidden';
+  document.body.style.overflow = 'hidden';
 }
 function closeScheduleModal(){
   document.getElementById('scheduleModal').style.display = 'none';
-  document.body.style.overflow='';
+  document.body.style.overflow = '';
 }
 
-function openOverrideModal(userId, status){
+function openOverrideModal(userId, fullName){
   document.getElementById('ov_user_id').value = userId;
-  document.getElementById('ov_status').value = status || 'AUTO';
+  document.getElementById('ov_title').textContent = 'Ausencia / Estado – ' + (fullName || '');
+  document.getElementById('ov_status').value = 'AUTO';
+
+  // default: desde ahora, hasta + 4 horas
+  const now = new Date();
+  const end = new Date(Date.now() + 4*60*60*1000);
+  const pad = n => String(n).padStart(2,'0');
+
+  const toLocal = (d) => (
+    d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate())
+    + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes())
+  );
+
+  document.getElementById('ov_start').value = toLocal(now);
+  document.getElementById('ov_end').value   = toLocal(end);
+
   document.getElementById('overrideModal').style.display = 'flex';
-  document.body.style.overflow='hidden';
+  document.body.style.overflow = 'hidden';
 }
 function closeOverrideModal(){
   document.getElementById('overrideModal').style.display = 'none';
-  document.body.style.overflow='';
+  document.body.style.overflow = '';
 }
+
+// click afuera
+document.addEventListener('click', (e) => {
+  const s = document.getElementById('scheduleModal');
+  const o = document.getElementById('overrideModal');
+  if (s && e.target === s) closeScheduleModal();
+  if (o && e.target === o) closeOverrideModal();
+});
 </script>
 
+<script src="/HelpDesk_EQF/assets/js/script.js?v=20251208a"></script>
 <?php include __DIR__ . '/../../../template/footer.php'; ?>
 </body>
 </html>
