@@ -9,7 +9,7 @@ if (!isset($_SESSION['user_id']) || (int)($_SESSION['user_rol'] ?? 0) !== 2) {
 
 $pdo       = Database::getConnection();
 $userId    = (int)($_SESSION['user_id'] ?? 0);
-$areaAdmin = $_SESSION['user_area'] ?? '';
+$areaAdmin = trim($_SESSION['user_area'] ?? '');
 
 // -----------------------------
 // Flash messages (PRG)
@@ -21,6 +21,8 @@ unset($_SESSION['flash_ok'], $_SESSION['flash_err']);
 // -----------------------------
 // Helpers
 // -----------------------------
+function h($v): string { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
+
 function problemaLabel(string $p): string {
     return match ($p) {
         'cierre_dia'  => 'Cierre del día',
@@ -38,7 +40,7 @@ function prioridadLabel(?string $p): string {
         'alta'  => 'Alta',
         'media' => 'Media',
         'baja'  => 'Baja',
-        default => ucfirst($p),
+        default => ($p !== '' ? ucfirst($p) : '—'),
     };
 }
 function estadoLabel(?string $e): string {
@@ -48,7 +50,7 @@ function estadoLabel(?string $e): string {
         'en_proceso' => 'En proceso',
         'resuelto'   => 'Resuelto',
         'cerrado'    => 'Cerrado',
-        default      => ucfirst($e),
+        default      => ($e !== '' ? ucfirst($e) : '—'),
     };
 }
 
@@ -66,9 +68,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // Verifica que el ticket sea del área del admin
-    $stmtCheck = $pdo->prepare("SELECT id, area FROM tickets WHERE id = :id AND area = :area LIMIT 1");
+    $stmtCheck = $pdo->prepare("SELECT id, area, asignado_a, problema, estado FROM tickets WHERE id = :id AND area = :area LIMIT 1");
     $stmtCheck->execute([':id' => $ticketId, ':area' => $areaAdmin]);
-    if (!$stmtCheck->fetchColumn()) {
+    $ticketBase = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+
+    if (!$ticketBase) {
         $_SESSION['flash_err'] = "No tienes permiso para modificar este ticket.";
         header('Location: /HelpDesk_EQF/modules/dashboard/admin/tickets_area.php');
         exit;
@@ -77,32 +81,92 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // 1) Asignar / Reasignar
     if ($accion === 'asignar') {
         $analystId = (int)($_POST['analyst_id'] ?? 0);
+        $motivo    = trim($_POST['motivo'] ?? '');
         if ($analystId <= 0) {
             $_SESSION['flash_err'] = "Selecciona un analista válido.";
             header('Location: /HelpDesk_EQF/modules/dashboard/admin/tickets_area.php');
             exit;
         }
 
+        // No permitir asignar si ya está cerrado (opcional)
+        if (in_array(($ticketBase['estado'] ?? ''), ['cerrado'], true)) {
+            $_SESSION['flash_err'] = "No puedes asignar/reasignar un ticket cerrado.";
+            header('Location: /HelpDesk_EQF/modules/dashboard/admin/tickets_area.php');
+            exit;
+        }
+
         // Analista rol=3 y misma área
-        $stmtA = $pdo->prepare("SELECT id FROM users WHERE id = :id AND rol = 3 AND area = :area LIMIT 1");
+        $stmtA = $pdo->prepare("SELECT id, name, last_name FROM users WHERE id = :id AND rol = 3 AND area = :area LIMIT 1");
         $stmtA->execute([':id' => $analystId, ':area' => $areaAdmin]);
-        if (!$stmtA->fetchColumn()) {
+        $analista = $stmtA->fetch(PDO::FETCH_ASSOC);
+
+        if (!$analista) {
             $_SESSION['flash_err'] = "Ese analista no pertenece a tu área.";
             header('Location: /HelpDesk_EQF/modules/dashboard/admin/tickets_area.php');
             exit;
         }
 
-        $stmtUp = $pdo->prepare("
-            UPDATE tickets
-            SET asignado_a = :aid,
-                fecha_asignacion = NOW()
-            WHERE id = :tid AND area = :area
-        ");
-        $stmtUp->execute([':aid' => $analystId, ':tid' => $ticketId, ':area' => $areaAdmin]);
+        $fromAnalyst = (int)($ticketBase['asignado_a'] ?? 0);
 
-        $_SESSION['flash_ok'] = "Ticket #{$ticketId} asignado correctamente.";
-        header('Location: /HelpDesk_EQF/modules/dashboard/admin/tickets_area.php');
-        exit;
+        try {
+            $pdo->beginTransaction();
+
+            // Update ticket
+            $stmtUp = $pdo->prepare("
+                UPDATE tickets
+                SET asignado_a = :aid,
+                    fecha_asignacion = COALESCE(fecha_asignacion, NOW())
+                WHERE id = :tid AND area = :area
+            ");
+            $stmtUp->execute([':aid' => $analystId, ':tid' => $ticketId, ':area' => $areaAdmin]);
+
+            // Log (si ya creaste ticket_assignments_log)
+            $stmtLog = $pdo->prepare("
+                INSERT INTO ticket_assignments_log (ticket_id, from_analyst_id, to_analyst_id, admin_id, motivo)
+                VALUES (:tid, :from_id, :to_id, :admin_id, :motivo)
+            ");
+            $stmtLog->execute([
+                ':tid'      => $ticketId,
+                ':from_id'  => ($fromAnalyst > 0 ? $fromAnalyst : null),
+                ':to_id'    => $analystId,
+                ':admin_id' => $userId,
+                ':motivo'   => ($motivo !== '' ? mb_substr($motivo, 0, 255) : null),
+            ]);
+
+            // Notificación al analista destino
+            $title = ($fromAnalyst > 0) ? "Ticket reasignado #{$ticketId}" : "Nuevo ticket asignado #{$ticketId}";
+            $body  = "Problema: " . (string)($ticketBase['problema'] ?? '');
+            if ($motivo !== '') $body .= " | Motivo: {$motivo}";
+            $link  = "/HelpDesk_EQF/modules/dashboard/analyst/analyst.php?open_ticket={$ticketId}";
+
+            $stmtNotif = $pdo->prepare("
+                INSERT INTO notifications (user_id, type, title, body, link, is_read)
+                VALUES (:user_id, :type, :title, :body, :link, 0)
+            ");
+            $stmtNotif->execute([
+                ':user_id' => $analystId,
+                ':type'    => 'ticket_assigned',
+                ':title'   => $title,
+                ':body'    => mb_substr($body, 0, 255),
+                ':link'    => $link
+            ]);
+
+            $pdo->commit();
+
+            $nombreA = trim(($analista['name'] ?? '').' '.($analista['last_name'] ?? ''));
+            $_SESSION['flash_ok'] = ($fromAnalyst > 0)
+                ? "Ticket #{$ticketId} reasignado a {$nombreA}."
+                : "Ticket #{$ticketId} asignado a {$nombreA}.";
+
+            header('Location: /HelpDesk_EQF/modules/dashboard/admin/tickets_area.php');
+            exit;
+
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            $_SESSION['flash_err'] = "Error al asignar: " . $e->getMessage();
+            header('Location: /HelpDesk_EQF/modules/dashboard/admin/tickets_area.php');
+            exit;
+        }
     }
 
     // 2) Cambiar estado
@@ -179,7 +243,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $transferId = (int)$pdo->lastInsertId();
 
             // B) Copiar historial del chat a ticket_transfer_messages
-            // ticket_messages: id, ticket_id, sender_id, sender_role, mensaje, is_internal, created_at
             $stmtMsg = $pdo->prepare("
                 SELECT tm.sender_role,
                        CONCAT(COALESCE(u.name,''),' ',COALESCE(u.last_name,'')) AS sender_name,
@@ -205,7 +268,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         ':transfer_id' => $transferId,
                         ':ticket_id'   => $ticketId,
                         ':sender_role' => $m['sender_role'] ?? 'usuario',
-                        ':sender_name' => trim($m['sender_name'] ?? '') ?: null,
+                        ':sender_name' => (trim((string)($m['sender_name'] ?? '')) !== '' ? trim($m['sender_name']) : null),
                         ':message'     => $m['message'] ?? null,
                         ':created_at'  => $m['created_at'] ?? null,
                     ]);
@@ -213,7 +276,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             // C) Copiar adjuntos (ticket_attachments) -> ticket_transfer_files
-            // ticket_attachments: id, ticket_id, nombre_archivo, ruta_archivo, peso, tipo, subido_en
             if ($copiarAdj) {
                 $stmtFiles = $pdo->prepare("
                     SELECT nombre_archivo, ruta_archivo, tipo, subido_en
@@ -264,6 +326,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':area_actual' => $areaAdmin,
             ]);
 
+            // E) NOTIFICAR a Admin + Analistas del área destino (rol 2 y 3)
+            $stmtUsers = $pdo->prepare("
+                SELECT id
+                FROM users
+                WHERE area = :area
+                  AND rol IN (2,3)
+            ");
+            $stmtUsers->execute([':area' => $nuevaArea]);
+            $destinatarios = $stmtUsers->fetchAll(PDO::FETCH_COLUMN);
+
+            if ($destinatarios) {
+                $link  = '/HelpDesk_EQF/modules/dashboard/admin/tickets_area.php?estado=abierto';
+                $title = 'Ticket canalizado';
+                $body  = "Ticket #{$ticketId} canalizado a tu área ({$nuevaArea}).";
+                if (!empty($motivo)) $body .= " Motivo: {$motivo}";
+
+                $stmtNotif = $pdo->prepare("
+                    INSERT INTO notifications (user_id, type, title, body, link, is_read)
+                    VALUES (:user_id, :type, :title, :body, :link, 0)
+                ");
+
+                foreach ($destinatarios as $uid) {
+                    $stmtNotif->execute([
+                        ':user_id' => (int)$uid,
+                        ':type'    => 'ticket_transfer',
+                        ':title'   => $title,
+                        ':body'    => mb_substr($body, 0, 255),
+                        ':link'    => $link
+                    ]);
+                }
+            }
+
             $pdo->commit();
 
             $_SESSION['flash_ok'] = "Ticket #{$ticketId} canalizado a {$nuevaArea} (PRO) y se guardó trazabilidad.";
@@ -277,42 +371,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
     }
-    // E) NOTIFICAR a Admin + Analistas del área destino
-$stmtUsers = $pdo->prepare("
-    SELECT id
-    FROM users
-    WHERE area = :area
-      AND rol IN (2,3)
-");
-$stmtUsers->execute([':area' => $nuevaArea]);
-$destinatarios = $stmtUsers->fetchAll(PDO::FETCH_COLUMN);
-
-if ($destinatarios) {
-
-    $link  = '/HelpDesk_EQF/modules/dashboard/analyst/analyst.php';
-    $title = 'Ticket canalizado';
-    $body  = "Ticket #{$ticketId} canalizado a tu área ({$nuevaArea}).";
-
-    if (!empty($motivo)) {
-        $body .= " Motivo: {$motivo}";
-    }
-
-    $stmtNotif = $pdo->prepare("
-        INSERT INTO notifications (user_id, type, title, body, link)
-        VALUES (:user_id, :type, :title, :body, :link)
-    ");
-
-    foreach ($destinatarios as $uid) {
-        $stmtNotif->execute([
-            ':user_id' => (int)$uid,
-            ':type'    => 'ticket_transfer',
-            ':title'   => $title,
-            ':body'    => mb_substr($body, 0, 255),
-            ':link'    => $link
-        ]);
-    }
-}
-
 
     // Acción desconocida
     $_SESSION['flash_err'] = "Acción inválida.";
@@ -324,13 +382,13 @@ if ($destinatarios) {
 // Analistas del área (para asignar)
 // -----------------------------
 $stmtAnalysts = $pdo->prepare("
-    SELECT id, name, last_name
-    FROM users
-    WHERE rol = 3 AND area = :area
-    ORDER BY last_name ASC, name ASC
+  SELECT id, name, last_name
+  FROM users
+  WHERE rol = 3 AND area = :area
+  ORDER BY last_name ASC, name ASC
 ");
 $stmtAnalysts->execute([':area' => $areaAdmin]);
-$analysts = $stmtAnalysts->fetchAll(PDO::FETCH_ASSOC);
+$areaAnalysts = $stmtAnalysts->fetchAll(PDO::FETCH_ASSOC);
 
 // -----------------------------
 // Filtros (GET)
@@ -401,7 +459,7 @@ include __DIR__ . '/../../../template/sidebar.php';
           <span>HelpDesk </span><span class="eqf-e">E</span><span class="eqf-q">Q</span><span class="eqf-f">F</span>
         </p>
         <p class="user-main-subtitle">
-          Tickets de mi área – <?php echo htmlspecialchars($areaAdmin, ENT_QUOTES, 'UTF-8'); ?>
+          Tickets de mi área – <?php echo h($areaAdmin); ?>
         </p>
       </div>
     </header>
@@ -409,10 +467,10 @@ include __DIR__ . '/../../../template/sidebar.php';
     <section class="user-main-content">
 
       <?php if ($mensajeExito): ?>
-        <div class="alert alert-success"><?php echo htmlspecialchars($mensajeExito, ENT_QUOTES, 'UTF-8'); ?></div>
+        <div class="alert alert-success"><?php echo h($mensajeExito); ?></div>
       <?php endif; ?>
       <?php if ($mensajeError): ?>
-        <div class="alert alert-danger"><?php echo htmlspecialchars($mensajeError, ENT_QUOTES, 'UTF-8'); ?></div>
+        <div class="alert alert-danger"><?php echo h($mensajeError); ?></div>
       <?php endif; ?>
 
       <form method="get" class="user-filters-row">
@@ -428,8 +486,8 @@ include __DIR__ . '/../../../template/sidebar.php';
               'cerrado'    => 'Cerrado',
             ];
             foreach ($estados as $value => $label): ?>
-              <option value="<?php echo $value; ?>" <?php if ($estadoFiltro === $value) echo 'selected'; ?>>
-                <?php echo $label; ?>
+              <option value="<?php echo h($value); ?>" <?php if ($estadoFiltro === $value) echo 'selected'; ?>>
+                <?php echo h($label); ?>
               </option>
             <?php endforeach; ?>
           </select>
@@ -446,8 +504,8 @@ include __DIR__ . '/../../../template/sidebar.php';
               'alta'  => 'Alta',
             ];
             foreach ($prioridades as $value => $label): ?>
-              <option value="<?php echo $value; ?>" <?php if ($prioridadFiltro === $value) echo 'selected'; ?>>
-                <?php echo $label; ?>
+              <option value="<?php echo h($value); ?>" <?php if ($prioridadFiltro === $value) echo 'selected'; ?>>
+                <?php echo h($label); ?>
               </option>
             <?php endforeach; ?>
           </select>
@@ -479,20 +537,21 @@ include __DIR__ . '/../../../template/sidebar.php';
           </thead>
           <tbody>
           <?php foreach ($tickets as $t): ?>
-            <tr>
+            <?php $hasAnalyst = ((int)($t['asignado_a'] ?? 0) > 0); ?>
+            <tr data-ticket-id="<?php echo (int)$t['id']; ?>" data-analyst-id="<?php echo (int)($t['asignado_a'] ?? 0); ?>">
               <td><?php echo (int)$t['id']; ?></td>
-              <td><?php echo htmlspecialchars($t['fecha_envio'] ?? '', ENT_QUOTES, 'UTF-8'); ?></td>
+              <td><?php echo h($t['fecha_envio'] ?? ''); ?></td>
               <td>
-                <?php echo htmlspecialchars(trim(($t['sap'] ?? '') . ' ' . ($t['nombre'] ?? '')), ENT_QUOTES, 'UTF-8'); ?><br>
-                <small><?php echo htmlspecialchars($t['email'] ?? '', ENT_QUOTES, 'UTF-8'); ?></small>
+                <?php echo h(trim(($t['sap'] ?? '') . ' ' . ($t['nombre'] ?? ''))); ?><br>
+                <small><?php echo h($t['email'] ?? ''); ?></small>
               </td>
-              <td><?php echo htmlspecialchars(problemaLabel($t['problema']), ENT_QUOTES, 'UTF-8'); ?></td>
-              <td><?php echo htmlspecialchars(prioridadLabel($t['prioridad']), ENT_QUOTES, 'UTF-8'); ?></td>
-              <td><?php echo htmlspecialchars(estadoLabel($t['estado']), ENT_QUOTES, 'UTF-8'); ?></td>
-              <td>
+              <td><?php echo h(problemaLabel((string)$t['problema'])); ?></td>
+              <td><?php echo h(prioridadLabel($t['prioridad'] ?? null)); ?></td>
+              <td><?php echo h(estadoLabel($t['estado'] ?? null)); ?></td>
+              <td class="td-analyst">
                 <?php
                 if (!empty($t['analyst_name'])) {
-                  echo htmlspecialchars($t['analyst_name'] . ' ' . $t['analyst_last'], ENT_QUOTES, 'UTF-8');
+                  echo h($t['analyst_name'] . ' ' . $t['analyst_last']);
                 } else {
                   echo 'Sin asignar';
                 }
@@ -501,12 +560,12 @@ include __DIR__ . '/../../../template/sidebar.php';
               <td style="display:flex; gap:8px; flex-wrap:wrap;">
                 <button type="button" class="btn-main-combined"
                   onclick="openAssignModal(<?php echo (int)$t['id']; ?>, <?php echo (int)($t['asignado_a'] ?? 0); ?>)"
-                  style="width:90px; height:35px;">
-                  Asignar
+                  style="width:95px; height:35px;">
+                  <?php echo $hasAnalyst ? 'Reasignar' : 'Asignar'; ?>
                 </button>
 
                 <button type="button" class="btn-main-combined"
-                  onclick="openStateModal(<?php echo (int)$t['id']; ?>, '<?php echo htmlspecialchars($t['estado'] ?? 'abierto', ENT_QUOTES, 'UTF-8'); ?>')"
+                  onclick="openStateModal(<?php echo (int)$t['id']; ?>, '<?php echo h($t['estado'] ?? 'abierto'); ?>')"
                   style="width:90px; height:35px;">
                   Estado
                 </button>
@@ -538,7 +597,7 @@ include __DIR__ . '/../../../template/sidebar.php';
 <div class="user-modal-backdrop" id="assignModal" style="display:none;">
   <div class="user-modal">
     <header class="user-modal-header">
-      <h2>Asignar ticket</h2>
+      <h2 id="assignModalTitle">Asignar ticket</h2>
       <button type="button" class="user-modal-close" onclick="closeAssignModal()">✕</button>
     </header>
 
@@ -550,12 +609,17 @@ include __DIR__ . '/../../../template/sidebar.php';
         <label for="assign_analyst_id">Analista</label>
         <select name="analyst_id" id="assign_analyst_id" required>
           <option value="">Selecciona un analista</option>
-          <?php foreach ($analysts as $a): ?>
+          <?php foreach ($areaAnalysts as $a): ?>
             <option value="<?php echo (int)$a['id']; ?>">
-              <?php echo htmlspecialchars($a['name'].' '.$a['last_name'], ENT_QUOTES, 'UTF-8'); ?>
+              <?php echo h(($a['last_name'] ?? '') . ' ' . ($a['name'] ?? '')); ?>
             </option>
           <?php endforeach; ?>
         </select>
+      </div>
+
+      <div class="form-group">
+        <label for="assign_motivo">Motivo (opcional)</label>
+        <input type="text" name="motivo" id="assign_motivo" maxlength="255" placeholder="Ej: carga alta, especialista, seguimiento...">
       </div>
 
       <div style="display:flex; gap:10px; justify-content:flex-end; align-items: stretch; margin-top:12px;">
@@ -657,6 +721,11 @@ $(function () {
 function openAssignModal(ticketId, analystId){
   document.getElementById('assign_ticket_id').value = ticketId;
   document.getElementById('assign_analyst_id').value = (analystId && analystId > 0) ? String(analystId) : "";
+  document.getElementById('assign_motivo').value = "";
+
+  const title = document.getElementById('assignModalTitle');
+  title.textContent = (analystId && analystId > 0) ? ('Reasignar ticket #' + ticketId) : ('Asignar ticket #' + ticketId);
+
   document.getElementById('assignModal').style.display = 'flex';
   document.body.style.overflow = 'hidden';
 }
