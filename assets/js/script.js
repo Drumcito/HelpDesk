@@ -614,3 +614,75 @@ function toggleSidebar() {
 window.toggleSidebar = toggleSidebar;
 
 
+(function(){
+  let lastNotifId = 0;
+
+  function showToast(msg){
+    // Si ya tienes tu toast, úsalo.
+    if (typeof showTicketToast === 'function') return showTicketToast(msg);
+
+    const t = document.createElement('div');
+    t.className = 'eqf-toast-ticket';
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(()=>{ t.classList.add('hide'); setTimeout(()=>t.remove(), 280); }, 3200);
+  }
+
+  function showDesktop(title, body){
+    if (!('Notification' in window)) return;
+    if (Notification.permission !== 'granted') return;
+
+    new Notification(title || 'HelpDesk EQF', {
+      body: body || '',
+      icon: '/HelpDesk_EQF/assets/img/icon_helpdesk.png'
+    });
+  }
+
+  async function markRead(ids){
+    if (!ids.length) return;
+    try{
+      await fetch('/HelpDesk_EQF/modules/notifications/mark_read.php', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ ids })
+      });
+    }catch(e){}
+  }
+
+  async function poll(){
+    try{
+      const r = await fetch('/HelpDesk_EQF/modules/notifications/poll.php?since_id=' + encodeURIComponent(lastNotifId), { cache:'no-store' });
+      const data = await r.json();
+      if (!data || !data.ok) return;
+
+      const notifs = Array.isArray(data.notifications) ? data.notifications : [];
+      if (!notifs.length) return;
+
+      const ids = [];
+      notifs.forEach(n => {
+        const id = parseInt(n.id, 10);
+        if (!isNaN(id)) lastNotifId = Math.max(lastNotifId, id);
+        ids.push(id);
+
+        showToast((n.title ? (n.title + ': ') : '') + (n.body || ''));
+        showDesktop(n.title, n.body);
+
+        // Si quieres redirigir con click, aquí lo agregamos después.
+      });
+
+      await markRead(ids);
+
+    } catch (err){
+      console.error('notif poll error', err);
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+    poll();
+    setInterval(poll, 7000); // 5–10s
+  });
+})();
+

@@ -84,15 +84,19 @@ function isWorkingNow(array $a, DateTime $now): bool {
 }
 
 function isLunchNow(array $a, DateTime $now): bool {
+    if ((int)$now->format('N') === 6) return false;
+
     $ls = $a['lunch_start'] ?? null;
     $le = $a['lunch_end'] ?? null;
     if (!$ls || !$le) return false;
 
+    $t = $now->format('H:i:s');
+
     if (!isWorkingNow($a, $now)) return false;
 
-    $t = $now->format('H:i:s');
     return ($t >= $ls && $t <= $le);
 }
+
 
 function resolveAvailability(array $a, DateTime $now): array {
     // 1) Override por rango
@@ -247,7 +251,7 @@ $now = new DateTime('now');
 
             $lunchTxt = '';
             if (!empty($a['lunch_start']) && !empty($a['lunch_end'])) {
-                $lunchTxt = 'Comida: <strong>' . h(substr($a['lunch_start'],0,5)) . '–' . h(substr($a['lunch_end'],0,5)) . '</strong><br>';
+                $lunchTxt = 'Horario de comida: <strong>' . h(substr($a['lunch_start'],0,5)) . '–' . h(substr($a['lunch_end'],0,5)) . '</strong><br>';
             }
           ?>
           <div class="analyst-card" data-user-id="<?php echo (int)$a['id']; ?>">

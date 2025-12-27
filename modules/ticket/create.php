@@ -115,3 +115,4 @@ try {
     header('Location: /HelpDesk_EQF/modules/dashboard/user/user.php?deleted=1');
     exit;
 }
+ 

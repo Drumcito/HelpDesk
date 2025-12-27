@@ -4,60 +4,48 @@ require_once __DIR__ . '/../../config/connectionBD.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['ok' => false, 'msg' => 'Método no permitido']);
-    exit;
-}
-
 if (!isset($_SESSION['user_id'])) {
     http_response_code(403);
-    echo json_encode(['ok' => false, 'msg' => 'No autenticado']);
+    echo json_encode(['ok' => false, 'msg' => 'No autenticado'], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
-$userId = (int)($_SESSION['user_id'] ?? 0);
+$userId  = (int)$_SESSION['user_id'];
+$sinceId = isset($_GET['since_id']) ? (int)$_GET['since_id'] : 0;
+$limit   = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
+if ($limit < 1 || $limit > 30) $limit = 10;
 
-// acepta "ids" como CSV: "12,13,14" o como array
-$idsRaw = $_POST['ids'] ?? '';
-$ids = [];
-
-if (is_array($idsRaw)) {
-    $ids = array_map('intval', $idsRaw);
-} else {
-    $parts = array_filter(array_map('trim', explode(',', (string)$idsRaw)));
-    $ids = array_map('intval', $parts);
-}
-
-$ids = array_values(array_filter($ids, fn($x) => $x > 0));
-if (!$ids) {
-    echo json_encode(['ok' => true, 'updated' => 0]);
-    exit;
-}
+$pdo = Database::getConnection();
 
 try {
-    $pdo = Database::getConnection();
+    // OJO: si tu columna es user_ide, cambia "user_id" por "user_ide"
+    $stmt = $pdo->prepare("
+        SELECT id, type, title, body, link, created_at
+        FROM notifications
+        WHERE user_id = :uid
+          AND is_read = 0
+          AND id > :since_id
+        ORDER BY id ASC
+        LIMIT {$limit}
+    ");
+    $stmt->execute([
+        ':uid'      => $userId,
+        ':since_id' => $sinceId
+    ]);
 
-    // placeholders dinámicos
-    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $maxId = $sinceId;
+    foreach ($rows as $r) $maxId = max($maxId, (int)$r['id']);
 
-    // SOLO del usuario logueado
-    $sql = "
-        UPDATE notifications
-        SET is_read = 1
-        WHERE user_id = ?
-          AND id IN ($placeholders)
-    ";
-
-    $stmt = $pdo->prepare($sql);
-    $params = array_merge([$userId], $ids);
-    $stmt->execute($params);
-
-    echo json_encode(['ok' => true, 'updated' => $stmt->rowCount()]);
+    echo json_encode([
+        'ok' => true,
+        'max_id' => $maxId,
+        'notifications' => $rows
+    ], JSON_UNESCAPED_UNICODE);
     exit;
 
 } catch (Throwable $e) {
     http_response_code(500);
-    echo json_encode(['ok' => false, 'msg' => 'Error interno']);
+    echo json_encode(['ok' => false, 'msg' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
     exit;
 }

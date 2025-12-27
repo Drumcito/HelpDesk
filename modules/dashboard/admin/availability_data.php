@@ -110,13 +110,14 @@ function resolveAvailability(array $a, DateTime $now): array {
     }
 
     // Comida (automático si aplica)
-    if (!empty($a['lunch_start']) && !empty($a['lunch_end'])) {
-        $ls = new DateTime($date . ' ' . $a['lunch_start']);
-        $le = new DateTime($date . ' ' . $a['lunch_end']);
-        if ($now >= $ls && $now <= $le) {
-            return ['status' => 'EN_COMIDA'];
-        }
+if ($dayN !== 6 && !empty($a['lunch_start']) && !empty($a['lunch_end'])) {
+    $ls = new DateTime($date . ' ' . $a['lunch_start']);
+    $le = new DateTime($date . ' ' . $a['lunch_end']);
+    if ($now >= $ls && $now <= $le) {
+        return ['status' => 'EN_COMIDA'];
     }
+}
+
 
     return ['status' => 'DISPONIBLE'];
 }
