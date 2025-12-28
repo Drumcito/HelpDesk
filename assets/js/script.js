@@ -613,14 +613,20 @@ function toggleSidebar() {
 
 window.toggleSidebar = toggleSidebar;
 
-
+/* notificaciones*/
 (function(){
-  let lastNotifId = 0;
+  let lastNotifId = parseInt(localStorage.getItem('lastNotifId') || '0', 10) || 0;
+
+  function setBadge(n){
+    const el = document.getElementById('notifBadge');
+    if (!el) return;
+    const x = parseInt(n || 0, 10) || 0;
+    el.textContent = x > 99 ? '99+' : String(x);
+    el.style.display = x > 0 ? 'inline-flex' : 'none';
+  }
 
   function showToast(msg){
-    // Si ya tienes tu toast, úsalo.
     if (typeof showTicketToast === 'function') return showTicketToast(msg);
-
     const t = document.createElement('div');
     t.className = 'eqf-toast-ticket';
     t.textContent = msg;
@@ -631,7 +637,6 @@ window.toggleSidebar = toggleSidebar;
   function showDesktop(title, body){
     if (!('Notification' in window)) return;
     if (Notification.permission !== 'granted') return;
-
     new Notification(title || 'HelpDesk EQF', {
       body: body || '',
       icon: '/HelpDesk_EQF/assets/img/icon_helpdesk.png'
@@ -655,6 +660,9 @@ window.toggleSidebar = toggleSidebar;
       const data = await r.json();
       if (!data || !data.ok) return;
 
+      // Badge
+      setBadge(data.unread);
+
       const notifs = Array.isArray(data.notifications) ? data.notifications : [];
       if (!notifs.length) return;
 
@@ -666,10 +674,9 @@ window.toggleSidebar = toggleSidebar;
 
         showToast((n.title ? (n.title + ': ') : '') + (n.body || ''));
         showDesktop(n.title, n.body);
-
-        // Si quieres redirigir con click, aquí lo agregamos después.
       });
 
+      localStorage.setItem('lastNotifId', String(lastNotifId));
       await markRead(ids);
 
     } catch (err){
@@ -682,7 +689,8 @@ window.toggleSidebar = toggleSidebar;
       Notification.requestPermission();
     }
     poll();
-    setInterval(poll, 7000); // 5–10s
+    setInterval(poll, 7000);
   });
 })();
+
 

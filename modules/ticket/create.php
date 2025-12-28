@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once __DIR__ . '/../../config/connectionBD.php';
+require_once __DIR__ . '/../../config/notify.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header('Location: /HelpDesk_EQF/modules/dashboard/user/user.php');
@@ -62,7 +63,18 @@ try {
     ]);
 
     $ticket_id = $pdo->lastInsertId();
+$stmt = $pdo->prepare("SELECT id FROM users WHERE area = :a AND rol IN (2,3)");
+$stmt->execute([':a' => $areaDestino]);
+$uids = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
+notify_many(
+  $pdo,
+  $uids,
+  'ticket_new',
+  'Nuevo ticket',
+  "Ticket #{$ticketId} entrante para {$areaDestino}.",
+  '/HelpDesk_EQF/modules/dashboard/admin/tickets_area.php'
+);
     // MANEJO DE ADJUNTOS (opcional)
     if (!empty($_FILES['adjuntos']['name'][0])) {
 

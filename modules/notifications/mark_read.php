@@ -10,37 +10,50 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-$userId  = (int)$_SESSION['user_id'];
-$sinceId = isset($_GET['since_id']) ? (int)$_GET['since_id'] : 0;
-$limit   = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
-if ($limit < 1 || $limit > 30) $limit = 10;
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    echo json_encode(['ok' => false, 'msg' => 'Método no permitido'], JSON_UNESCAPED_UNICODE);
+    exit;
+}
 
-$pdo = Database::getConnection();
+$userId = (int)$_SESSION['user_id'];
+
+$raw  = file_get_contents('php://input');
+$data = json_decode($raw, true);
+
+$ids = $data['ids'] ?? [];
+if (!is_array($ids) || !$ids) {
+    echo json_encode(['ok' => true, 'updated' => 0], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+$ids = array_values(array_unique(array_map('intval', $ids)));
+$ids = array_filter($ids, fn($x) => $x > 0);
+
+if (!$ids) {
+    echo json_encode(['ok' => true, 'updated' => 0], JSON_UNESCAPED_UNICODE);
+    exit;
+}
 
 try {
-    // OJO: si tu columna es user_ide, cambia "user_id" por "user_ide"
-    $stmt = $pdo->prepare("
-        SELECT id, type, title, body, link, created_at
-        FROM notifications
-        WHERE user_id = :uid
-          AND is_read = 0
-          AND id > :since_id
-        ORDER BY id ASC
-        LIMIT {$limit}
-    ");
-    $stmt->execute([
-        ':uid'      => $userId,
-        ':since_id' => $sinceId
-    ]);
+    $pdo = Database::getConnection();
 
-    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    $maxId = $sinceId;
-    foreach ($rows as $r) $maxId = max($maxId, (int)$r['id']);
+    // placeholders (?, ?, ?)
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+
+    $sql = "
+        UPDATE notifications
+        SET is_read = 1
+        WHERE user_ide = ?
+          AND id IN ($ph)
+    ";
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute(array_merge([$userId], $ids));
 
     echo json_encode([
         'ok' => true,
-        'max_id' => $maxId,
-        'notifications' => $rows
+        'updated' => $stmt->rowCount()
     ], JSON_UNESCAPED_UNICODE);
     exit;
 

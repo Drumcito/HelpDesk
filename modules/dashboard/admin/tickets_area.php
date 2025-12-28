@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once __DIR__ . '/../../../config/connectionBD.php';
+require_once __DIR__ . '/../../../config/notify.php';
 
 if (!isset($_SESSION['user_id']) || (int)($_SESSION['user_rol'] ?? 0) !== 2) {
     header('Location: /HelpDesk_EQF/auth/login.php');
@@ -54,8 +55,13 @@ function estadoLabel(?string $e): string {
     };
 }
 
+function redirectSelf(): void {
+    header('Location: /HelpDesk_EQF/modules/dashboard/admin/tickets_area.php');
+    exit;
+}
+
 // -----------------------------
-// POST actions (Asignar / Estado / Canalizar PRO)
+// POST actions
 // -----------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $accion   = $_POST['accion'] ?? '';
@@ -63,47 +69,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($ticketId <= 0) {
         $_SESSION['flash_err'] = "Ticket inválido.";
-        header('Location: /HelpDesk_EQF/modules/dashboard/admin/tickets_area.php');
-        exit;
+        redirectSelf();
     }
 
-    // Verifica que el ticket sea del área del admin
-    $stmtCheck = $pdo->prepare("SELECT id, area, asignado_a, problema, estado FROM tickets WHERE id = :id AND area = :area LIMIT 1");
+    // Verifica que el ticket sea del área del admin + trae datos base
+    $stmtCheck = $pdo->prepare("
+        SELECT id, area, asignado_a, problema, estado, user_id
+        FROM tickets
+        WHERE id = :id AND area = :area
+        LIMIT 1
+    ");
     $stmtCheck->execute([':id' => $ticketId, ':area' => $areaAdmin]);
     $ticketBase = $stmtCheck->fetch(PDO::FETCH_ASSOC);
 
     if (!$ticketBase) {
         $_SESSION['flash_err'] = "No tienes permiso para modificar este ticket.";
-        header('Location: /HelpDesk_EQF/modules/dashboard/admin/tickets_area.php');
-        exit;
+        redirectSelf();
     }
 
+    $ticketOwnerId = (int)($ticketBase['user_id'] ?? 0);
+
+    // -----------------------------
     // 1) Asignar / Reasignar
+    // -----------------------------
     if ($accion === 'asignar') {
         $analystId = (int)($_POST['analyst_id'] ?? 0);
         $motivo    = trim($_POST['motivo'] ?? '');
+
         if ($analystId <= 0) {
             $_SESSION['flash_err'] = "Selecciona un analista válido.";
-            header('Location: /HelpDesk_EQF/modules/dashboard/admin/tickets_area.php');
-            exit;
+            redirectSelf();
         }
 
-        // No permitir asignar si ya está cerrado (opcional)
+        // (Opcional) no permitir asignar si ya está cerrado
         if (in_array(($ticketBase['estado'] ?? ''), ['cerrado'], true)) {
             $_SESSION['flash_err'] = "No puedes asignar/reasignar un ticket cerrado.";
-            header('Location: /HelpDesk_EQF/modules/dashboard/admin/tickets_area.php');
-            exit;
+            redirectSelf();
         }
 
         // Analista rol=3 y misma área
-        $stmtA = $pdo->prepare("SELECT id, name, last_name FROM users WHERE id = :id AND rol = 3 AND area = :area LIMIT 1");
+        $stmtA = $pdo->prepare("
+            SELECT id, name, last_name
+            FROM users
+            WHERE id = :id AND rol = 3 AND area = :area
+            LIMIT 1
+        ");
         $stmtA->execute([':id' => $analystId, ':area' => $areaAdmin]);
         $analista = $stmtA->fetch(PDO::FETCH_ASSOC);
 
         if (!$analista) {
             $_SESSION['flash_err'] = "Ese analista no pertenece a tu área.";
-            header('Location: /HelpDesk_EQF/modules/dashboard/admin/tickets_area.php');
-            exit;
+            redirectSelf();
         }
 
         $fromAnalyst = (int)($ticketBase['asignado_a'] ?? 0);
@@ -118,9 +134,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     fecha_asignacion = COALESCE(fecha_asignacion, NOW())
                 WHERE id = :tid AND area = :area
             ");
-            $stmtUp->execute([':aid' => $analystId, ':tid' => $ticketId, ':area' => $areaAdmin]);
+            $stmtUp->execute([
+                ':aid'  => $analystId,
+                ':tid'  => $ticketId,
+                ':area' => $areaAdmin
+            ]);
 
-            // Log (si ya creaste ticket_assignments_log)
+            // Log (si existe)
+            // Si aún no tienes esta tabla, comenta este bloque.
             $stmtLog = $pdo->prepare("
                 INSERT INTO ticket_assignments_log (ticket_id, from_analyst_id, to_analyst_id, admin_id, motivo)
                 VALUES (:tid, :from_id, :to_id, :admin_id, :motivo)
@@ -134,76 +155,118 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
 
             // Notificación al analista destino
-            $title = ($fromAnalyst > 0) ? "Ticket reasignado #{$ticketId}" : "Nuevo ticket asignado #{$ticketId}";
-            $body  = "Problema: " . (string)($ticketBase['problema'] ?? '');
-            if ($motivo !== '') $body .= " | Motivo: {$motivo}";
-            $link  = "/HelpDesk_EQF/modules/dashboard/analyst/analyst.php?open_ticket={$ticketId}";
+            $body = "Se te asignó el ticket #{$ticketId}.";
+            if ($motivo !== '') $body .= " Motivo: " . mb_substr($motivo, 0, 180);
 
-            $stmtNotif = $pdo->prepare("
-                INSERT INTO notifications (user_id, type, title, body, link, is_read)
-                VALUES (:user_id, :type, :title, :body, :link, 0)
-            ");
-            $stmtNotif->execute([
-                ':user_id' => $analystId,
-                ':type'    => 'ticket_assigned',
-                ':title'   => $title,
-                ':body'    => mb_substr($body, 0, 255),
-                ':link'    => $link
-            ]);
+            notify_user(
+                $pdo,
+                $analystId,
+                'ticket_assigned',
+                'Ticket asignado',
+                $body,
+                "/HelpDesk_EQF/modules/dashboard/analyst/analyst.php?open_ticket={$ticketId}"
+            );
+
+            // Si fue reasignación real, avisar al anterior
+            if ($fromAnalyst > 0 && $fromAnalyst !== $analystId) {
+                notify_user(
+                    $pdo,
+                    $fromAnalyst,
+                    'ticket_reassigned',
+                    'Ticket reasignado',
+                    "El ticket #{$ticketId} fue reasignado a otro analista.",
+                    "/HelpDesk_EQF/modules/dashboard/analyst/analyst.php"
+                );
+            }
 
             $pdo->commit();
 
-            $nombreA = trim(($analista['name'] ?? '').' '.($analista['last_name'] ?? ''));
+            $nombreA = trim(($analista['name'] ?? '') . ' ' . ($analista['last_name'] ?? ''));
             $_SESSION['flash_ok'] = ($fromAnalyst > 0)
                 ? "Ticket #{$ticketId} reasignado a {$nombreA}."
                 : "Ticket #{$ticketId} asignado a {$nombreA}.";
 
-            header('Location: /HelpDesk_EQF/modules/dashboard/admin/tickets_area.php');
-            exit;
+            redirectSelf();
 
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
             $_SESSION['flash_err'] = "Error al asignar: " . $e->getMessage();
-            header('Location: /HelpDesk_EQF/modules/dashboard/admin/tickets_area.php');
-            exit;
+            redirectSelf();
         }
     }
 
+    // -----------------------------
     // 2) Cambiar estado
+    // -----------------------------
     if ($accion === 'estado') {
         $estado = $_POST['estado'] ?? '';
         $permitidos = ['abierto','en_proceso','resuelto','cerrado'];
 
         if (!in_array($estado, $permitidos, true)) {
             $_SESSION['flash_err'] = "Estado inválido.";
-            header('Location: /HelpDesk_EQF/modules/dashboard/admin/tickets_area.php');
-            exit;
+            redirectSelf();
         }
 
-        // Si lo cierras, marca fecha_resolucion (opcional)
-        if ($estado === 'resuelto' || $estado === 'cerrado') {
-            $stmtUp = $pdo->prepare("
-                UPDATE tickets
-                SET estado = :estado,
-                    fecha_resolucion = COALESCE(fecha_resolucion, NOW())
-                WHERE id = :tid AND area = :area
-            ");
-        } else {
-            $stmtUp = $pdo->prepare("
-                UPDATE tickets
-                SET estado = :estado
-                WHERE id = :tid AND area = :area
-            ");
+        try {
+            $pdo->beginTransaction();
+
+            if ($estado === 'resuelto' || $estado === 'cerrado') {
+                $stmtUp = $pdo->prepare("
+                    UPDATE tickets
+                    SET estado = :estado,
+                        fecha_resolucion = COALESCE(fecha_resolucion, NOW())
+                    WHERE id = :tid AND area = :area
+                ");
+            } else {
+                $stmtUp = $pdo->prepare("
+                    UPDATE tickets
+                    SET estado = :estado
+                    WHERE id = :tid AND area = :area
+                ");
+            }
+
+            $stmtUp->execute([':estado' => $estado, ':tid' => $ticketId, ':area' => $areaAdmin]);
+
+            // Notificar al analista asignado (si existe)
+            $aid = (int)($ticketBase['asignado_a'] ?? 0);
+            if ($aid > 0) {
+                notify_user(
+                    $pdo,
+                    $aid,
+                    'ticket_status',
+                    'Estado actualizado',
+                    "El ticket #{$ticketId} cambió a: " . estadoLabel($estado),
+                    "/HelpDesk_EQF/modules/dashboard/analyst/analyst.php?open_ticket={$ticketId}"
+                );
+            }
+
+            // Si se resolvió o cerró, notificar al dueño (si existe)
+            if (($estado === 'resuelto' || $estado === 'cerrado') && $ticketOwnerId > 0) {
+                notify_user(
+                    $pdo,
+                    $ticketOwnerId,
+                    'ticket_status',
+                    'Tu ticket fue actualizado',
+                    "Tu ticket #{$ticketId} cambió a: " . estadoLabel($estado),
+                    "/HelpDesk_EQF/modules/dashboard/user/user.php?open_ticket={$ticketId}"
+                );
+            }
+
+            $pdo->commit();
+
+            $_SESSION['flash_ok'] = "Estado del ticket #{$ticketId} actualizado.";
+            redirectSelf();
+
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            $_SESSION['flash_err'] = "Error al actualizar estado: " . $e->getMessage();
+            redirectSelf();
         }
-
-        $stmtUp->execute([':estado' => $estado, ':tid' => $ticketId, ':area' => $areaAdmin]);
-
-        $_SESSION['flash_ok'] = "Estado del ticket #{$ticketId} actualizado.";
-        header('Location: /HelpDesk_EQF/modules/dashboard/admin/tickets_area.php');
-        exit;
     }
 
+    // -----------------------------
     // 3) Canalizar PRO
+    // -----------------------------
     if ($accion === 'canalizar') {
         $nuevaArea = trim($_POST['nueva_area'] ?? '');
         $motivo    = trim($_POST['motivo'] ?? '');
@@ -213,13 +276,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!in_array($nuevaArea, $areasPermitidas, true)) {
             $_SESSION['flash_err'] = "Área destino inválida.";
-            header('Location: /HelpDesk_EQF/modules/dashboard/admin/tickets_area.php');
-            exit;
+            redirectSelf();
         }
         if ($nuevaArea === $areaAdmin) {
             $_SESSION['flash_err'] = "El ticket ya pertenece a tu área.";
-            header('Location: /HelpDesk_EQF/modules/dashboard/admin/tickets_area.php');
-            exit;
+            redirectSelf();
         }
         if ($motivo !== '' && mb_strlen($motivo) > 255) {
             $motivo = mb_substr($motivo, 0, 255);
@@ -326,7 +387,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':area_actual' => $areaAdmin,
             ]);
 
-            // E) NOTIFICAR a Admin + Analistas del área destino (rol 2 y 3)
+            // E) Notificar a Admin + Analistas del área destino
             $stmtUsers = $pdo->prepare("
                 SELECT id
                 FROM users
@@ -336,46 +397,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmtUsers->execute([':area' => $nuevaArea]);
             $destinatarios = $stmtUsers->fetchAll(PDO::FETCH_COLUMN);
 
-            if ($destinatarios) {
-                $link  = '/HelpDesk_EQF/modules/dashboard/admin/tickets_area.php?estado=abierto';
-                $title = 'Ticket canalizado';
-                $body  = "Ticket #{$ticketId} canalizado a tu área ({$nuevaArea}).";
-                if (!empty($motivo)) $body .= " Motivo: {$motivo}";
+            $body  = "Ticket #{$ticketId} canalizado a tu área ({$nuevaArea}).";
+            if (!empty($motivo)) $body .= " Motivo: {$motivo}";
 
-                $stmtNotif = $pdo->prepare("
-                    INSERT INTO notifications (user_id, type, title, body, link, is_read)
-                    VALUES (:user_id, :type, :title, :body, :link, 0)
-                ");
-
-                foreach ($destinatarios as $uid) {
-                    $stmtNotif->execute([
-                        ':user_id' => (int)$uid,
-                        ':type'    => 'ticket_transfer',
-                        ':title'   => $title,
-                        ':body'    => mb_substr($body, 0, 255),
-                        ':link'    => $link
-                    ]);
-                }
-            }
+            notify_many(
+                $pdo,
+                $destinatarios,
+                'ticket_transfer',
+                'Ticket canalizado',
+                $body,
+                "/HelpDesk_EQF/modules/dashboard/admin/tickets_area.php?estado=abierto"
+            );
 
             $pdo->commit();
 
             $_SESSION['flash_ok'] = "Ticket #{$ticketId} canalizado a {$nuevaArea} (PRO) y se guardó trazabilidad.";
-            header('Location: /HelpDesk_EQF/modules/dashboard/admin/tickets_area.php');
-            exit;
+            redirectSelf();
 
         } catch (Throwable $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
             $_SESSION['flash_err'] = "Error al canalizar: " . $e->getMessage();
-            header('Location: /HelpDesk_EQF/modules/dashboard/admin/tickets_area.php');
-            exit;
+            redirectSelf();
         }
     }
 
-    // Acción desconocida
     $_SESSION['flash_err'] = "Acción inválida.";
-    header('Location: /HelpDesk_EQF/modules/dashboard/admin/tickets_area.php');
-    exit;
+    redirectSelf();
 }
 
 // -----------------------------
@@ -538,7 +585,7 @@ include __DIR__ . '/../../../template/sidebar.php';
           <tbody>
           <?php foreach ($tickets as $t): ?>
             <?php $hasAnalyst = ((int)($t['asignado_a'] ?? 0) > 0); ?>
-            <tr data-ticket-id="<?php echo (int)$t['id']; ?>" data-analyst-id="<?php echo (int)($t['asignado_a'] ?? 0); ?>">
+            <tr>
               <td><?php echo (int)$t['id']; ?></td>
               <td><?php echo h($t['fecha_envio'] ?? ''); ?></td>
               <td>
@@ -548,7 +595,7 @@ include __DIR__ . '/../../../template/sidebar.php';
               <td><?php echo h(problemaLabel((string)$t['problema'])); ?></td>
               <td><?php echo h(prioridadLabel($t['prioridad'] ?? null)); ?></td>
               <td><?php echo h(estadoLabel($t['estado'] ?? null)); ?></td>
-              <td class="td-analyst">
+              <td>
                 <?php
                 if (!empty($t['analyst_name'])) {
                   echo h($t['analyst_name'] . ' ' . $t['analyst_last']);

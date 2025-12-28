@@ -15,14 +15,24 @@ $sinceId = isset($_GET['since_id']) ? (int)$_GET['since_id'] : 0;
 $limit   = isset($_GET['limit']) ? (int)$_GET['limit'] : 10;
 if ($limit < 1 || $limit > 30) $limit = 10;
 
-$pdo = Database::getConnection();
-
 try {
-    // OJO: si tu columna es user_ide, cambia "user_id" por "user_ide"
-    $stmt = $pdo->prepare("
-        SELECT id, type, title, body, link, created_at
+    $pdo = Database::getConnection();
+
+    // 1) contador de no leídas (para badge)
+    $stmtCount = $pdo->prepare("
+        SELECT COUNT(*)
         FROM notifications
-        WHERE user_id = :uid
+        WHERE user_ide = :uid
+          AND is_read = 0
+    ");
+    $stmtCount->execute([':uid' => $userId]);
+    $unread = (int)$stmtCount->fetchColumn();
+
+    // 2) nuevas no leídas desde since_id
+    $stmt = $pdo->prepare("
+        SELECT id, type, title, body, link, is_read, created_at
+        FROM notifications
+        WHERE user_ide = :uid
           AND is_read = 0
           AND id > :since_id
         ORDER BY id ASC
@@ -34,12 +44,16 @@ try {
     ]);
 
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
     $maxId = $sinceId;
-    foreach ($rows as $r) $maxId = max($maxId, (int)$r['id']);
+    foreach ($rows as $r) {
+        $maxId = max($maxId, (int)$r['id']);
+    }
 
     echo json_encode([
         'ok' => true,
         'max_id' => $maxId,
+        'unread' => $unread,
         'notifications' => $rows
     ], JSON_UNESCAPED_UNICODE);
     exit;

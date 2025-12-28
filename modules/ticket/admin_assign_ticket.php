@@ -84,18 +84,21 @@ try {
   ");
   $stUp->execute([':aid'=>$toAnalyst, ':tid'=>$ticketId]);
 
-  // 4) log asignación / reasignación
-  $stLog = $pdo->prepare("
-    INSERT INTO ticket_assignments_log (ticket_id, from_analyst_id, to_analyst_id, admin_id, motivo)
-    VALUES (:tid, :from_id, :to_id, :admin_id, :motivo)
-  ");
-  $stLog->execute([
+  // 4) Log (ticket_assignments_log)
+$stmtLog = $pdo->prepare("
+    INSERT INTO ticket_assignments_log
+        (ticket_id, from_analyst_id, to_analyst_id, admin_id, motivo, created_at)
+    VALUES
+        (:tid, :from_id, :to_id, :admin_id, :motivo, NOW())
+");
+$stmtLog->execute([
     ':tid'      => $ticketId,
-    ':from_id'  => $fromAnalyst ?: null,
-    ':to_id'    => $toAnalyst,
-    ':admin_id' => $adminId,
-    ':motivo'   => ($motivo !== '' ? $motivo : null),
-  ]);
+    ':from_id'  => ($fromAnalyst > 0 ? $fromAnalyst : null),
+    ':to_id'    => $analystId,
+    ':admin_id' => $userId,
+    ':motivo'   => ($motivo !== '' ? mb_substr($motivo, 0, 255) : null),
+]);
+
 
   // 5) notificación al analista destino
   $title = ($fromAnalyst > 0) ? "Ticket reasignado #{$ticketId}" : "Nuevo ticket asignado #{$ticketId}";
