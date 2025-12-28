@@ -34,42 +34,76 @@ if (!$feedback) {
 <input type="hidden" name="token" value="<?= htmlspecialchars($token) ?>">
 
 <h4>¿Cómo calificas la atención recibida?</h4>
+<div class="rating-group">
+  <label class="btn-rating malo">
+    <input type="radio" name="q1" value="1" required>
+    <div class="content">
+      <img src="../../assets/img/feedback_bad.png" alt="Malo">
+      <span>Malo</span>
+    </div>
+  </label>
+<label class="btn-rating regular">
+    <input type="radio" name="q1" value="2">
+    <div class="content">
+      <img src="../../assets/img/feedback_reg.png" alt="Regular">
+      <span>Regular</span>
+    </div>
+  </label>
 <label>
-  <input type="radio" name="q1" value="1" required>
-  Malo
-</label>
-<label>
-  <input type="radio" name="q1" value="2">
-  Regular
-</label>
-<label>
-  <input type="radio" name="q1" value="3">
-  Bueno
-</label>
+<label class="btn-rating bueno">
+    <input type="radio" name="q1" value="3">
+    <div class="content">
+      <img src="../../assets/img/feedback_good.png" alt="Bueno">
+      <span>Bueno</span>
+    </div>
+  </label>
+</div>
 
 <h4>¿El problema fue resuelto completamente?</h4>
-<label>
-  <input type="radio" name="q2" value="1" required>
-  No
-</label>
-<label>
-  <input type="radio" name="q2" value="2">
-  Sí
-</label>
+<div class="rating-group">
+  <label class="btn-rating malo">
+    <input type="radio" name="q2" value="1" required>
+    <div class="content">
+      <img src="../../assets/img/feedback_no.png" alt="No">
+      <span>No</span>
+    </div>
+  </label>
+
+  <label class="btn-rating bueno">
+    <input type="radio" name="q2" value="2">
+    <div class="content">
+      <img src="../../assets/img/feedback_yes.png" alt="Sí">
+      <span>Sí</span>
+    </div>
+  </label>
+</div>
 
 <h4>¿Cómo calificas el tiempo de respuesta?</h4>
-<label>
-  <input type="radio" name="q3" value="1" required>
-  Malo
-</label>
-<label>
-  <input type="radio" name="q3" value="2">
-  Regular
-</label>
-<label>
-  <input type="radio" name="q3" value="3">
-  Bueno
-</label>
+<div class="rating-group">
+  <label class="btn-rating malo">
+    <input type="radio" name="q3" value="1" required>
+    <div class="content">
+      <img src="../../assets/img/feedback_bad.png" alt="Lento">
+      <span>Malo</span>
+    </div>
+  </label>
+
+  <label class="btn-rating regular">
+    <input type="radio" name="q3" value="2">
+    <div class="content">
+      <img src="../../assets/img/feedback_reg.png" alt="Normal">
+      <span>Regular</span>
+    </div>
+  </label>
+
+  <label class="btn-rating bueno">
+    <input type="radio" name="q3" value="3">
+    <div class="content">
+      <img src="../../assets/img/feedback_good.png" alt="Rápido">
+      <span>Bueno</span>
+    </div>
+  </label>
+</div>
 
 <textarea name="comment" placeholder="Comentarios (opcional)"></textarea>
 

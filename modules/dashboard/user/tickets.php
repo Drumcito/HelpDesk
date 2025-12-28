@@ -61,10 +61,6 @@ function problemaLabel(string $p): string {
                         Tus tickets, <?php echo htmlspecialchars($userName, ENT_QUOTES, 'UTF-8'); ?>.
                     </p>
                 </div>
-                <button type="button" class="btn-secondary"
-                        onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/user/user.php'">
-                    ⬅ Volver al inicio
-                </button>
             </header>
 
             <section class="user-main-content">

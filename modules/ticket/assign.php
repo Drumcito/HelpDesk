@@ -4,14 +4,12 @@ require_once __DIR__ . '/../../config/connectionBD.php';
 
 header('Content-Type: application/json');
 
-// Solo POST
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     echo json_encode(['ok' => false, 'msg' => 'Método no permitido']);
     exit;
 }
 
-// Solo analistas (rol = 3)
 if (!isset($_SESSION['user_id']) || (int)($_SESSION['user_rol'] ?? 0) !== 3) {
     http_response_code(403);
     echo json_encode(['ok' => false, 'msg' => 'No autorizado']);
@@ -31,8 +29,6 @@ if ($ticketId <= 0) {
 $pdo = Database::getConnection();
 
 try {
-    // IMPORTANTE: usamos transacción para que la asignación + notificación
-    // se manejen de forma consistente.
     $pdo->beginTransaction();
 
     // 1) Asignar solo si sigue abierto y sin analista
@@ -51,7 +47,6 @@ try {
     ]);
 
     if ($stmt->rowCount() === 0) {
-        // Nada se actualizó → alguien más lo tomó o cambió de estado
         $pdo->rollBack();
         echo json_encode([
             'ok'  => false,
@@ -60,9 +55,10 @@ try {
         exit;
     }
 
-    // 2) Obtener datos básicos del ticket para poder notificar al usuario
+    // 2) Leer ticket actualizado (para responder al front)
     $stmtTicket = $pdo->prepare("
-        SELECT user_id, nombre
+        SELECT id, user_id, sap, nombre, area, email, problema, prioridad, descripcion,
+               fecha_envio, estado, asignado_a, fecha_asignacion
         FROM tickets
         WHERE id = :id
         LIMIT 1
@@ -70,43 +66,56 @@ try {
     $stmtTicket->execute([':id' => $ticketId]);
     $ticketRow = $stmtTicket->fetch(PDO::FETCH_ASSOC);
 
-    $userIdTicket = $ticketRow['user_id'] ?? null;
-
-    // 3) Insertar notificación para el usuario (si tenemos user_id)
-    if ($userIdTicket) {
-        $mensaje = sprintf(
-            'Tu ticket #%d será atendido por %s.',
-            $ticketId,
-            $analystName !== '' ? $analystName : 'un analista'
-        );
-
-        // Tabla sugerida: ticket_notifications
-        $stmtNotif = $pdo->prepare("
-            INSERT INTO ticket_notifications (ticket_id, user_id, mensaje, leido)
-            VALUES (:ticket_id, :user_id, :mensaje, 0)
-        ");
-        $stmtNotif->execute([
-            ':ticket_id' => $ticketId,
-            ':user_id'   => $userIdTicket,
-            ':mensaje'   => $mensaje
-        ]);
+    if (!$ticketRow) {
+        $pdo->rollBack();
+        http_response_code(404);
+        echo json_encode(['ok' => false, 'msg' => 'Ticket no encontrado']);
+        exit;
     }
+
+    $userIdTicket = (int)$ticketRow['user_id'];
+
+    // 3) Notificación a usuario
+    $mensaje = sprintf(
+        'Tu ticket #%d será atendido por %s.',
+        $ticketId,
+        $analystName !== '' ? $analystName : 'un analista'
+    );
+
+    // Ajusta campos según tu tabla real:
+    // - tú aquí usas "leido"
+    $stmtNotif = $pdo->prepare("
+        INSERT INTO ticket_notifications (ticket_id, user_id, mensaje, leido)
+        VALUES (:ticket_id, :user_id, :mensaje, 0)
+    ");
+    $stmtNotif->execute([
+        ':ticket_id' => $ticketId,
+        ':user_id'   => $userIdTicket,
+        ':mensaje'   => $mensaje
+    ]);
 
     $pdo->commit();
 
     echo json_encode([
         'ok'      => true,
         'msg'     => 'Ticket asignado correctamente.',
-        'ticket_id' => $ticketId,
+        'ticket'  => [
+            'id'               => (int)$ticketRow['id'],
+            'problema_raw'     => (string)$ticketRow['problema'],
+            'prioridad'        => (string)$ticketRow['prioridad'],
+            'estado'           => (string)$ticketRow['estado'], // en_proceso
+            'fecha_envio'      => (string)$ticketRow['fecha_envio'],
+            'fecha_asignacion' => (string)$ticketRow['fecha_asignacion'],
+            'usuario'          => (string)$ticketRow['nombre'],
+            'sap'              => (string)$ticketRow['sap'],
+            'area'             => (string)$ticketRow['area'],
+        ],
         'analyst' => $analystName
     ]);
     exit;
 
 } catch (Exception $e) {
-    if ($pdo->inTransaction()) {
-        $pdo->rollBack();
-    }
-
+    if ($pdo->inTransaction()) $pdo->rollBack();
     error_log('Error asignando ticket: ' . $e->getMessage());
     http_response_code(500);
     echo json_encode(['ok' => false, 'msg' => 'Error interno al asignar el ticket.']);

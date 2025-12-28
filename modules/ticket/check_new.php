@@ -55,14 +55,14 @@ try {
     };
 
     echo json_encode([
-        'new'          => true,
-        'id'           => (int)$ticket['id'],
-        'problema'     => $problemaLabel,      // para mostrar en tabla / notificación
-        'problema_raw' => $p,                  // por si luego quieres el código crudo
-        'fecha'        => $ticket['fecha_envio'],
-        'usuario'      => $ticket['nombre'],
-        'descripcion'  => $ticket['descripcion']
-    ]);
+  'new'          => true,
+  'id'           => (int)$ticket['id'],
+  'problema_raw' => $p,
+  'fecha'        => $ticket['fecha_envio'],
+  'usuario'      => $ticket['nombre'],
+  'descripcion'  => $ticket['descripcion']
+]);
+
     exit;
 
 } catch (Exception $e) {

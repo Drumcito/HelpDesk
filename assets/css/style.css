@@ -873,7 +873,9 @@ body.sidebar-collapsed .sidebar-toggle{
     justify-content: flex-end;
     gap: 8px;
     margin-top: 14px;
+    align-items: stretch;
 }
+
 
 /* ============================================
              ALERTAS CRUD
@@ -2204,3 +2206,56 @@ table.dataTable tbody tr:hover {
   line-height: 42px;
 }
 
+/* Contenedor para que los botones estén en fila */
+.rating-group {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+/* Ocultar el radio button original */
+.btn-rating input[type="radio"] {
+  display: none;
+}
+
+/* Estilo base del botón */
+.btn-rating {
+  cursor: pointer;
+  border: 2px solid #ddd;
+  border-radius: 10px;
+  padding: 10px;
+  text-align: center;
+  transition: all 0.3s ease;
+  width: 100px;
+}
+
+.btn-rating img {
+  width: 40px;
+  display: block;
+  margin: 0 auto 5px;
+}
+
+/* Colores específicos cuando se pasa el mouse (hover) */
+.malo:hover { background-color: #ffebee; border-color: #f44336; }
+.regular:hover { background-color: #fff3e0; border-color: #ff9800; }
+.bueno:hover { background-color: #e8f5e9; border-color: #4caf50; }
+
+/* Efecto cuando el botón está SELECCIONADO (Checked) */
+.btn-rating input[type="radio"]:checked + .content {
+  font-weight: bold;
+}
+
+.malo input[type="radio"]:checked + .content { color: #d32f2f; }
+.malo input[type="radio"]:checked {
+  /* Aplicar color al borde del label */
+}
+
+/* Para pintar el fondo al seleccionar, usamos :has() (navegadores modernos) */
+.btn-rating:has(input:checked) {
+  transform: scale(1.05);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.malo:has(input:checked) { border-color: var(--eqf-red); background-color: var(--eqf-red); color: white; }
+.regular:has(input:checked) { border-color: var(--eqf-yellow); background-color: var(--eqf-yellow); color: white; }
+.bueno:has(input:checked) { border-color: var(--eqf-green); background-color: var(--eqf-green); color: white; }
