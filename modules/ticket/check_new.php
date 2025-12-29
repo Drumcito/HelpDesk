@@ -27,7 +27,7 @@ try {
             t.prioridad
         FROM tickets t
         LEFT JOIN catalog_problems cp
-               ON cp.code = t.problema
+               ON cp.id = t.problema
         WHERE t.area = :area
           AND t.estado = 'abierto'
           AND (t.asignado_a IS NULL OR t.asignado_a = 0)

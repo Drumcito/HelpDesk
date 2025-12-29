@@ -41,7 +41,6 @@ $stmtKpi = $pdo->prepare("
     SELECT 
         SUM(estado = 'abierto')      AS abiertos,
         SUM(estado = 'en_proceso')   AS en_proceso,
-        SUM(estado = 'resuelto')     AS resueltos,
         SUM(estado = 'cerrado')      AS cerrados,
         COUNT(*)                     AS total
     FROM tickets
@@ -51,7 +50,6 @@ $stmtKpi->execute([':area' => $userArea]);
 $kpi = $stmtKpi->fetch() ?: [
     'abiertos'    => 0,
     'en_proceso'  => 0,
-    'resueltos'   => 0,
     'cerrados'    => 0,
     'total'       => 0,
 ];
@@ -65,7 +63,7 @@ $stmtIncoming = $pdo->prepare("
         t.descripcion, t.fecha_envio, t.estado, t.prioridad
     FROM tickets t
     LEFT JOIN catalog_problems cp
-           ON cp.code = t.problema
+           ON cp.id = t.problema
     WHERE t.area = :area
       AND t.estado = 'abierto'
       AND (t.asignado_a IS NULL OR t.asignado_a = 0)
@@ -219,7 +217,7 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC);
 
             <!-- ENTRANTES -->
             <div id="incoming-section" class="user-info-card">
-                <h3>Tickets entrantes (sin asignar)</h3>
+                <h3>Tickets entrantes</h3>
 
                 <table id="incomingTable" class="data-table display">
                     <thead>
@@ -251,7 +249,7 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC);
                                     <button type="button"
                                             class="btn-mini"
                                             onclick="openTicketDetail(<?php echo (int)$t['id']; ?>)">
-                                      Ver
+                                      Previsualizar
                                     </button>
 
                                     <button type="button"
@@ -303,7 +301,6 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC);
                                     >
                                         <option value="abierto"    <?php if ($t['estado'] === 'abierto')    echo 'selected'; ?>>Abierto</option>
                                         <option value="en_proceso" <?php if ($t['estado'] === 'en_proceso') echo 'selected'; ?>>En proceso</option>
-                                        <option value="resuelto"   <?php if ($t['estado'] === 'resuelto')   echo 'selected'; ?>>Resuelto</option>
                                         <option value="cerrado"    <?php if ($t['estado'] === 'cerrado')    echo 'selected'; ?>>Cerrado</option>
                                     </select>
                                 </td>
@@ -346,7 +343,7 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC);
       </div>
       <div class="modal-actions" style="margin-top:14px; display:flex; gap:10px; justify-content:flex-end;">
         <button type="button" class="btn-secondary" onclick="closeTicketDetail()">Cerrar</button>
-        <button type="button" class="btn-login" id="ticketDetailChatBtn" style="display:none;">Abrir chat</button>
+        <button type="button"  class="btn-primary" id="ticketDetailChatBtn" style="display:none;">Abrir chat</button>
       </div>
     </div>
   </div>
@@ -374,7 +371,7 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC);
             <div class="ticket-chat-input-row">
                 <input type="file" id="ticketChatFile" name="adjunto" class="ticket-chat-file"
                        accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,.csv" style="width:100%">
-                <button type="submit" class="btn-login" style="min-width: 60px;">Enviar</button>
+                <button type="submit" class="btn-primary" style="min-width: 60px;">Enviar</button>
             </div>
         </form>
     </div>
@@ -860,7 +857,6 @@ document.addEventListener('DOMContentLoaded', function () {
                       data-prev="en_proceso">
                 <option value="abierto">Abierto</option>
                 <option value="en_proceso" selected>En proceso</option>
-                <option value="resuelto">Resuelto</option>
                 <option value="cerrado">Cerrado</option>
               </select>
             `;

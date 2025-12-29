@@ -102,22 +102,7 @@ $tickets = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 </p>
             </div>
 
-            <?php if ($rol === 4): ?>
-                <button type="button" class="btn-secondary"
-                        onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/user/user.php'">
-                    ⬅ Volver al inicio
-                </button>
-            <?php elseif ($rol === 3): ?>
-                <button type="button" class="btn-secondary"
-                        onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/analyst/analyst.php'">
-                    ⬅ Volver al panel
-                </button>
-            <?php else: ?>
-                <button type="button" class="btn-secondary"
-                        onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/sa/sa.php'">
-                    ⬅ Volver al panel
-                </button>
-            <?php endif; ?>
+            
         </header>
 
         <section class="user-main-content">

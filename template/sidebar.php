@@ -204,19 +204,9 @@ onclick="toggleSidebar()" aria-label="Abrir/cerrar menú">
 
         <?php elseif ($rol === 3): ?>
             <!-- ================= ANALISTA ================= -->
-            <button type="button" class="user-menu-item" onclick="scrollToSection('analyst-dashboard')">
+            <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/analyst/analyst.php'">
                 <span class="user-menu-icon">⭐</span>
                 <span>Dashboard</span>
-            </button>
-
-            <button type="button" class="user-menu-item" onclick="scrollToSection('incoming-section')">
-                <span class="user-menu-icon">📥</span>
-                <span>Tickets entrantes</span>
-            </button>
-
-            <button type="button" class="user-menu-item" onclick="scrollToSection('mytickets-section')">
-                <span class="user-menu-icon">🧑‍💻</span>
-                <span>Mis tickets</span>
             </button>
 
             <button type="button" class="user-menu-item" 
@@ -229,6 +219,11 @@ onclick="toggleSidebar()" aria-label="Abrir/cerrar menú">
                 onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/shared/internal_notes.php'">
                 <span class="user-menu-icon">📝</span>
                 <span>Notas</span>
+            </button>
+            <button type="button" class="user-menu-item" 
+                onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/analyst/tasks.php'">
+                <span class="user-menu-icon">📋</span>
+                <span>Tareas</span>
             </button>
 
             <button type="button" class="user-menu-item" 

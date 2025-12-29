@@ -433,3 +433,50 @@ document.addEventListener('click', function(e){
   if(e.target === backdrop) closeTaskModal();
 });
 </script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+  function showToast(msg) {
+    const toast = document.createElement('div');
+    toast.className = 'eqf-toast-ticket';
+    toast.textContent = msg || '';
+    document.body.appendChild(toast);
+
+    setTimeout(() => {
+      toast.classList.add('hide');
+      setTimeout(() => toast.remove(), 300);
+    }, 3000);
+  }
+
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+
+  function pollStaffNotifications() {
+    fetch('/HelpDesk_EQF/modules/notifications/check_staff_notifications.php')
+      .then(r => r.json())
+      .then(data => {
+        if (!data.ok || !data.has) return;
+        if (!Array.isArray(data.notifications)) return;
+
+        data.notifications.forEach(n => {
+          const title = n.title || 'HelpDesk EQF';
+          const body  = n.body  || 'Tienes una notificación nueva.';
+          showToast(body);
+
+          if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification(title, {
+              body,
+              icon: '/HelpDesk_EQF/assets/img/icon_helpdesk.png'
+            });
+          }
+        });
+      })
+      .catch(()=>{});
+  }
+
+  pollStaffNotifications();
+  setInterval(pollStaffNotifications, 10000);
+});
+</script>
+

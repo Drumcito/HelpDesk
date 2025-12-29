@@ -128,7 +128,6 @@ try {
     $estadoLabel = match ($newStatus) {
         'abierto'     => 'Abierto',
         'en_proceso'  => 'En proceso',
-        'resuelto'    => 'Resuelto',
         'cerrado'     => 'Cerrado',
         default       => $newStatus
     };

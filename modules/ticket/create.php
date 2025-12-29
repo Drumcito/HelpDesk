@@ -30,13 +30,26 @@ try {
     $email        = $_POST['email'] ?? '';
     $problema     = $_POST['problema'] ?? '';
     $descripcion  = $_POST['descripcion'] ?? '';
-    $prioridad    = $_POST['prioridad'] ?? 'media';
+$prioridad = 'alta';
 
+if (is_numeric($problema)) {
+    $stmtP = $pdo->prepare("SELECT code FROM catalog_problems WHERE id = :id LIMIT 1");
+    $stmtP->execute([':id' => (int)$problema]);
+    $code = (string)($stmtP->fetchColumn() ?: '');
+
+    if ($code === 'otro') {
+        $prioridad = 'media';
+    }
+} else {
+    if (trim(strtolower($problema)) === 'otro') {
+        $prioridad = 'media';
+    }
+}
     // Fecha y hora de envío (servidor)
     $fecha_envio = date('Y-m-d H:i:s');
 
     // IMPORTANTE:
-    // En la BD la columna debe llamarse "prioridad" (no "priotidad").
+    // En la BD la columna debe llamarse "prioridad" .
     $sql = "INSERT INTO tickets (
                 user_id,
                 sap,

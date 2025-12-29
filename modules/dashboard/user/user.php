@@ -439,7 +439,7 @@ foreach ($openTickets as $t) {
                        accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,.csv"
                        style="width:100%">
 
-                <button type="submit" class="btn-login" style="min-width: 60px;">Enviar</button>
+                <button type="submit" class="btn-primary" style="min-width: 60px;">Enviar</button>
             </div>
         </form>
     </div>
@@ -465,8 +465,7 @@ foreach ($openTickets as $t) {
 
       <div class="modal-actions" style="margin-top:14px; display:flex; gap:10px; justify-content:flex-end;">
         <button type="button" class="btn-secondary" onclick="resetFeedbackWizard()">Reiniciar</button>
-        <button type="button" class="btn-secondary" onclick="prevFeedbackStep()">Atrás</button>
-        <button type="button" class="btn-login" id="feedbackNextBtn" onclick="nextFeedbackStep()">Siguiente</button>
+        <button type="button" class="btn-primary" id="feedbackNextBtn" onclick="nextFeedbackStep()">Siguiente</button>
       </div>
     </div>
   </div>
@@ -1207,6 +1206,22 @@ setInterval(pollUserUnread, 7000);
 pollUserUnread();
 
 
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const problema = document.getElementById('problemaSelect');
+  const prio = document.getElementById('prioridadValue');
+
+  function syncPriority(){
+    const val = (problema?.value || '');
+    prio.value = (val === 'otro') ? 'media' : (val ? 'alta' : 'media');
+  }
+
+  if (problema) {
+    problema.addEventListener('change', syncPriority);
+    syncPriority();
+  }
+});
 </script>
 
 </body>
