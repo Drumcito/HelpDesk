@@ -206,7 +206,7 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC);
                     </div>
                     <div class="kpi-card kpi-yellow">
                         <span class="kpi-label">Resueltos</span>
-                        <span class="kpi-value" id="kpiResueltos"><?php echo (int)$kpi['resueltos']; ?></span>
+                        <span class="kpi-value" id="kpiResueltos"><?php echo (int)$kpi['cerrados']; ?></span>
                     </div>
                     <div class="kpi-card kpi-gray">
                         <span class="kpi-label">Total</span>

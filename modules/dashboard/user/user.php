@@ -12,7 +12,7 @@ if (isset($_GET['created'])) {
     $alerts[] = [
         'type' => 'success',
         'icon' => 'capsulin_add.png',
-        'text' => 'TICKET REGISTRADO EXITOSAMENTE, EN BREVE TE ATENDEREMOS'
+        'text' => 'TICKET REGISTRADO EXITOSAMENTE'
     ];
 }
 if (isset($_GET['deleted'])) {
@@ -304,7 +304,7 @@ foreach ($openTickets as $t) {
                                         <button type="button"
                                                 class="btn-main-combined"
                                                 style="padding:6px 14px; font-size:0.75rem;"
-                                                onclick="openFeedbackWizard(
+                                                onclick="openFeedbackIframe(
                                                     '<?php echo htmlspecialchars((string)$t['feedback_token'], ENT_QUOTES, 'UTF-8'); ?>',
                                                     <?php echo $ticketId; ?>,
                                                     '<?php echo htmlspecialchars($problemLabel, ENT_QUOTES, 'UTF-8'); ?>'
@@ -445,31 +445,25 @@ foreach ($openTickets as $t) {
     </div>
 </div>
 
-<!-- MODAL FEEDBACK -->
+<!-- MODAL FEEDBACK (usa feedback.php) -->
 <div class="modal-backdrop" id="feedback-modal">
-  <div class="modal-card" style="max-width:520px;">
+  <div class="modal-card" style="max-width:780px; width:min(92vw,780px);">
     <div class="modal-header">
       <h3 id="feedbackTitle">Encuesta de satisfacción</h3>
-      <button type="button" class="modal-close" onclick="closeFeedbackWizard()">✕</button>
+      <button type="button" class="modal-close" onclick="closeFeedbackIframe()">✕</button>
     </div>
 
-    <div class="modal-body" style="padding: 14px 18px;">
-      <div id="feedbackStepInfo" style="font-weight:700; margin-bottom:10px;">Pregunta 1/3</div>
-      <div id="feedbackQuestion" style="margin-bottom:12px; font-size:14px;"></div>
-      <div id="feedbackOptions" class="feedback-options"></div>
-
-      <div id="feedbackCommentWrap" style="display:none; margin-top:12px;">
-        <label style="display:block; font-weight:700; margin-bottom:6px;">Comentarios (opcional)</label>
-        <textarea id="feedbackComment" rows="3" style="width:100%;"></textarea>
-      </div>
-
-      <div class="modal-actions" style="margin-top:14px; display:flex; gap:10px; justify-content:flex-end;">
-        <button type="button" class="btn-secondary" onclick="resetFeedbackWizard()">Reiniciar</button>
-        <button type="button" class="btn-primary" id="feedbackNextBtn" onclick="nextFeedbackStep()">Siguiente</button>
-      </div>
+    <div class="modal-body" style="padding:0; height:520px;">
+      <iframe
+        id="feedbackFrame"
+        src="about:blank"
+        style="width:100%; height:520px; border:0; border-radius:0 0 18px 18px; background:#fff;"
+        loading="lazy"
+      ></iframe>
     </div>
   </div>
 </div>
+
 
 <script>
 function openTicketModal() {
@@ -521,8 +515,6 @@ fetch('/HelpDesk_EQF/modules/ticket/mark_read.php', {
   const btn = document.querySelector(`[data-chat-btn][data-ticket-id="${ticketId}"] .chat-badge`);
   if (btn){ btn.style.display='none'; btn.textContent=''; }
 }).catch(()=>{});
-
-
 
 }
 
@@ -655,134 +647,34 @@ function sendTicketMessage(ev) {
 </script>
 
 <script>
-/* ===========================
-   FEEDBACK WIZARD
-=========================== */
-let FEEDBACK = { token:null, ticketId:null, title:'', step:1, q1:0, q2:0, q3:0 };
+function openFeedbackIframe(token, ticketId, title){
+  const frame = document.getElementById('feedbackFrame');
+  const t = document.getElementById('feedbackTitle');
 
-function openFeedbackWizard(token, ticketId, title){
-  FEEDBACK.token = token;
-  FEEDBACK.ticketId = ticketId;
-  FEEDBACK.title = title || '';
-  FEEDBACK.step = 1;
-  FEEDBACK.q1 = 0; FEEDBACK.q2 = 0; FEEDBACK.q3 = 0;
+  if (t){
+    t.textContent = 'Encuesta – Ticket #' + ticketId + (title ? ' · ' + title : '');
+  }
 
-  document.getElementById('feedbackTitle').textContent =
-    'Encuesta – Ticket #' + ticketId + (title ? ' · ' + title : '');
-
-  document.getElementById('feedbackComment').value = '';
-  document.getElementById('feedbackCommentWrap').style.display = 'none';
-  document.getElementById('feedbackNextBtn').textContent = 'Siguiente';
-
-  renderFeedbackStep();
+  // carga el feedback.php real
+  if (frame){
+    frame.src = '/HelpDesk_EQF/modules/feedback/feedback.php?token=' + encodeURIComponent(token);
+  }
 
   const modal = document.getElementById('feedback-modal');
   if (typeof openModal === 'function') openModal('feedback-modal');
-  else modal.classList.add('show');
+  else if (modal) modal.classList.add('show');
 }
 
-function closeFeedbackWizard(){
+function closeFeedbackIframe(){
   const modal = document.getElementById('feedback-modal');
   if (typeof closeModal === 'function') closeModal('feedback-modal');
-  else modal.classList.remove('show');
+  else if (modal) modal.classList.remove('show');
+
+  // opcional: limpia el iframe para que no se quede “pegado”
+  const frame = document.getElementById('feedbackFrame');
+  if (frame) frame.src = 'about:blank';
 }
 
-function resetFeedbackWizard(){
-  FEEDBACK.step = 1;
-  FEEDBACK.q1 = 0; FEEDBACK.q2 = 0; FEEDBACK.q3 = 0;
-  document.getElementById('feedbackComment').value = '';
-  document.getElementById('feedbackCommentWrap').style.display = 'none';
-  document.getElementById('feedbackNextBtn').textContent = 'Siguiente';
-  renderFeedbackStep();
-}
-
-function prevFeedbackStep(){
-  if (FEEDBACK.step <= 1) return;
-  FEEDBACK.step--;
-  document.getElementById('feedbackCommentWrap').style.display = (FEEDBACK.step === 3) ? 'block' : 'none';
-  document.getElementById('feedbackNextBtn').textContent = (FEEDBACK.step === 3) ? 'Enviar' : 'Siguiente';
-  renderFeedbackStep();
-}
-
-function nextFeedbackStep(){
-  if (FEEDBACK.step === 1 && FEEDBACK.q1 === 0) return alert('Selecciona una opción.');
-  if (FEEDBACK.step === 2 && FEEDBACK.q2 === 0) return alert('Selecciona una opción.');
-  if (FEEDBACK.step === 3 && FEEDBACK.q3 === 0) return alert('Selecciona una opción.');
-
-  if (FEEDBACK.step < 3){
-    FEEDBACK.step++;
-    document.getElementById('feedbackCommentWrap').style.display = (FEEDBACK.step === 3) ? 'block' : 'none';
-    document.getElementById('feedbackNextBtn').textContent = (FEEDBACK.step === 3) ? 'Enviar' : 'Siguiente';
-    renderFeedbackStep();
-    return;
-  }
-  submitFeedback();
-}
-
-function renderFeedbackStep(){
-  const info = document.getElementById('feedbackStepInfo');
-  const qEl  = document.getElementById('feedbackQuestion');
-  const opt  = document.getElementById('feedbackOptions');
-
-  info.textContent = 'Pregunta ' + FEEDBACK.step + '/3';
-  opt.innerHTML = '';
-
-  if (FEEDBACK.step === 1){
-    qEl.textContent = '¿Cómo calificas la atención recibida?';
-    renderOptions([
-      {value: 1, label: 'Malo'},
-      {value: 2, label: 'Regular'},
-      {value: 3, label: 'Bueno'},
-    ], FEEDBACK.q1, (v)=>FEEDBACK.q1=v);
-  } else if (FEEDBACK.step === 2){
-    qEl.textContent = '¿El problema fue resuelto completamente?';
-    renderOptions([
-      {value: 2, label: 'Sí'},
-      {value: 1, label: 'No'},
-    ], FEEDBACK.q2, (v)=>FEEDBACK.q2=v);
-  } else {
-    qEl.textContent = '¿Cómo calificas el tiempo de respuesta?';
-    renderOptions([
-      {value: 1, label: 'Malo'},
-      {value: 2, label: 'Regular'},
-      {value: 3, label: 'Bueno'},
-    ], FEEDBACK.q3, (v)=>FEEDBACK.q3=v);
-  }
-}
-
-function renderOptions(items, selected, onPick){
-  const opt = document.getElementById('feedbackOptions');
-
-  items.forEach(it => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'feedback-option-btn' + (selected === it.value ? ' is-active' : '');
-    btn.textContent = it.label; // aquí puedes reemplazar por imagen
-    btn.onclick = () => { onPick(it.value); renderFeedbackStep(); };
-    opt.appendChild(btn);
-  });
-}
-
-function submitFeedback(){
-  const fd = new FormData();
-  fd.append('token', FEEDBACK.token);
-  fd.append('q1', FEEDBACK.q1);
-  fd.append('q2', FEEDBACK.q2);
-  fd.append('q3', FEEDBACK.q3);
-  fd.append('comment', document.getElementById('feedbackComment').value.trim());
-
-  fetch('/HelpDesk_EQF/modules/feedback/submit_feedback.php', { method:'POST', body:fd })
-    .then(r => r.json())
-    .then(data => {
-      if (!data.ok) return alert(data.msg || 'No se pudo enviar');
-      closeFeedbackWizard();
-      window.location.reload();
-    })
-    .catch(err => {
-      console.error(err);
-      alert('Error al enviar la encuesta.');
-    });
-}
 </script>
 
 <?php include __DIR__ . '/../../../template/footer.php'; ?>
@@ -879,7 +771,7 @@ document.addEventListener('DOMContentLoaded', function () {
         ? `<button type="button"
                   class="btn-main-combined"
                   style="padding:6px 14px; font-size:0.75rem;"
-                  onclick="openFeedbackWizard('${escapeAttr(t.feedback_token)}', ${t.id}, '${escapeAttr(t.problema_label)}')">
+                  onclick="openFeedbackIframe('${escapeAttr(t.feedback_token)}', ${t.id}, '${escapeAttr(t.problema_label)}')">
               Encuesta pendiente
            </button>`
         : `<button type="button"
@@ -1042,7 +934,7 @@ function buildTicketLi(t){
     ? `<button type="button"
               class="btn-main-combined"
               style="padding:6px 14px; font-size:0.75rem;"
-              onclick="openFeedbackWizard('${escapeHtml(token)}', ${id}, '${escapeHtml(problema)}')">
+              onclick="openFeedbackIframe('${escapeHtml(token)}', ${id}, '${escapeHtml(problema)}')">
           Encuesta pendiente
        </button>`
     : `<button type="button"
