@@ -2292,3 +2292,33 @@ table.dataTable tbody tr:hover {
 .eqf-btn-secondary{ background:#e5e7eb; color:#111827; }
 .eqf-btn-ghost{ background:transparent; color:#111827; }
 .eqf-btn:disabled{ opacity:.55; cursor:not-allowed; }
+
+
+
+/*--------------------------------------
+        PALOMITA MODAL CREAR TICKET
+---------------------------------------*/
+
+/* Palomita de validación junto al input correo */
+.eqf-field{ position:relative; }
+
+.ct-ok{
+  position:absolute;
+  right:14px;
+  top:38px;              /* ajusta si tu label/input cambia */
+  width:22px;
+  height:22px;
+  border-radius:999px;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  font-weight:900;
+  font-size:14px;
+  background:#ecfdf5;
+  color:#065f46;
+  border:1px solid #a7f3d0;
+}
+.ct-ok.show{ display:inline-flex; }
+
+/* espacio para que no se encime con el icono del datalist (flecha) */
+#ct_email{ padding-right:44px; }
