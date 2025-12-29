@@ -251,7 +251,8 @@ foreach ($openTickets as $t) {
             </div>
 
             <?php if ($pendingCount > 0): ?>
-                <div class="user-info-card">
+    <div class="user-info-card" id="pendingFeedbackCard">
+
                     <h2>Encuestas pendientes</h2>
                     <p>
                         Tienes <strong><?php echo $pendingCount; ?></strong> encuesta(s) pendiente(s).
@@ -261,7 +262,7 @@ foreach ($openTickets as $t) {
             <?php endif; ?>
 
             <div class="button">
-                <button type="button"
+                <button id="btnCreateTicket" type="button"
                         class="btn-primary user-main-cta"
                         onclick="<?php echo ($pendingCount > 0) ? 'return false;' : 'openTicketModal()'; ?>"
                         <?php echo ($pendingCount > 0) ? 'disabled style="opacity:.6; cursor:not-allowed;"' : ''; ?>>
@@ -275,7 +276,7 @@ foreach ($openTickets as $t) {
                 <?php if (empty($openTickets)): ?>
                     <p>No tienes tickets activos ni encuestas pendientes por el momento.</p>
                 <?php else: ?>
-                    <ul class="user-tickets-list">
+                    <ul class="user-tickets-list" id="userTicketsList">
                         <?php foreach ($openTickets as $t): ?>
                             <?php
                                 $ticketId = (int)$t['id'];
@@ -312,14 +313,15 @@ foreach ($openTickets as $t) {
                                         </button>
                                     <?php else: ?>
                                         <button type="button"
-                                                class="btn-main-combined"
-                                                style="padding:6px 14px; font-size:0.75rem;"
-                                                onclick="openTicketChat(
-                                                    <?php echo $ticketId; ?>,
-                                                    '<?php echo htmlspecialchars($problemLabel, ENT_QUOTES, 'UTF-8'); ?>'
-                                                )">
-                                            Ver chat
-                                        </button>
+  class="btn-main-combined"
+  style="padding:6px 14px; font-size:0.75rem;"
+  onclick="openTicketChat(<?php echo $ticketId; ?>,'<?php echo htmlspecialchars($problemLabel,ENT_QUOTES,'UTF-8'); ?>')"
+  data-chat-btn
+  data-ticket-id="<?php echo $ticketId; ?>"
+>
+  Ver chat <span class="chat-badge" style="display:none;"></span>
+</button>
+
                                     <?php endif; ?>
                                 </div>
                             </li>
@@ -511,6 +513,18 @@ function openTicketChat(ticketId, tituloExtra) {
 
     if (chatPollTimer) clearInterval(chatPollTimer);
     chatPollTimer = setInterval(() => fetchMessages(), 5000);
+fetch('/HelpDesk_EQF/modules/ticket/mark_read.php', {
+  method:'POST',
+  headers:{'Content-Type':'application/x-www-form-urlencoded'},
+  body:'ticket_id=' + encodeURIComponent(ticketId)
+}).then(()=> {
+  // quita badge local inmediato (sin esperar al polling)
+  const btn = document.querySelector(`[data-chat-btn][data-ticket-id="${ticketId}"] .chat-badge`);
+  if (btn){ btn.style.display='none'; btn.textContent=''; }
+}).catch(()=>{});
+
+
+
 }
 
 function closeTicketChat() {
@@ -824,6 +838,171 @@ document.addEventListener('DOMContentLoaded', function () {
     setInterval(pollUserNotifications, 10000);
 });
 </script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+  function setCreateTicketEnabled(enabled){
+    const btn = document.getElementById('btnCreateTicket');
+    if (!btn) return;
+
+    if (enabled){
+      btn.disabled = false;
+      btn.style.opacity = '';
+      btn.style.cursor = '';
+      btn.setAttribute('onclick', 'openTicketModal()');
+    } else {
+      btn.disabled = true;
+      btn.style.opacity = '.6';
+      btn.style.cursor = 'not-allowed';
+      btn.setAttribute('onclick', 'return false;');
+    }
+  }
+
+  function renderTicketsList(tickets){
+    const ul = document.getElementById('userTicketsList');
+    if (!ul) return;
+
+    if (!tickets || !tickets.length){
+      ul.innerHTML = '';
+      const wrap = document.querySelector('#tickets-section');
+      if (wrap){
+        // si quieres, podrías actualizar el texto vacío aquí
+      }
+      return;
+    }
+
+    ul.innerHTML = tickets.map(t => {
+      const badge = t.feedback_token
+        ? `<span class="feedback-badge">encuesta pendiente</span>`
+        : '';
+
+      const actionBtn = t.feedback_token
+        ? `<button type="button"
+                  class="btn-main-combined"
+                  style="padding:6px 14px; font-size:0.75rem;"
+                  onclick="openFeedbackWizard('${escapeAttr(t.feedback_token)}', ${t.id}, '${escapeAttr(t.problema_label)}')">
+              Encuesta pendiente
+           </button>`
+        : `<button type="button"
+                  class="btn-main-combined"
+                  style="padding:6px 14px; font-size:0.75rem;"
+                  onclick="openTicketChat(${t.id}, '${escapeAttr(t.problema_label)}')">
+              Ver chat
+           </button>`;
+
+      return `
+        <li class="user-ticket-item">
+          <div class="user-ticket-info">
+            <div>
+              <strong>#${t.id}</strong>
+              — ${escapeHtml(t.problema_label)}
+              ${badge}
+            </div>
+            <small>
+              ${escapeHtml(t.fecha_envio)} · ${escapeHtml(t.estado)}
+            </small>
+          </div>
+          <div class="user-ticket-actions">
+            ${actionBtn}
+          </div>
+        </li>
+      `;
+    }).join('');
+  }
+
+  function escapeHtml(str){
+    return String(str ?? '')
+      .replaceAll('&','&amp;')
+      .replaceAll('<','&lt;')
+      .replaceAll('>','&gt;')
+      .replaceAll('"','&quot;')
+      .replaceAll("'","&#039;");
+  }
+
+  function escapeAttr(str){
+    // para meter en onclick con comillas simples
+    return String(str ?? '').replaceAll("\\", "\\\\").replaceAll("'", "\\'");
+  }
+
+  function updatePendingUI(pendingCount){
+    const card = document.getElementById('pendingCard');
+
+    if (pendingCount > 0){
+      setCreateTicketEnabled(false);
+
+      // Si no existe la card (porque estaba en 0 al cargar), la creamos arriba del botón
+      if (!card){
+        const content = document.querySelector('.user-main-content');
+        const btnWrap = document.querySelector('.button');
+        if (content && btnWrap){
+          const div = document.createElement('div');
+          div.className = 'user-info-card';
+          div.id = 'pendingCard';
+          div.innerHTML = `
+            <h2>Encuestas pendientes</h2>
+            <p>
+              Tienes <strong>${pendingCount}</strong> encuesta(s) pendiente(s).
+              Debes responderlas antes de crear un nuevo ticket.
+            </p>
+          `;
+          content.insertBefore(div, btnWrap);
+        }
+      } else {
+        // si ya existe, solo actualizamos número
+        const strong = card.querySelector('strong');
+        if (strong) strong.textContent = String(pendingCount);
+      }
+    } else {
+      setCreateTicketEnabled(true);
+      if (card) card.remove();
+    }
+  }
+
+  async function refreshUserTickets(){
+    try {
+      const r = await fetch('/HelpDesk_EQF/modules/ticket/user_tickets_snapshot.php');
+      const data = await r.json();
+      if (!data.ok) return;
+
+      updatePendingUI(parseInt(data.pendingCount || 0, 10));
+      renderTicketsList(data.tickets || []);
+    } catch (e) {
+      console.error('refreshUserTickets error:', e);
+    }
+  }
+
+  // ✅ Hook: cuando llegue notificación, actualiza UI (estado / encuesta / lista)
+  const oldPoll = window.pollUserNotifications;
+  window.pollUserNotifications = function(){
+    fetch('/HelpDesk_EQF/modules/ticket/check_user_notifications.php')
+      .then(r => r.json())
+      .then(data => {
+        if (!data.ok || !data.has) return;
+
+        // tu lógica actual de toasts/notifs
+        if (Array.isArray(data.notifications)){
+          data.notifications.forEach(n => {
+            const msg = n.body || 'Tienes una actualización de tu ticket.';
+            const title = n.title || 'HelpDesk EQF';
+            // reusa tu función showUserToast si existe
+            if (typeof showUserToast === 'function') showUserToast(msg);
+
+            if ('Notification' in window && Notification.permission === 'granted') {
+              new Notification(title, { body: msg, icon: '/HelpDesk_EQF/assets/img/icon_helpdesk.png' });
+            }
+          });
+        }
+
+        //  y aquí refrescamos lista/estado/bloqueo
+        refreshUserTickets();
+      })
+      .catch(err => console.error('Error consultando notificaciones de usuario:', err));
+  };
+
+  // Si ya traías interval, no lo duplicamos: solo refrescamos una vez y listo
+  refreshUserTickets();
+});
+</script>
 
 <?php if (!empty($autoFeedbackToken)): ?>
 <script>
@@ -837,6 +1016,198 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 <?php endif; ?>
+<script>
+/* ===========================
+   LIVE REFRESH - USER
+=========================== */
+
+function escapeHtml(str){
+  return String(str ?? '')
+    .replaceAll('&','&amp;')
+    .replaceAll('<','&lt;')
+    .replaceAll('>','&gt;')
+    .replaceAll('"','&quot;')
+    .replaceAll("'","&#039;");
+}
+
+function buildTicketLi(t){
+  const id = t.id;
+  const problema = t.problema_label || t.problema_raw || '';
+  const estado = t.estado || '';
+  const fecha = t.fecha_envio || '';
+  const token = t.feedback_token;
+
+  const badge = token ? `<span class="feedback-badge">encuesta pendiente</span>` : '';
+
+  const actionBtn = token
+    ? `<button type="button"
+              class="btn-main-combined"
+              style="padding:6px 14px; font-size:0.75rem;"
+              onclick="openFeedbackWizard('${escapeHtml(token)}', ${id}, '${escapeHtml(problema)}')">
+          Encuesta pendiente
+       </button>`
+    : `<button type="button"
+              class="btn-main-combined"
+              style="padding:6px 14px; font-size:0.75rem;"
+              onclick="openTicketChat(${id}, '${escapeHtml(problema)}')">
+          Ver chat
+       </button>`;
+
+  return `
+    <li class="user-ticket-item" data-ticket-id="${id}">
+      <div class="user-ticket-info">
+        <div>
+          <strong>#${id}</strong> — ${escapeHtml(problema)} ${badge}
+        </div>
+        <small>
+          ${escapeHtml(fecha)} · <span class="ticket-estado">${escapeHtml(estado)}</span>
+        </small>
+      </div>
+      <div class="user-ticket-actions">
+        ${actionBtn}
+      </div>
+    </li>
+  `;
+}
+
+function applyUserSnapshot(payload){
+  if (!payload || !payload.ok) return;
+
+  // 1) Bloqueo "Crear ticket"
+  const pending = parseInt(payload.pending_feedback_count || 0, 10);
+  const btn = document.getElementById('btnCreateTicket');
+  const card = document.getElementById('pendingFeedbackCard');
+  const countEl = document.getElementById('pendingFeedbackCount');
+
+  if (countEl) countEl.textContent = String(pending);
+
+  if (pending > 0){
+    if (btn){
+      btn.disabled = true;
+      btn.style.opacity = '.6';
+      btn.style.cursor = 'not-allowed';
+      btn.onclick = () => false;
+    }
+    if (!card){
+      // si la tarjeta no existía (porque antes era 0), la creamos arriba del botón
+      const btnWrap = document.querySelector('.button');
+      if (btnWrap){
+        const div = document.createElement('div');
+        div.className = 'user-info-card';
+        div.id = 'pendingFeedbackCard';
+        div.innerHTML = `
+          <h2>Encuestas pendientes</h2>
+          <p>
+            Tienes <strong id="pendingFeedbackCount">${pending}</strong> encuesta(s) pendiente(s).
+            Debes responderlas antes de crear un nuevo ticket.
+          </p>
+        `;
+        btnWrap.parentNode.insertBefore(div, btnWrap);
+      }
+    }
+  } else {
+    if (btn){
+      btn.disabled = false;
+      btn.style.opacity = '';
+      btn.style.cursor = '';
+      btn.onclick = () => openTicketModal();
+    }
+    if (card) card.remove();
+  }
+
+  // 2) Refrescar lista "Tus tickets"
+  const list = document.querySelector('.user-tickets-list');
+  const placeholder = document.getElementById('tickets-section');
+
+  const tickets = Array.isArray(payload.tickets) ? payload.tickets : [];
+
+  // si no hay lista y sí hay tickets, creamos la UL
+  let ul = list;
+  if (!ul && tickets.length){
+    // elimina el mensaje "No tienes tickets..." si existe
+    const p = placeholder ? placeholder.querySelector('p') : null;
+    if (p) p.remove();
+
+    ul = document.createElement('ul');
+    ul.className = 'user-tickets-list';
+    if (placeholder) placeholder.appendChild(ul);
+  }
+
+  // si no hay tickets, limpia UL y muestra mensaje
+  if (!tickets.length){
+    if (ul) ul.remove();
+    if (placeholder && !placeholder.querySelector('p')){
+      const p = document.createElement('p');
+      p.textContent = 'No tienes tickets activos ni encuestas pendientes por el momento.';
+      placeholder.appendChild(p);
+    }
+    return;
+  }
+
+  if (!ul) return;
+
+  // set de ids nuevos
+  const newIds = new Set(tickets.map(t => String(t.id)));
+
+  // quitar los que ya no deben mostrarse
+  ul.querySelectorAll('li[data-ticket-id]').forEach(li => {
+    const id = li.getAttribute('data-ticket-id');
+    if (!newIds.has(String(id))) li.remove();
+  });
+
+  // upsert en orden (top = más reciente)
+  // simple: re-render completo para mantener orden correcto
+  ul.innerHTML = tickets.map(buildTicketLi).join('');
+}
+
+function pollUserSnapshot(){
+  fetch('/HelpDesk_EQF/modules/ticket/user_snapshot.php', { cache: 'no-store' })
+    .then(r => r.json())
+    .then(applyUserSnapshot)
+    .catch(()=>{});
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  pollUserSnapshot();
+  setInterval(pollUserSnapshot, 9000);
+});
+
+
+function applyUnreadBadges(items){
+  const map = new Map();
+  (items || []).forEach(it => map.set(String(it.ticket_id), parseInt(it.unread_count||0,10)));
+
+  document.querySelectorAll('[data-chat-btn][data-ticket-id]').forEach(btn => {
+    const id = btn.getAttribute('data-ticket-id');
+    const badge = btn.querySelector('.chat-badge');
+    const count = map.get(String(id)) || 0;
+
+    if (!badge) return;
+
+    if (count > 0){
+      badge.style.display = 'inline-flex';
+      badge.textContent = count > 9 ? '9+' : String(count);
+    } else {
+      badge.style.display = 'none';
+      badge.textContent = '';
+    }
+  });
+}
+
+function pollUserUnread(){
+  fetch('/HelpDesk_EQF/modules/ticket/user_unread.php', {cache:'no-store'})
+    .then(r=>r.json())
+    .then(data=>{
+      if (!data.ok) return;
+      applyUnreadBadges(data.items);
+    })
+    .catch(()=>{});
+}
+setInterval(pollUserUnread, 7000);
+pollUserUnread();
+
+
+</script>
 
 </body>
 </html>

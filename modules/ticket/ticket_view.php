@@ -2,73 +2,79 @@
 session_start();
 require_once __DIR__ . '/../../config/connectionBD.php';
 
-header('Content-Type: application/json');
+header('Content-Type: application/json; charset=utf-8');
 
+// Auth
 if (!isset($_SESSION['user_id'])) {
   http_response_code(403);
-  echo json_encode(['ok' => false, 'msg' => 'No autenticado']);
+  echo json_encode(['ok' => false, 'msg' => 'No autenticado'], JSON_UNESCAPED_UNICODE);
   exit;
 }
 
-$role = (int)($_SESSION['user_rol'] ?? 0);
+$rol = (int)($_SESSION['user_rol'] ?? 0);
 $userId = (int)($_SESSION['user_id'] ?? 0);
+$userArea = (string)($_SESSION['user_area'] ?? '');
+
+if (!in_array($rol, [1,2,3], true)) {
+  http_response_code(403);
+  echo json_encode(['ok' => false, 'msg' => 'Sin permisos'], JSON_UNESCAPED_UNICODE);
+  exit;
+}
 
 $ticketId = isset($_GET['ticket_id']) ? (int)$_GET['ticket_id'] : 0;
 if ($ticketId <= 0) {
   http_response_code(400);
-  echo json_encode(['ok' => false, 'msg' => 'ticket_id inválido']);
+  echo json_encode(['ok' => false, 'msg' => 'Ticket inválido'], JSON_UNESCAPED_UNICODE);
   exit;
 }
 
 $pdo = Database::getConnection();
 
 try {
-  // Leer ticket
+  // Ticket + label
   $stmt = $pdo->prepare("
-    SELECT id, user_id, sap, nombre, area, email, problema, prioridad, descripcion,
-           fecha_envio, estado, asignado_a, fecha_asignacion, fecha_resolucion
-    FROM tickets
-    WHERE id = :id
+    SELECT
+      t.id, t.user_id, t.asignado_a, t.area,
+      t.sap, t.nombre, t.email,
+      t.problema AS problema_raw,
+      COALESCE(cp.label, t.problema) AS problema_label,
+      t.descripcion, t.fecha_envio, t.estado, t.prioridad
+    FROM tickets t
+    LEFT JOIN catalog_problems cp ON cp.code = t.problema
+    WHERE t.id = :id
     LIMIT 1
   ");
   $stmt->execute([':id' => $ticketId]);
-  $t = $stmt->fetch(PDO::FETCH_ASSOC);
+  $ticket = $stmt->fetch(PDO::FETCH_ASSOC);
 
-  if (!$t) {
+  if (!$ticket) {
     http_response_code(404);
-    echo json_encode(['ok' => false, 'msg' => 'Ticket no encontrado']);
+    echo json_encode(['ok' => false, 'msg' => 'Ticket no encontrado'], JSON_UNESCAPED_UNICODE);
     exit;
   }
 
-  // Permisos:
-  // - Usuario (rol 4? el tuyo) solo ve si es suyo
-  // - Analista (rol 3) solo si está asignado a él O si es de su área y está abierto (para previsualizar)
-  // - Admin/SA ven todo
-  if ($role === 3) {
-    $myArea = (string)($_SESSION['user_area'] ?? '');
-    $assignedTo = (int)($t['asignado_a'] ?? 0);
+  // Permisos (ajústalo a tu regla)
+  if ($rol === 3) {
+    // analista: o está asignado a él, o al menos es su área
+    $isAssigned = ((int)($ticket['asignado_a'] ?? 0) === $userId);
+    $sameArea = ((string)($ticket['area'] ?? '') === $userArea);
 
-    $can =
-      ($assignedTo === $userId) ||
-      ((string)$t['area'] === $myArea && (string)$t['estado'] === 'abierto' && ($assignedTo === 0));
-
-    if (!$can) {
+    if (!$isAssigned && !$sameArea) {
       http_response_code(403);
-      echo json_encode(['ok' => false, 'msg' => 'No puedes ver este ticket']);
-      exit;
-    }
-  } elseif ($role !== 1 && $role !== 2) {
-    // asumo "usuario" = cualquier rol diferente de 1/2/3
-    if ((int)$t['user_id'] !== $userId) {
-      http_response_code(403);
-      echo json_encode(['ok' => false, 'msg' => 'No puedes ver este ticket']);
+      echo json_encode(['ok' => false, 'msg' => 'No puedes ver este ticket'], JSON_UNESCAPED_UNICODE);
       exit;
     }
   }
 
-  // Adjuntos del ticket (del usuario al crear)
+  // Adjuntos (tu tabla: ticket_attachments)
   $stmtA = $pdo->prepare("
-    SELECT id, ticket_id, file_name, file_path, mime_type, created_at
+    SELECT
+      id,
+      nombre_archivo AS file_name,
+      ruta_archivo   AS file_path,
+      tipo           AS file_type,
+      peso           AS file_size,
+      subido_en      AS created_at
     FROM ticket_attachments
     WHERE ticket_id = :id
     ORDER BY id ASC
@@ -78,37 +84,14 @@ try {
 
   echo json_encode([
     'ok' => true,
-    'ticket' => [
-      'id' => (int)$t['id'],
-      'user_id' => (int)$t['user_id'],
-      'sap' => (string)$t['sap'],
-      'nombre' => (string)$t['nombre'],
-      'email' => (string)$t['email'],
-      'area' => (string)$t['area'],
-      'problema' => (string)$t['problema'],
-      'prioridad' => (string)$t['prioridad'],
-      'descripcion' => (string)$t['descripcion'],
-      'fecha_envio' => (string)$t['fecha_envio'],
-      'estado' => (string)$t['estado'],
-      'asignado_a' => (int)($t['asignado_a'] ?? 0),
-      'fecha_asignacion' => (string)($t['fecha_asignacion'] ?? ''),
-      'fecha_resolucion' => (string)($t['fecha_resolucion'] ?? ''),
-    ],
-    'attachments' => array_map(function($a){
-      return [
-        'id' => (int)$a['id'],
-        'file_name' => (string)$a['file_name'],
-        'file_path' => (string)$a['file_path'],
-        'mime_type' => (string)($a['mime_type'] ?? ''),
-        'created_at' => (string)($a['created_at'] ?? ''),
-      ];
-    }, $attachments)
-  ]);
+    'ticket' => $ticket,
+    'attachments' => $attachments
+  ], JSON_UNESCAPED_UNICODE);
   exit;
 
-} catch (Exception $e) {
+} catch (Throwable $e) {
   error_log('ticket_view.php error: ' . $e->getMessage());
   http_response_code(500);
-  echo json_encode(['ok' => false, 'msg' => 'Error interno']);
+  echo json_encode(['ok' => false, 'msg' => 'Error interno'], JSON_UNESCAPED_UNICODE);
   exit;
 }

@@ -967,7 +967,7 @@ body.sidebar-collapsed .sidebar-toggle{
     margin-bottom: 20px;
 }
 
-.eqf-header-left img,
+.eqf-header-left img
 .eqf-header-right img {
     height: 60px;
 }
@@ -2259,3 +2259,18 @@ table.dataTable tbody tr:hover {
 .malo:has(input:checked) { border-color: var(--eqf-red); background-color: var(--eqf-red); color: white; }
 .regular:has(input:checked) { border-color: var(--eqf-yellow); background-color: var(--eqf-yellow); color: white; }
 .bueno:has(input:checked) { border-color: var(--eqf-green); background-color: var(--eqf-green); color: white; }
+
+.chat-badge {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:18px;
+  height:18px;
+  padding:0 6px;
+  border-radius:999px;
+  font-size:11px;
+  font-weight:900;
+  margin-left:8px;
+  background:#dc2626; /* rojo */
+  color:#fff;
+}

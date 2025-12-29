@@ -13,9 +13,7 @@ if (!isset($_SESSION['user_id']) || (int)($_SESSION['user_rol'] ?? 0) !== 3) {
 $pdo       = Database::getConnection();
 $userId    = (int)($_SESSION['user_id'] ?? 0);
 $userName  = trim(($_SESSION['user_name'] ?? '') . ' ' . ($_SESSION['user_last'] ?? ''));
-$userEmail = $_SESSION['user_email'] ?? '';
 $userArea  = $_SESSION['user_area'] ?? '';
-$userSap   = $_SESSION['number_sap'] ?? '';
 
 // -------- ALERTAS ----------
 $alerts = [];
@@ -25,19 +23,6 @@ if (isset($_GET['updated'])) {
         'icon' => 'capsulin_update.png',
         'text' => 'TICKET ACTUALIZADO EXITOSAMENTE'
     ];
-}
-
-/* Helper: label de problema */
-function problemaLabel(string $p): string {
-    return match ($p) {
-        'cierre_dia'  => 'Cierre del día',
-        'no_legado'   => 'Sin acceso a legado/legacy',
-        'no_internet' => 'Sin internet',
-        'no_checador' => 'No funciona checador',
-        'rastreo'     => 'Rastreo de checada',
-        'otro'        => 'Otro',
-        default       => $p,
-    };
 }
 
 /* Helper: label de prioridad */
@@ -71,36 +56,48 @@ $kpi = $stmtKpi->fetch() ?: [
     'total'       => 0,
 ];
 
-/* Tickets entrantes (abiertos, sin asignar) */
+/* Tickets entrantes (abiertos, sin asignar) + label desde catálogo */
 $stmtIncoming = $pdo->prepare("
-    SELECT id, sap, nombre, email, problema, descripcion, fecha_envio, estado, prioridad
-    FROM tickets
-    WHERE area = :area
-      AND estado = 'abierto'
-      AND (asignado_a IS NULL OR asignado_a = 0)
-    ORDER BY fecha_envio ASC
+    SELECT 
+        t.id, t.sap, t.nombre, t.email,
+        t.problema AS problema_raw,
+        COALESCE(cp.label, t.problema) AS problema_label,
+        t.descripcion, t.fecha_envio, t.estado, t.prioridad
+    FROM tickets t
+    LEFT JOIN catalog_problems cp
+           ON cp.code = t.problema
+    WHERE t.area = :area
+      AND t.estado = 'abierto'
+      AND (t.asignado_a IS NULL OR t.asignado_a = 0)
+    ORDER BY t.fecha_envio ASC
 ");
 $stmtIncoming->execute([':area' => $userArea]);
-$incomingTickets = $stmtIncoming->fetchAll();
+$incomingTickets = $stmtIncoming->fetchAll(PDO::FETCH_ASSOC);
 
-/* máximo id actual para iniciar el polling desde ahí */
+/* máximo id actual para iniciar el polling */
 $maxIncomingId = 0;
 foreach ($incomingTickets as $t) {
     $tid = (int)$t['id'];
     if ($tid > $maxIncomingId) $maxIncomingId = $tid;
 }
 
-/* Mis tickets activos (solo abiertos y en proceso) */
+/* Mis tickets activos (abiertos y en proceso) + label desde catálogo */
 $stmtMy = $pdo->prepare("
-    SELECT id, sap, nombre, email, problema, descripcion, fecha_envio, estado, prioridad
-    FROM tickets
-    WHERE area = :area
-      AND asignado_a = :uid
-      AND estado IN ('abierto','en_proceso')
-    ORDER BY fecha_envio DESC
+    SELECT 
+        t.id, t.sap, t.nombre, t.email,
+        t.problema AS problema_raw,
+        COALESCE(cp.label, t.problema) AS problema_label,
+        t.descripcion, t.fecha_envio, t.estado, t.prioridad
+    FROM tickets t
+    LEFT JOIN catalog_problems cp
+           ON cp.code = t.problema
+    WHERE t.area = :area
+      AND t.asignado_a = :uid
+      AND t.estado IN ('abierto','en_proceso')
+    ORDER BY t.fecha_envio DESC
 ");
 $stmtMy->execute([':area' => $userArea, ':uid' => $userId]);
-$myTickets = $stmtMy->fetchAll();
+$myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC);
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -109,6 +106,59 @@ $myTickets = $stmtMy->fetchAll();
     <title>Panel de Analista | HELP DESK EQF</title>
     <link rel="stylesheet" href="/HelpDesk_EQF/assets/css/style.css?v=<?php echo time(); ?>">
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
+
+    <style>
+      .analyst-actions{
+        display:flex;
+        gap:8px;
+        justify-content:flex-end;
+        flex-wrap:wrap;
+      }
+      .btn-mini{
+        padding:6px 10px;
+        border-radius:12px;
+        font-weight:800;
+        border:1px solid var(--eqf-border,#e5e7eb);
+        background:#fff;
+        cursor:pointer;
+      }
+      .btn-mini.primary{
+        background: var(--eqf-combined,#6e1c5c);
+        color:#fff;
+        border-color: transparent;
+      }
+      .ticket-detail-grid{
+        display:grid;
+        grid-template-columns: 1fr;
+        gap:10px;
+        font-size:14px;
+      }
+      .ticket-detail-meta{
+        display:flex;
+        gap:10px;
+        flex-wrap:wrap;
+        opacity:.9;
+        font-size:13px;
+      }
+      .ticket-attachments{
+        display:flex;
+        flex-direction:column;
+        gap:8px;
+      }
+      .ticket-attachments a{
+        display:inline-block;
+        padding:8px 10px;
+        border:1px solid var(--eqf-border,#e5e7eb);
+        border-radius:12px;
+        text-decoration:none;
+      }
+      .kpi-live{
+        display:flex;
+        gap:10px;
+        flex-wrap:wrap;
+        margin-top:10px;
+      }
+    </style>
 </head>
 <body class="user-body">
 
@@ -116,11 +166,9 @@ $myTickets = $stmtMy->fetchAll();
     <?php $alert = $alerts[0]; ?>
     <div id="eqf-alert-container">
         <div class="eqf-alert eqf-alert-<?php echo htmlspecialchars($alert['type']); ?>">
-            <img
-                class="eqf-alert-icon"
-                src="/HelpDesk_EQF/assets/img/icons/<?php echo htmlspecialchars($alert['icon']); ?>"
-                alt="alert icon"
-            >
+            <img class="eqf-alert-icon"
+                 src="/HelpDesk_EQF/assets/img/icons/<?php echo htmlspecialchars($alert['icon']); ?>"
+                 alt="alert icon">
             <div class="eqf-alert-text">
                 <?php echo htmlspecialchars($alert['text']); ?>
             </div>
@@ -128,7 +176,6 @@ $myTickets = $stmtMy->fetchAll();
     </div>
 <?php endif; ?>
 
-<!-- CONTENIDO PRINCIPAL -->
 <main class="user-main">
     <section class="user-main-inner">
 
@@ -145,136 +192,167 @@ $myTickets = $stmtMy->fetchAll();
 
         <section class="user-main-content">
 
-            <!-- RESUMEN / KPIs -->
+            <!-- KPIs -->
             <div class="user-info-card">
                 <h2>Resumen Diario</h2>
                 <p>Aquí podrás ver tu resumen diario.</p>
-                <div class="kpi-analyst-row">
+
+                <div class="kpi-analyst-row" id="kpiRow">
                     <div class="kpi-card kpi-green">
                         <span class="kpi-label">Abiertos</span>
-                        <span class="kpi-value"><?php echo (int)$kpi['abiertos']; ?></span>
+                        <span class="kpi-value" id="kpiAbiertos"><?php echo (int)$kpi['abiertos']; ?></span>
                     </div>
                     <div class="kpi-card kpi-blue">
                         <span class="kpi-label">En proceso</span>
-                        <span class="kpi-value"><?php echo (int)$kpi['en_proceso']; ?></span>
+                        <span class="kpi-value" id="kpiEnProceso"><?php echo (int)$kpi['en_proceso']; ?></span>
                     </div>
                     <div class="kpi-card kpi-yellow">
                         <span class="kpi-label">Resueltos</span>
-                        <span class="kpi-value"><?php echo (int)$kpi['resueltos']; ?></span>
+                        <span class="kpi-value" id="kpiResueltos"><?php echo (int)$kpi['resueltos']; ?></span>
                     </div>
                     <div class="kpi-card kpi-gray">
                         <span class="kpi-label">Total</span>
-                        <span class="kpi-value"><?php echo (int)$kpi['total']; ?></span>
+                        <span class="kpi-value" id="kpiTotal"><?php echo (int)$kpi['total']; ?></span>
                     </div>
                 </div>
             </div>
 
-            <!-- TICKETS ENTRANTES -->
+            <!-- ENTRANTES -->
             <div id="incoming-section" class="user-info-card">
                 <h3>Tickets entrantes (sin asignar)</h3>
-                <?php if (empty($incomingTickets)): ?>
-                    <p>No hay tickets entrantes sin asignar en este momento.</p>
-                <?php else: ?>
-                    <table id="incomingTable" class="data-table display">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Fecha</th>
-                                <th>Usuario</th>
-                                <th>Problema</th>
-                                <th>Prioridad</th>
-                                <th>Descripción</th>
-                                <th>Acciones</th>
+
+                <table id="incomingTable" class="data-table display">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Fecha</th>
+                            <th>Usuario</th>
+                            <th>Problema</th>
+                            <th>Prioridad</th>
+                            <th>Descripción</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($incomingTickets as $t): ?>
+                            <tr data-ticket-id="<?php echo (int)$t['id']; ?>">
+                                <td><?php echo (int)$t['id']; ?></td>
+                                <td><?php echo htmlspecialchars($t['fecha_envio'], ENT_QUOTES, 'UTF-8'); ?></td>
+                                <td><?php echo htmlspecialchars($t['nombre'], ENT_QUOTES, 'UTF-8'); ?></td>
+                                <td><?php echo htmlspecialchars($t['problema_label'], ENT_QUOTES, 'UTF-8'); ?></td>
+                                <td>
+                                    <span class="priority-pill priority-<?php echo htmlspecialchars(strtolower($t['prioridad'] ?? 'media'), ENT_QUOTES, 'UTF-8'); ?>">
+                                        <?php echo htmlspecialchars(prioridadLabel($t['prioridad'] ?? 'media'), ENT_QUOTES, 'UTF-8'); ?>
+                                    </span>
+                                </td>
+                                <td><?php echo htmlspecialchars($t['descripcion'], ENT_QUOTES, 'UTF-8'); ?></td>
+                                <td>
+                                  <div class="analyst-actions">
+                                    <button type="button"
+                                            class="btn-mini"
+                                            onclick="openTicketDetail(<?php echo (int)$t['id']; ?>)">
+                                      Ver
+                                    </button>
+
+                                    <button type="button"
+                                            class="btn-mini primary btn-assign-ticket"
+                                            data-ticket-id="<?php echo (int)$t['id']; ?>">
+                                      Asignar
+                                    </button>
+                                  </div>
+                                </td>
                             </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($incomingTickets as $t): ?>
-                                <tr data-ticket-id="<?php echo (int)$t['id']; ?>">
-                                    <td><?php echo (int)$t['id']; ?></td>
-                                    <td><?php echo htmlspecialchars($t['fecha_envio'], ENT_QUOTES, 'UTF-8'); ?></td>
-                                    <td><?php echo htmlspecialchars($t['nombre'], ENT_QUOTES, 'UTF-8'); ?></td>
-                                    <td><?php echo htmlspecialchars(problemaLabel($t['problema']), ENT_QUOTES, 'UTF-8'); ?></td>
-                                    <td>
-                                        <span class="priority-pill priority-<?php echo htmlspecialchars(strtolower($t['prioridad'] ?? 'media'), ENT_QUOTES, 'UTF-8'); ?>">
-                                            <?php echo htmlspecialchars(prioridadLabel($t['prioridad'] ?? 'media'), ENT_QUOTES, 'UTF-8'); ?>
-                                        </span>
-                                    </td>
-                                    <td><?php echo htmlspecialchars($t['descripcion'], ENT_QUOTES, 'UTF-8'); ?></td>
-                                    <td>
-                                        <button type="button"
-                                                class="btn-assign-ticket"
-                                                data-ticket-id="<?php echo (int)$t['id']; ?>">
-                                            Asignar
-                                        </button>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                <?php endif; ?>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
             </div>
 
             <!-- MIS TICKETS -->
             <div id="mytickets-section" class="user-info-card">
                 <h3>Mis tickets</h3>
-                <?php if (empty($myTickets)): ?>
-                    <p>No tienes tickets asignados en este momento.</p>
-                <?php else: ?>
-                    <table id="myTicketsTable" class="data-table display analyst-tickets-table">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Fecha</th>
-                                <th>Usuario</th>
-                                <th>Problema</th>
-                                <th>Prioridad</th>
-                                <th>Estatus</th>
-                                <th>Chat</th>
+
+                <table id="myTicketsTable" class="data-table display analyst-tickets-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Fecha</th>
+                            <th>Usuario</th>
+                            <th>Problema</th>
+                            <th>Prioridad</th>
+                            <th>Estatus</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($myTickets as $t): ?>
+                            <tr data-ticket-id="<?php echo (int)$t['id']; ?>">
+                                <td>#<?php echo (int)$t['id']; ?></td>
+                                <td><?php echo htmlspecialchars($t['fecha_envio'], ENT_QUOTES, 'UTF-8'); ?></td>
+                                <td><?php echo htmlspecialchars($t['nombre'], ENT_QUOTES, 'UTF-8'); ?></td>
+                                <td><?php echo htmlspecialchars($t['problema_label'], ENT_QUOTES, 'UTF-8'); ?></td>
+                                <td>
+                                    <span class="priority-pill priority-<?php echo htmlspecialchars(strtolower($t['prioridad'] ?? 'media'), ENT_QUOTES, 'UTF-8'); ?>">
+                                        <?php echo htmlspecialchars(prioridadLabel($t['prioridad'] ?? 'media'), ENT_QUOTES, 'UTF-8'); ?>
+                                    </span>
+                                </td>
+                                <td>
+                                    <select
+                                        class="ticket-status-select status-<?php echo htmlspecialchars($t['estado'], ENT_QUOTES, 'UTF-8'); ?>"
+                                        data-ticket-id="<?php echo (int)$t['id']; ?>"
+                                        data-prev="<?php echo htmlspecialchars($t['estado'], ENT_QUOTES, 'UTF-8'); ?>"
+                                    >
+                                        <option value="abierto"    <?php if ($t['estado'] === 'abierto')    echo 'selected'; ?>>Abierto</option>
+                                        <option value="en_proceso" <?php if ($t['estado'] === 'en_proceso') echo 'selected'; ?>>En proceso</option>
+                                        <option value="resuelto"   <?php if ($t['estado'] === 'resuelto')   echo 'selected'; ?>>Resuelto</option>
+                                        <option value="cerrado"    <?php if ($t['estado'] === 'cerrado')    echo 'selected'; ?>>Cerrado</option>
+                                    </select>
+                                </td>
+                                <td>
+                                  <div class="analyst-actions">
+                                    <button type="button" class="btn-mini"
+                                            onclick="openTicketDetail(<?php echo (int)$t['id']; ?>)">
+                                      Ver
+                                    </button>
+                                    <button type="button" class="btn-mini primary"
+  data-chat-btn
+  data-ticket-id="<?php echo (int)$t['id']; ?>"
+  onclick="openTicketChat(<?php echo (int)$t['id']; ?>,'<?php echo htmlspecialchars($t['nombre'],ENT_QUOTES,'UTF-8'); ?>')"
+>
+  Chat <span class="chat-badge" style="display:none;"></span>
+</button>
+
+                                  </div>
+                                </td>
                             </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($myTickets as $t): ?>
-                                <tr data-ticket-id="<?php echo (int)$t['id']; ?>">
-                                    <td>#<?php echo (int)$t['id']; ?></td>
-                                    <td><?php echo htmlspecialchars($t['fecha_envio'], ENT_QUOTES, 'UTF-8'); ?></td>
-                                    <td><?php echo htmlspecialchars($t['nombre'], ENT_QUOTES, 'UTF-8'); ?></td>
-                                    <td><?php echo htmlspecialchars(problemaLabel($t['problema']), ENT_QUOTES, 'UTF-8'); ?></td>
-                                    <td>
-                                        <span class="priority-pill priority-<?php echo htmlspecialchars(strtolower($t['prioridad'] ?? 'media'), ENT_QUOTES, 'UTF-8'); ?>">
-                                            <?php echo htmlspecialchars(prioridadLabel($t['prioridad'] ?? 'media'), ENT_QUOTES, 'UTF-8'); ?>
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <select
-                                            class="ticket-status-select status-<?php echo htmlspecialchars($t['estado'], ENT_QUOTES, 'UTF-8'); ?>"
-                                            data-ticket-id="<?php echo (int)$t['id']; ?>"
-                                            data-prev="<?php echo htmlspecialchars($t['estado'], ENT_QUOTES, 'UTF-8'); ?>"
-                                        >
-                                            <option value="abierto"    <?php if ($t['estado'] === 'abierto')    echo 'selected'; ?>>Abierto</option>
-                                            <option value="en_proceso" <?php if ($t['estado'] === 'en_proceso') echo 'selected'; ?>>En proceso</option>
-                                            <option value="resuelto"   <?php if ($t['estado'] === 'resuelto')   echo 'selected'; ?>>Resuelto</option>
-                                            <option value="cerrado"    <?php if ($t['estado'] === 'cerrado')    echo 'selected'; ?>>Cerrado</option>
-                                        </select>
-                                    </td>
-                                    <td>
-                                        <button type="button"
-                                                class="btn-main-combined"
-                                                onclick="openTicketChat(<?php echo (int)$t['id']; ?>, '<?php echo htmlspecialchars($t['nombre'], ENT_QUOTES, 'UTF-8'); ?>')">
-                                            Ver chat
-                                        </button>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                <?php endif; ?>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
             </div>
 
         </section>
     </section>
 </main>
 
-<!-- MODAL CHAT DE TICKET -->
+<!-- MODAL DETALLE TICKET -->
+<div class="modal-backdrop" id="ticket-detail-modal">
+  <div class="modal-card" style="max-width:760px;">
+    <div class="modal-header">
+      <h3 id="ticketDetailTitle">Detalle del ticket</h3>
+      <button type="button" class="modal-close" onclick="closeTicketDetail()">✕</button>
+    </div>
+    <div class="modal-body" style="padding:14px 18px;">
+      <div id="ticketDetailContent" class="ticket-detail-grid">
+        <div style="opacity:.8;">Cargando...</div>
+      </div>
+      <div class="modal-actions" style="margin-top:14px; display:flex; gap:10px; justify-content:flex-end;">
+        <button type="button" class="btn-secondary" onclick="closeTicketDetail()">Cerrar</button>
+        <button type="button" class="btn-login" id="ticketDetailChatBtn" style="display:none;">Abrir chat</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CHAT (tu modal existente) -->
 <div class="modal-backdrop" id="ticket-chat-modal">
     <div class="modal-card ticket-chat-modal-card">
         <div class="modal-header">
@@ -282,32 +360,21 @@ $myTickets = $stmtMy->fetchAll();
             <button type="button" class="modal-close" onclick="closeTicketChat()">✕</button>
         </div>
 
-        <div class="ticket-chat-body" id="ticketChatBody">
-            <!-- Mensajes se agregan por JS -->
-        </div>
+        <div class="ticket-chat-body" id="ticketChatBody"></div>
 
         <form class="ticket-chat-form" onsubmit="sendTicketMessage(event)">
             <div class="ticket-chat-internal-row" style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
-  <input type="checkbox" id="ticketChatInternal" value="1">
-  <label for="ticketChatInternal" style="font-size:13px; opacity:.85;">
-    Nota interna (solo equipo)
-  </label>
-</div>
+              <input type="checkbox" id="ticketChatInternal" value="1">
+              <label for="ticketChatInternal" style="font-size:13px; opacity:.85;">
+                Nota interna (solo equipo)
+              </label>
+            </div>
 
-            <textarea id="ticketChatInput"
-                      rows="2"
-                      placeholder="Escribe tu mensaje..."
-                      style="width:100%"></textarea>
+            <textarea id="ticketChatInput" rows="2" placeholder="Escribe tu mensaje..." style="width:100%"></textarea>
             <div class="ticket-chat-input-row">
-                <input type="file"
-                       id="ticketChatFile"
-                       name="adjunto"
-                       class="ticket-chat-file"
-                       accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,.csv"
-                       style="width:100%">
-                <button type="submit" class="btn-login" style="min-width: 60px;">
-                    Enviar
-                </button>
+                <input type="file" id="ticketChatFile" name="adjunto" class="ticket-chat-file"
+                       accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,.csv" style="width:100%">
+                <button type="submit" class="btn-login" style="min-width: 60px;">Enviar</button>
             </div>
         </form>
     </div>
@@ -321,77 +388,161 @@ $myTickets = $stmtMy->fetchAll();
 
 <script>
 // ===============================
-//  Variables globales para chat
+//  Variables globales
 // ===============================
 const CURRENT_USER_ID = <?php echo (int)($_SESSION['user_id'] ?? 0); ?>;
-
 let currentTicketId = null;
 let lastMessageId   = 0;
 let chatPollTimer   = null;
 
-// ===============================
-//  Utilidades generales
-// ===============================
 function showTicketToast(text) {
-    const toast = document.createElement('div');
-    toast.className = 'eqf-toast-ticket';
-    toast.textContent = text || '';
-    document.body.appendChild(toast);
+  const toast = document.createElement('div');
+  toast.className = 'eqf-toast-ticket';
+  toast.textContent = text || '';
+  document.body.appendChild(toast);
+  setTimeout(() => {
+    toast.classList.add('hide');
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+}
 
-    setTimeout(() => {
-        toast.classList.add('hide');
-        setTimeout(() => toast.remove(), 300);
-    }, 3000);
+function escapeHtml(str){
+  return String(str ?? '')
+    .replaceAll('&','&amp;')
+    .replaceAll('<','&lt;')
+    .replaceAll('>','&gt;')
+    .replaceAll('"','&quot;')
+    .replaceAll("'","&#039;");
 }
 
 // ===============================
-//  Chat: abrir/cerrar
+//  DETALLE TICKET (nuevo)
+// ===============================
+let detailTicketId = null;
+let detailTicketUserName = '';
+
+function openTicketDetail(ticketId){
+  detailTicketId = ticketId;
+
+  const modal = document.getElementById('ticket-detail-modal');
+  const content = document.getElementById('ticketDetailContent');
+  const title = document.getElementById('ticketDetailTitle');
+  const chatBtn = document.getElementById('ticketDetailChatBtn');
+
+  if (title) title.textContent = 'Detalle del ticket #' + ticketId;
+  if (content) content.innerHTML = '<div style="opacity:.8;">Cargando...</div>';
+  if (chatBtn) chatBtn.style.display = 'none';
+
+  if (typeof openModal === 'function') openModal('ticket-detail-modal');
+  else modal.classList.add('show');
+
+  fetch('/HelpDesk_EQF/modules/ticket/ticket_view.php?ticket_id=' + encodeURIComponent(ticketId))
+    .then(r => r.json())
+    .then(data => {
+      if (!data.ok) {
+        content.innerHTML = '<div style="color:#b91c1c; font-weight:800;">' + escapeHtml(data.msg || 'No se pudo cargar') + '</div>';
+        return;
+      }
+
+      const t = data.ticket || {};
+      const atts = Array.isArray(data.attachments) ? data.attachments : [];
+      detailTicketUserName = t.nombre || '';
+
+      const meta = `
+        <div class="ticket-detail-meta">
+          <div><strong>Usuario:</strong> ${escapeHtml(t.nombre || '')} ${t.sap ? '(SAP: '+escapeHtml(t.sap)+')' : ''}</div>
+          <div><strong>Correo:</strong> ${escapeHtml(t.email || '')}</div>
+          <div><strong>Área:</strong> ${escapeHtml(t.area || '')}</div>
+          <div><strong>Prioridad:</strong> ${escapeHtml(t.prioridad || '')}</div>
+          <div><strong>Estatus:</strong> ${escapeHtml(t.estado || '')}</div>
+        </div>
+      `;
+
+      const prob = `<div><strong>Problema:</strong> ${escapeHtml(t.problema_label || t.problema_raw || '')}</div>`;
+      const desc = `<div><strong>Descripción:</strong><div style="margin-top:6px; white-space:pre-wrap;">${escapeHtml(t.descripcion || '')}</div></div>`;
+
+      let attHtml = '<div><strong>Adjuntos:</strong><div style="margin-top:6px; opacity:.75;">Sin adjuntos.</div></div>';
+      if (atts.length){
+        attHtml = `<div><strong>Adjuntos:</strong><div class="ticket-attachments" style="margin-top:6px;">${
+          atts.map(a => {
+            const name = a.file_name || 'archivo';
+            const path = a.file_path || '#';
+            return `<a href="${escapeHtml(path)}" target="_blank" rel="noopener">📎 ${escapeHtml(name)}</a>`;
+          }).join('')
+        }</div></div>`;
+      }
+
+      content.innerHTML = meta + prob + desc + attHtml;
+
+      // Mostrar botón "Abrir chat"
+      if (chatBtn){
+        chatBtn.style.display = 'inline-block';
+        chatBtn.onclick = () => {
+          closeTicketDetail();
+          openTicketChat(ticketId, detailTicketUserName || ('Ticket #' + ticketId));
+        };
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      content.innerHTML = '<div style="color:#b91c1c; font-weight:800;">Error al cargar detalle.</div>';
+    });
+}
+
+function closeTicketDetail(){
+  const modal = document.getElementById('ticket-detail-modal');
+  if (typeof closeModal === 'function') closeModal('ticket-detail-modal');
+  else modal.classList.remove('show');
+  detailTicketId = null;
+  detailTicketUserName = '';
+}
+
+// ===============================
+//  CHAT (tu lógica base, la dejo intacta)
 // ===============================
 function openTicketChat(ticketId, tituloExtra) {
     currentTicketId = ticketId;
     lastMessageId   = 0;
 
     const titleEl = document.getElementById('ticketChatTitle');
-    if (titleEl) {
-        titleEl.textContent = 'Chat del ticket #' + ticketId + (tituloExtra ? ' – ' + tituloExtra : '');
-    }
+    if (titleEl) titleEl.textContent = 'Chat del ticket #' + ticketId + (tituloExtra ? ' – ' + tituloExtra : '');
 
     const bodyEl = document.getElementById('ticketChatBody');
     if (bodyEl) bodyEl.innerHTML = '';
 
     const modal = document.getElementById('ticket-chat-modal');
-    if (typeof openModal === 'function') {
-        openModal('ticket-chat-modal');
-    } else if (modal) {
-        modal.classList.add('show');
-    }
+    if (typeof openModal === 'function') openModal('ticket-chat-modal');
+    else modal.classList.add('show');
 
-    //  Cargar el historial transferido "bloqueado" (gris)
-    fetch('/HelpDesk_EQF/modules/ticket/get_transfer_context.php?ticket_id=' + encodeURIComponent(currentTicketId))
+    fetch('/HelpDesk_EQF/modules/ticket/get_transfer_context.php?ticket_id=' + encodeURIComponent(ticketId))
       .then(r => r.json())
-      .then(data => {
-        if (data && data.ok) renderTransferBlock(data);
-      })
+      .then(data => { if (data && data.ok) renderTransferBlock(data); })
       .catch(err => console.error('Error transfer context:', err));
 
     fetchMessages(true);
 
     if (chatPollTimer) clearInterval(chatPollTimer);
     chatPollTimer = setInterval(() => fetchMessages(false), 5000);
+
+fetch('/HelpDesk_EQF/modules/ticket/mark_read.php', {
+  method:'POST',
+  headers:{'Content-Type':'application/x-www-form-urlencoded'},
+  body:'ticket_id=' + encodeURIComponent(ticketId)
+}).then(()=> {
+  // quita badge local inmediato (sin esperar al polling)
+  const btn = document.querySelector(`[data-chat-btn][data-ticket-id="${ticketId}"] .chat-badge`);
+  if (btn){ btn.style.display='none'; btn.textContent=''; }
+}).catch(()=>{});
+
+
 }
 
 function closeTicketChat() {
     const modal = document.getElementById('ticket-chat-modal');
-    if (typeof closeModal === 'function') {
-        closeModal('ticket-chat-modal');
-    } else if (modal) {
-        modal.classList.remove('show');
-    }
+    if (typeof closeModal === 'function') closeModal('ticket-chat-modal');
+    else modal.classList.remove('show');
 
-    if (chatPollTimer) {
-        clearInterval(chatPollTimer);
-        chatPollTimer = null;
-    }
+    if (chatPollTimer) { clearInterval(chatPollTimer); chatPollTimer = null; }
 
     const old = document.getElementById('transfer-block');
     if (old) old.remove();
@@ -399,24 +550,22 @@ function closeTicketChat() {
     currentTicketId = null;
 }
 
-// ===============================
-//  Chat: render de mensajes
-// ===============================
 function appendChatMessage(msg) {
     const bodyEl = document.getElementById('ticketChatBody');
     if (!bodyEl) return;
 
     const div = document.createElement('div');
     div.className = 'ticket-chat-message';
-if (String(msg.is_internal) === '1') {
-  const badge = document.createElement('span');
-  badge.textContent = 'NOTA ';
-  badge.style.fontSize = '12px';
-  badge.style.opacity = '.8';
-  badge.style.display = 'block';
-  badge.style.marginBottom = '4px';
-  div.appendChild(badge);
-}
+
+    if (String(msg.is_internal) === '1') {
+      const badge = document.createElement('span');
+      badge.textContent = 'NOTA ';
+      badge.style.fontSize = '12px';
+      badge.style.opacity = '.8';
+      badge.style.display = 'block';
+      badge.style.marginBottom = '4px';
+      div.appendChild(badge);
+    }
 
     const senderId = parseInt(msg.sender_id, 10);
     const isMine   = (senderId === CURRENT_USER_ID);
@@ -463,25 +612,11 @@ if (String(msg.is_internal) === '1') {
 
     const meta = document.createElement('span');
     meta.className = 'ticket-chat-meta';
-    const rol = msg.sender_role || '';
-    const at  = msg.created_at || '';
-    meta.textContent = (rol ? rol + ' · ' : '') + at;
+    meta.textContent = ((msg.sender_role ? msg.sender_role + ' · ' : '') + (msg.created_at || ''));
     div.appendChild(meta);
 
     bodyEl.appendChild(div);
     bodyEl.scrollTop = bodyEl.scrollHeight;
-}
-
-// ===============================
-//  Chat: transfer block (gris)
-// ===============================
-function escapeHtml(str){
-  return String(str ?? '')
-    .replaceAll('&','&amp;')
-    .replaceAll('<','&lt;')
-    .replaceAll('>','&gt;')
-    .replaceAll('"','&quot;')
-    .replaceAll("'","&#039;");
 }
 
 function renderTransferBlock(payload){
@@ -517,32 +652,24 @@ function renderTransferBlock(payload){
   const list = document.createElement('div');
   list.className = 'ticket-transfer-messages';
 
-  if (!msgs.length) {
-    const empty = document.createElement('div');
-    empty.className = 'ticket-transfer-empty';
-    empty.textContent = 'Sin mensajes transferidos.';
-    list.appendChild(empty);
-  } else {
-    msgs.forEach(m => {
-      const item = document.createElement('div');
-      item.className = 'ticket-transfer-msg';
-      item.innerHTML = `
-        <div class="ticket-transfer-msg-top">
-          <span class="role">${escapeHtml(m.sender_role || '')}</span>
-          <span class="name">${escapeHtml(m.sender_name || '')}</span>
-          <span class="at">${escapeHtml(m.created_at || '')}</span>
-        </div>
-        <div class="ticket-transfer-msg-text">${escapeHtml(m.message || '')}</div>
-      `;
-      list.appendChild(item);
-    });
-  }
+  msgs.forEach(m => {
+    const item = document.createElement('div');
+    item.className = 'ticket-transfer-msg';
+    item.innerHTML = `
+      <div class="ticket-transfer-msg-top">
+        <span class="role">${escapeHtml(m.sender_role || '')}</span>
+        <span class="name">${escapeHtml(m.sender_name || '')}</span>
+        <span class="at">${escapeHtml(m.created_at || '')}</span>
+      </div>
+      <div class="ticket-transfer-msg-text">${escapeHtml(m.message || '')}</div>
+    `;
+    list.appendChild(item);
+  });
 
   if (files.length) {
     const fwrap = document.createElement('div');
     fwrap.className = 'ticket-transfer-files';
     fwrap.innerHTML = `<div class="ticket-transfer-files-title">Adjuntos transferidos</div>`;
-
     files.forEach(f => {
       const a = document.createElement('a');
       a.className = 'ticket-transfer-file';
@@ -552,7 +679,6 @@ function renderTransferBlock(payload){
       a.textContent = '📎 ' + (f.file_name || 'archivo');
       fwrap.appendChild(a);
     });
-
     list.appendChild(fwrap);
   }
 
@@ -560,10 +686,7 @@ function renderTransferBlock(payload){
   bodyEl.prepend(wrap);
 }
 
-// ===============================
-//  Chat: obtener mensajes
-// ===============================
-function fetchMessages(initial) {
+function fetchMessages() {
     if (!currentTicketId) return;
 
     const url = '/HelpDesk_EQF/modules/ticket/get_messages.php'
@@ -583,9 +706,6 @@ function fetchMessages(initial) {
         .catch(err => console.error('Error obteniendo mensajes:', err));
 }
 
-// ===============================
-//  Chat: enviar mensaje
-// ===============================
 function sendTicketMessage(ev) {
     ev.preventDefault();
     if (!currentTicketId) return;
@@ -596,7 +716,6 @@ function sendTicketMessage(ev) {
 
     const texto = input.value.trim();
     const file  = fileInput && fileInput.files.length > 0 ? fileInput.files[0] : null;
-
     if (!texto && !file) return;
 
     input.disabled = true;
@@ -605,36 +724,27 @@ function sendTicketMessage(ev) {
     const formData = new FormData();
     const internalCb = document.getElementById('ticketChatInternal');
     const isInternal = internalCb && internalCb.checked ? 1 : 0;
+
     formData.append('interno', isInternal);
     formData.append('ticket_id', currentTicketId);
     formData.append('mensaje', texto);
     if (file) formData.append('adjunto', file);
 
-    fetch('/HelpDesk_EQF/modules/ticket/send_messages.php', {
-        method: 'POST',
-        body: formData
-    })
+    fetch('/HelpDesk_EQF/modules/ticket/send_messages.php', { method: 'POST', body: formData })
     .then(response => {
         input.disabled = false;
         if (fileInput) {
             fileInput.disabled = false;
             fileInput.value = '';
-            const internalCb = document.getElementById('ticketChatInternal');
-if (internalCb) internalCb.checked = false;
-
+            if (internalCb) internalCb.checked = false;
         }
-
-        if (!response.ok) {
-            alert('No se pudo enviar el mensaje');
-            return;
-        }
-
+        if (!response.ok) { alert('No se pudo enviar el mensaje'); return; }
         input.value = '';
         input.focus();
         fetchMessages(false);
     })
     .catch(err => {
-        console.error('Error enviando mensaje:', err);
+        console.error(err);
         input.disabled = false;
         if (fileInput) fileInput.disabled = false;
         alert('Error al enviar el mensaje');
@@ -642,7 +752,7 @@ if (internalCb) internalCb.checked = false;
 }
 
 // ===============================
-//  INIT: DataTables + asignación + estatus + polling
+//  DataTables + asignación + estado + polling
 // ===============================
 document.addEventListener('DOMContentLoaded', function () {
 
@@ -652,17 +762,17 @@ document.addEventListener('DOMContentLoaded', function () {
         return $(selector).DataTable(options || {});
     }
 
-    const incomingDT = initOrGetTable('#incomingTable', {
-        pageLength: 5,
-        order: [[1, 'asc']]
-    });
+    const incomingDT = initOrGetTable('#incomingTable', { pageLength: 5, order: [[1, 'asc']] });
+    const myDT       = initOrGetTable('#myTicketsTable', { pageLength: 5, order: [[1, 'desc']] });
 
-    initOrGetTable('#myTicketsTable', {
-        pageLength: 5,
-        order: [[1, 'desc']]
-    });
+    function bumpKpi(deltaAbiertos, deltaEnProceso){
+      const a = document.getElementById('kpiAbiertos');
+      const p = document.getElementById('kpiEnProceso');
+      if (a) a.textContent = Math.max(0, (parseInt(a.textContent || '0',10) + deltaAbiertos));
+      if (p) p.textContent = Math.max(0, (parseInt(p.textContent || '0',10) + deltaEnProceso));
+    }
 
-    // ---------- CAMBIO DE ESTATUS ----------
+    // ---- CAMBIO ESTATUS ----
     document.addEventListener('change', function (e) {
         const select = e.target.closest('.ticket-status-select');
         if (!select) return;
@@ -672,13 +782,10 @@ document.addEventListener('DOMContentLoaded', function () {
         const prevEstado  = select.dataset.prev || 'abierto';
         const rowEl       = select.closest('tr');
 
-        if (!ticketId) return;
-
         fetch('/HelpDesk_EQF/modules/ticket/update_status.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: 'ticket_id=' + encodeURIComponent(ticketId) +
-                  '&estado='   + encodeURIComponent(nuevoEstado)
+            body: 'ticket_id=' + encodeURIComponent(ticketId) + '&estado=' + encodeURIComponent(nuevoEstado)
         })
         .then(r => r.json())
         .then(data => {
@@ -691,41 +798,32 @@ document.addEventListener('DOMContentLoaded', function () {
             select.dataset.prev = nuevoEstado;
             select.className = 'ticket-status-select status-' + nuevoEstado;
 
+            // si se cierra/resuelve, lo removemos de mis tickets
             if (nuevoEstado === 'resuelto' || nuevoEstado === 'cerrado') {
                 if (rowEl) {
-                    if (window.jQuery && $.fn.dataTable && $.fn.dataTable.isDataTable('#myTicketsTable')) {
-                        const dtMy = $('#myTicketsTable').DataTable();
-                        dtMy.row($(rowEl)).remove().draw(false);
-                    } else {
-                        rowEl.remove();
-                    }
+                    if (myDT) myDT.row($(rowEl)).remove().draw(false);
+                    else rowEl.remove();
                 }
             }
         })
         .catch(err => {
-            console.error('Error update_status:', err);
+            console.error(err);
             alert('Error interno al actualizar el estatus.');
             select.value = prevEstado;
         });
     });
 
-    // ---------- ASIGNAR TICKET ----------
+    // ---- ASIGNAR (mueve a "Mis tickets" en vivo) ----
     document.addEventListener('click', function (e) {
         const btn = e.target.closest('.btn-assign-ticket');
         if (!btn) return;
 
-        if (btn.dataset.loading === '1') return;
-        btn.dataset.loading = '1';
-
-        const rowEl    = btn.closest('tr');
+        const rowEl = btn.closest('tr');
         const ticketId = btn.dataset.ticketId || (rowEl && rowEl.getAttribute('data-ticket-id'));
-        if (!ticketId || !rowEl) {
-            btn.dataset.loading = '0';
-            return;
-        }
+        if (!ticketId || !rowEl) return;
 
-        const originalText = btn.textContent;
         btn.disabled = true;
+        const original = btn.textContent;
         btn.textContent = 'Asignando...';
 
         fetch('/HelpDesk_EQF/modules/ticket/assign.php', {
@@ -736,30 +834,90 @@ document.addEventListener('DOMContentLoaded', function () {
         .then(r => r.json())
         .then(data => {
             if (!data.ok) {
-                alert(data.msg || 'No se pudo asignar el ticket.');
+                alert(data.msg || 'No se pudo asignar.');
                 btn.disabled = false;
-                btn.textContent = originalText;
-                btn.dataset.loading = '0';
+                btn.textContent = original;
                 return;
             }
 
-            // Quitar de "Tickets entrantes"
+            // Quitar de incoming
             if (incomingDT) incomingDT.row($(rowEl)).remove().draw(false);
             else rowEl.remove();
 
-            showTicketToast('Ticket #' + ticketId + ' asignado a ti.');
-            btn.dataset.loading = '0';
+            // Construir fila para Mis tickets (con payload del assign)
+            const t = data.ticket || {};
+            const id = t.id || ticketId;
+            const fecha = t.fecha_envio || '';
+            const usuario = t.usuario || '';
+            const problema = (t.problema_label || t.problema_raw || '');
+            const prioridadRaw = (t.prioridad || 'media').toLowerCase();
+
+            const priorityHtml = `<span class="priority-pill priority-${escapeHtml(prioridadRaw)}">${escapeHtml(prioridadRaw.charAt(0).toUpperCase()+prioridadRaw.slice(1))}</span>`;
+
+            const statusSelect = `
+              <select class="ticket-status-select status-en_proceso"
+                      data-ticket-id="${id}"
+                      data-prev="en_proceso">
+                <option value="abierto">Abierto</option>
+                <option value="en_proceso" selected>En proceso</option>
+                <option value="resuelto">Resuelto</option>
+                <option value="cerrado">Cerrado</option>
+              </select>
+            `;
+
+            const actions = `
+              <div class="analyst-actions">
+                <button type="button" class="btn-mini" onclick="openTicketDetail(${id})">Ver</button>
+                <button type="button" class="btn-mini primary" onclick="openTicketChat(${id}, '${escapeHtml(usuario)}')">Chat</button>
+              </div>
+            `;
+
+            const rowData = [
+              `#${id}`,
+              escapeHtml(fecha),
+              escapeHtml(usuario),
+              escapeHtml(problema),
+              priorityHtml,
+              statusSelect,
+              actions
+            ];
+
+            if (myDT) {
+              myDT.row.add(rowData).draw(false);
+            } else {
+              const tbody = document.querySelector('#myTicketsTable tbody');
+              if (tbody) {
+                const tr = document.createElement('tr');
+                tr.setAttribute('data-ticket-id', id);
+                tr.innerHTML = `
+                  <td>#${escapeHtml(id)}</td>
+                  <td>${escapeHtml(fecha)}</td>
+                  <td>${escapeHtml(usuario)}</td>
+                  <td>${escapeHtml(problema)}</td>
+                  <td>${priorityHtml}</td>
+                  <td>${statusSelect}</td>
+                  <td>${actions}</td>
+                `;
+                tbody.prepend(tr);
+              }
+            }
+
+            // KPI: baja abiertos, sube en proceso
+            bumpKpi(-1, +1);
+
+            showTicketToast('Ticket #' + id + ' asignado a ti.');
         })
         .catch(err => {
             console.error(err);
             alert('Error al asignar el ticket.');
+        })
+        .finally(() => {
             btn.disabled = false;
-            btn.textContent = originalText;
-            btn.dataset.loading = '0';
+            btn.textContent = original;
         });
     });
 
-    // ---------- NOTIFICACIONES NUEVOS TICKETS (polling) ----------
+    // ---- POLLING NUEVOS TICKETS ----
     let lastTicketId = <?php echo (int)$maxIncomingId; ?>;
 
     if ('Notification' in window && Notification.permission === 'default') {
@@ -770,7 +928,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!('Notification' in window)) return;
         if (Notification.permission !== 'granted') return;
 
-        new Notification('Nuevo ticket entrante (' + ticket.id + ')', {
+        new Notification('Nuevo ticket entrante (#' + ticket.id + ')', {
             body: ticket.problema || '',
             icon: '/HelpDesk_EQF/assets/img/icon_helpdesk.png'
         });
@@ -782,22 +940,32 @@ document.addEventListener('DOMContentLoaded', function () {
         if (p === 'alta') label = 'Alta';
         else if (p === 'baja') label = 'Baja';
         else if (p === 'critica' || p === 'crítica') label = 'Crítica';
-        return `<span class="priority-pill priority-${p}">${label}</span>`;
+        return `<span class="priority-pill priority-${escapeHtml(p)}">${escapeHtml(label)}</span>`;
     }
 
     function addIncomingTicketRow(ticket) {
         if (!ticket || !ticket.id) return;
 
-        const prioridadHtml = renderPriorityPill(ticket.prioridad);
+        // evita duplicados
+        if (document.querySelector(`#incomingTable tr[data-ticket-id="${ticket.id}"]`)) return;
+
+        const prioridadHtml = renderPriorityPill(ticket.prioridad || 'media');
+
+        const actions = `
+          <div class="analyst-actions">
+            <button type="button" class="btn-mini" onclick="openTicketDetail(${ticket.id})">Ver</button>
+            <button type="button" class="btn-mini primary btn-assign-ticket" data-ticket-id="${ticket.id}">Asignar</button>
+          </div>
+        `;
 
         const rowData = [
             ticket.id,
-            ticket.fecha_envio || ticket.fecha || '',
-            ticket.usuario || ticket.nombre || '',
-            ticket.problema || '',
+            escapeHtml(ticket.fecha || ''),
+            escapeHtml(ticket.usuario || ''),
+            escapeHtml(ticket.problema || ''),
             prioridadHtml,
-            ticket.descripcion || '',
-            `<button type="button" class="btn-assign-ticket" data-ticket-id="${ticket.id}">Asignar</button>`
+            escapeHtml(ticket.descripcion || ''),
+            actions
         ];
 
         if (incomingDT) {
@@ -813,38 +981,16 @@ document.addEventListener('DOMContentLoaded', function () {
                 <td>${rowData[1]}</td>
                 <td>${rowData[2]}</td>
                 <td>${rowData[3]}</td>
-                <td>${prioridadHtml}</td>
+                <td>${rowData[4]}</td>
                 <td>${rowData[5]}</td>
                 <td>${rowData[6]}</td>
             `;
             tbody.prepend(tr);
         }
+
+        // KPI: sube abiertos
+        bumpKpi(+1, 0);
     }
-function pollStaffNotifications() {
-    fetch('/HelpDesk_EQF/modules/ticket/check_staff_notifications.php')
-        .then(r => r.json())
-        .then(data => {
-            if (!data.ok || !data.has) return;
-            if (!Array.isArray(data.notifications)) return;
-
-            data.notifications.forEach(n => {
-                const msg   = n.body  || 'Tienes una notificación nueva.';
-                const title = n.title || 'HelpDesk EQF';
-
-                showTicketToast(msg);
-
-                if ('Notification' in window && Notification.permission === 'granted') {
-                    new Notification(title, {
-                        body: msg,
-                        icon: '/HelpDesk_EQF/assets/img/icon_helpdesk.png'
-                    });
-                }
-            });
-        })
-        .catch(err => {
-            console.error('Error consultando notificaciones staff:', err);
-        });
-}
 
     function pollNewTickets() {
         fetch('/HelpDesk_EQF/modules/ticket/check_new.php?last_id=' + lastTicketId)
@@ -854,8 +1000,7 @@ function pollStaffNotifications() {
 
                 lastTicketId = data.id;
 
-                const msg = 'Nuevo ticket #' + data.id + ' – ' + (data.problema || '');
-                showTicketToast(msg);
+                showTicketToast('Nuevo ticket #' + data.id + ' – ' + (data.problema || ''));
                 showDesktopNotification(data);
 
                 addIncomingTicketRow(data);
@@ -863,10 +1008,80 @@ function pollStaffNotifications() {
             .catch(err => console.error('Error comprobando nuevos tickets:', err));
     }
 
-    // ✅ Inicia polling
+    // ---- POLLING LIMPIEZA (quita tickets ya tomados por otro) ----
+    // Esto evita que se queden en tu tabla como "fantasma".
+    function cleanupIncomingTaken() {
+      const rows = document.querySelectorAll('#incomingTable tbody tr[data-ticket-id]');
+      if (!rows.length) return;
+
+      const ids = [];
+      rows.forEach(r => ids.push(r.getAttribute('data-ticket-id')));
+
+      // endpoint rápido: revisa cuáles siguen disponibles
+      fetch('/HelpDesk_EQF/modules/ticket/incoming_snapshot.php', {
+        method: 'POST',
+        headers: {'Content-Type':'application/x-www-form-urlencoded'},
+        body: 'ids=' + encodeURIComponent(ids.join(','))
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (!data.ok) return;
+        const still = new Set((data.available_ids || []).map(x => String(x)));
+
+        rows.forEach(r => {
+          const id = r.getAttribute('data-ticket-id');
+          if (!still.has(String(id))) {
+            // ya lo tomó alguien → quítalo
+            if (incomingDT) incomingDT.row($(r)).remove().draw(false);
+            else r.remove();
+          }
+        });
+      })
+      .catch(()=>{});
+    }
+
     pollNewTickets();
     setInterval(pollNewTickets, 10000);
+
+    // cada 15s limpiamos entrantes
+    setInterval(cleanupIncomingTaken, 10000);
 });
+
+function applyUnreadBadges(items){
+  const map = new Map();
+  (items || []).forEach(it => map.set(String(it.ticket_id), parseInt(it.unread_count||0,10)));
+
+  document.querySelectorAll('[data-chat-btn][data-ticket-id]').forEach(btn => {
+    const id = btn.getAttribute('data-ticket-id');
+    const badge = btn.querySelector('.chat-badge');
+    const count = map.get(String(id)) || 0;
+
+    if (!badge) return;
+
+    if (count > 0){
+      badge.style.display = 'inline-flex';
+      badge.textContent = count > 9 ? '9+' : String(count);
+    } else {
+      badge.style.display = 'none';
+      badge.textContent = '';
+    }
+  });
+}
+
+
+function pollStaffUnread(){
+  fetch('/HelpDesk_EQF/modules/ticket/staff_unread.php', {cache:'no-store'})
+    .then(r=>r.json())
+    .then(data=>{
+      if (!data.ok) return;
+      applyUnreadBadges(data.items);
+    })
+    .catch(()=>{});
+}
+setInterval(pollStaffUnread, 7000);
+pollStaffUnread();
+
+
 </script>
 
 </body>
