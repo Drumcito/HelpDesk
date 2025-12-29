@@ -2222,3 +2222,73 @@ table.dataTable tbody tr:hover {
   color:#fff;
 }
 
+/* ===== MODAL EQF CREATE TICKET ===== */
+.eqf-modal-backdrop{
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background: rgba(0,0,0,.55);
+  display: none;              /* <- clave */
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  z-index: 2147483647 !important;
+}
+
+.eqf-modal-backdrop.show{
+  display: flex !important;   /* <- clave */
+}
+
+.eqf-modal{
+  width: min(720px, 100%);
+  background: #fff;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 18px 40px rgba(15,23,42,.20);
+}
+
+.eqf-modal-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding: 16px 18px;
+  background: var(--eqf-bg-header, #EBEEF2);
+}
+
+.eqf-modal-body{ padding: 16px 18px; }
+.eqf-modal-footer{
+  padding: 14px 18px;
+  display:flex;
+  gap:10px;
+  justify-content:flex-end;
+  border-top: 1px solid var(--eqf-border, #e5e7eb);
+}
+
+.eqf-modal-close{
+  border:0;
+  background: transparent;
+  cursor:pointer;
+  font-size: 18px;
+  padding: 8px 10px;
+  border-radius: 10px;
+}
+
+.eqf-grid-2{ display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+@media (max-width: 680px){ .eqf-grid-2{ grid-template-columns:1fr; } }
+
+.eqf-field label{ display:block; font-size:13px; margin: 0 0 6px; }
+.eqf-field input,.eqf-field select,.eqf-field textarea{
+  width:100%;
+  padding:10px 12px;
+  border:1px solid var(--eqf-border,#e5e7eb);
+  border-radius:12px;
+}
+.eqf-field input:disabled{ background:#f3f4f6; color:#6b7280; }
+.eqf-hr{ border:0; border-top:1px solid var(--eqf-border,#e5e7eb); margin:14px 0; }
+
+.eqf-btn{ border:0; cursor:pointer; border-radius:12px; padding:10px 14px; font-weight:800; }
+.eqf-btn-primary{ background: var(--eqf-combined,#6e1c5c); color:#fff; }
+.eqf-btn-secondary{ background:#e5e7eb; color:#111827; }
+.eqf-btn-ghost{ background:transparent; color:#111827; }
+.eqf-btn:disabled{ opacity:.55; cursor:not-allowed; }

@@ -208,7 +208,10 @@ onclick="toggleSidebar()" aria-label="Abrir/cerrar menú">
                 <span class="user-menu-icon">⭐</span>
                 <span>Dashboard</span>
             </button>
-
+             <button type="button" class="user-menu-item" id="btnOpenCreateTicket">
+                <span class="user-menu-icon">＋</span>
+                <span>Crear ticket</span>
+            </button>
             <button type="button" class="user-menu-item" 
                 onclick="window.location.href='/HelpDesk_EQF/modules/ticket/history.php'">
                 <span class="user-menu-icon">📈</span>

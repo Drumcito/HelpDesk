@@ -215,6 +215,7 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC);
                 </div>
             </div>
 
+
             <!-- ENTRANTES -->
             <div id="incoming-section" class="user-info-card">
                 <h3>Tickets entrantes</h3>
@@ -377,11 +378,129 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC);
     </div>
 </div>
 
+
+<!-- MODAL CREAR TICKET (Analista) -->
+<div class="eqf-modal-backdrop" id="createTicketBackdrop" aria-hidden="true">
+  <div class="eqf-modal" role="dialog" aria-modal="true" aria-labelledby="createTicketTitle">
+    <div class="eqf-modal-header">
+      <h2 id="createTicketTitle">Crear ticket</h2>
+      <button type="button" class="eqf-modal-close" id="btnCloseCreateTicket" aria-label="Cerrar">✕</button>
+    </div>
+
+    <form id="formCreateTicket">
+      <div class="eqf-modal-body">
+
+        <!-- CORREO + BUSCAR -->
+        <div class="eqf-grid-2">
+          <div class="eqf-field">
+            <label for="ct_email">Correo del usuario</label>
+            <input type="text" id="ct_email" name="email" list="usersEmailList" placeholder="usuario@eqf.com" required list="usersEmailList"
+  autocomplete="off"
+/>
+<datalist id="usersEmailList"></datalist>
+  <div class="eqf-field" style="display:flex; gap:10px; align-items:center;">
+    <input type="checkbox" id="ct_ticket_mi" />
+    <label for="ct_ticket_mi" style="margin:0;">Ticket para mí</label>
+  </div>
+          </div>
+        </div>
+
+  
+        <!-- DATOS AUTORELLENOS (bloqueados) -->
+        <div class="eqf-grid-2">
+          <div class="eqf-field">
+            <label>#SAP</label>
+            <input type="text" id="ct_sap" disabled>
+          </div>
+          <div class="eqf-field">
+            <label>Nombre</label>
+            <input type="text" id="ct_nombre" disabled>
+          </div>
+        </div>
+
+        <div class="eqf-grid-2">
+          <div class="eqf-field">
+            <label>Área</label>
+            <input type="text" id="ct_area" disabled>
+          </div>
+          <div class="eqf-field">
+            <label>Correo</label>
+            <input type="text" id="ct_email_locked" disabled>
+          </div>
+        </div>
+<div class="eqf-field">
+  <label for="ct_area_destino">Área destino</label>
+  <select id="ct_area_destino" name="area_destino" required>
+    <option value="" disabled selected>Selecciona…</option>
+    <option value="TI">TI</option>
+    <option value="SAP">SAP</option>
+    <option value="MKT">MKT</option>
+  </select>
+</div>
+
+        <hr class="eqf-hr">
+
+        <!-- CATALOGO PROBLEMA / PRIORIDAD / DESCRIPCION -->
+        <div class="eqf-grid-2">
+          <div class="eqf-field">
+            <label for="ct_problema">Problema</label>
+            <select id="ct_problema" name="problema" required>
+              <option value="" selected disabled>Selecciona…</option>
+              <!-- Rellena con tu catálogo -->
+              <option value="SAP">SAP</option>
+              <option value="Impresora">Impresora</option>
+              <option value="Red/Internet">Red/Internet</option>
+              <option value="Equipo de cómputo">Equipo de cómputo</option>
+              <option value="Otro">Otro</option>
+            </select>
+          </div>
+
+          <div class="eqf-field">
+            <label for="ct_prioridad">Prioridad</label>
+            <select id="ct_prioridad" name="prioridad" required>
+              <option value="baja">Baja</option>
+              <option value="media" selected>Media</option>
+              <option value="alta">Alta</option>
+            </select>
+          </div>
+        </div>
+        <div class="eqf-grid-2">
+  <div class="eqf-field">
+    <label for="ct_inicio">Inicio (fecha y hora)</label>
+    <input type="datetime-local" id="ct_inicio" name="inicio">
+  </div>
+  <div class="eqf-field">
+    <label for="ct_fin">Fin (fecha y hora)</label>
+    <input type="datetime-local" id="ct_fin" name="fin">
+    <small class="eqf-hint">Si capturas FIN, el ticket se creará como CERRADO.</small>
+  </div>
+</div>
+
+        <div class="eqf-field">
+          <label for="ct_descripcion">Descripción</label>
+          <textarea id="ct_descripcion" name="descripcion" rows="4" required
+            placeholder="Describe lo que reportó la sucursal…"></textarea>
+        </div>
+
+        <div class="eqf-alert" id="ct_msg" style="display:none;"></div>
+
+      </div>
+
+      <div class="eqf-modal-footer">
+        <button type="button" class="btn-secondary" id="btnCancelCreateTicket">Cancelar</button>
+        <button type="submit" class="btn-primary" id="btnSubmitCreateTicket" disabled>
+          Guardar 
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
 <?php include __DIR__ . '/../../../template/footer.php'; ?>
 
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
-<script src="/HelpDesk_EQF/assets/js/script.js?v=20251208a"></script>
 
 <script>
 // ===============================
@@ -1077,8 +1196,381 @@ function pollStaffUnread(){
 setInterval(pollStaffUnread, 7000);
 pollStaffUnread();
 
-
 </script>
+
+<script>
+window.CURRENT_USER = {
+  id: <?php echo (int)$userId; ?>,
+  email: <?php echo json_encode($_SESSION['user_email'] ?? ''); ?>,
+  sap: <?php echo json_encode($_SESSION['number_sap'] ?? ''); ?>,
+  name: <?php echo json_encode(trim(($_SESSION['user_name'] ?? '').' '.($_SESSION['user_last'] ?? ''))); ?>,
+  area: <?php echo json_encode($_SESSION['user_area'] ?? ''); ?>
+};
+</script>
+
+<script>
+(() => {
+  'use strict';
+
+  // ===============================
+  // Abrir modal desde sidebar (delegación)
+  // ===============================
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('#btnOpenCreateTicket');
+    if (!btn) return;
+    e.preventDefault();
+
+    const backdrop = document.getElementById('createTicketBackdrop');
+    if (!backdrop) return;
+
+    backdrop.classList.add('show');
+    backdrop.setAttribute('aria-hidden', 'false');
+
+    // Reset UI al abrir
+    const ticketMi = document.getElementById('ct_ticket_mi');
+    if (ticketMi) ticketMi.checked = false;
+
+    const emailInput = document.getElementById('ct_email');
+    if (emailInput) {
+      emailInput.disabled = false;
+      setTimeout(() => emailInput.focus(), 30);
+    }
+
+    const areaDestino = document.getElementById('ct_area_destino');
+    if (areaDestino) areaDestino.disabled = false;
+  });
+
+  // ===============================
+  // DOM Ready
+  // ===============================
+  document.addEventListener('DOMContentLoaded', () => {
+    const backdrop  = document.getElementById('createTicketBackdrop');
+    const btnClose  = document.getElementById('btnCloseCreateTicket');
+    const btnCancel = document.getElementById('btnCancelCreateTicket');
+
+    const form      = document.getElementById('formCreateTicket');
+    const msg       = document.getElementById('ct_msg');
+    const btnSubmit = document.getElementById('btnSubmitCreateTicket');
+
+    const emailInput  = document.getElementById('ct_email');
+    const datalist    = document.getElementById('usersEmailList');
+
+    const sap         = document.getElementById('ct_sap');
+    const nombre      = document.getElementById('ct_nombre');
+    const area        = document.getElementById('ct_area');
+    const emailLocked = document.getElementById('ct_email_locked');
+
+    const areaDestino = document.getElementById('ct_area_destino');
+    const ticketMi    = document.getElementById('ct_ticket_mi');
+
+    const dtInicio    = document.getElementById('ct_inicio');
+    const dtFin       = document.getElementById('ct_fin');
+
+    const selProblema  = document.getElementById('ct_problema');
+    const selPrioridad = document.getElementById('ct_prioridad');
+    const txtDesc      = document.getElementById('ct_descripcion');
+
+    if (!backdrop || !form || !msg || !btnSubmit || !emailInput || !datalist || !areaDestino || !txtDesc) {
+      console.error('Modal crear ticket: faltan elementos del DOM (IDs).');
+      return;
+    }
+
+    // ===============================
+    // State
+    // ===============================
+    let foundUserId = null;
+    let timer = null;
+    let isAutofilling = false;
+
+    // ===============================
+    // Helpers
+    // ===============================
+    function isValidEmail(v){
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v||'').trim());
+    }
+
+    function showMsg(text, ok=false){
+      msg.style.display = 'block';
+      msg.style.color = ok ? '#065f46' : '#9a3412';
+      msg.textContent = text || '';
+    }
+
+    function hideMsg(){
+      msg.style.display = 'none';
+      msg.textContent = '';
+    }
+
+    function closeModal(){
+      backdrop.classList.remove('show');
+      backdrop.setAttribute('aria-hidden','true');
+      hideMsg();
+    }
+
+    function clearUser(){
+      foundUserId = null;
+      if (sap) sap.value = '';
+      if (nombre) nombre.value = '';
+      if (area) area.value = '';
+      if (emailLocked) emailLocked.value = '';
+      btnSubmit.disabled = true;
+    }
+
+    function setUser(u){
+      foundUserId = u.id;
+      if (sap) sap.value = u.number_sap || u.sap || '';
+      if (nombre) nombre.value = `${u.name || ''} ${u.last_name || ''}`.trim();
+      if (area) area.value = u.area || '';
+      if (emailLocked) emailLocked.value = u.email || '';
+      btnSubmit.disabled = false;
+    }
+
+    function toDateTimeLocal(d){
+      const pad = (n)=> String(n).padStart(2,'0');
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    // Ocultar / Mostrar "la tarjeta" correcta (field o grid)
+    const wrapOf = (el) => el ? (el.closest('.eqf-field') || el.closest('.eqf-grid-2') || el.parentElement) : null;
+    const showEl = (el, show) => {
+      const w = wrapOf(el);
+      if (w) w.style.display = show ? '' : 'none';
+    };
+
+    // ===============================
+    // Cerrar modal: X / Cancelar / click fuera / ESC
+    // ===============================
+    btnClose?.addEventListener('click', closeModal);
+    btnCancel?.addEventListener('click', closeModal);
+
+    backdrop.addEventListener('click', (e) => {
+      if (e.target === backdrop) closeModal();
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && backdrop.classList.contains('show')) closeModal();
+    });
+
+    // ===============================
+    // Checkbox: Ticket para mí
+    // Reglas:
+    // - Oculta: problema, prioridad, inicio, fin (y área destino)
+    // - Fuerza área destino = TI
+    // - Autollenado datos con CURRENT_USER
+    // ===============================
+    function applyTicketMiMode(on){
+      hideMsg();
+      datalist.innerHTML = '';
+      clearUser();
+
+      if (on) {
+        showEl(selProblema, false);
+        showEl(selPrioridad, false);
+        showEl(dtInicio, false);
+        showEl(dtFin, false);
+        showEl(areaDestino, false);
+
+        emailInput.value = '';
+        emailInput.disabled = true;
+
+        areaDestino.value = 'TI';
+        areaDestino.disabled = true;
+
+        if (dtInicio) dtInicio.value = '';
+        if (dtFin) dtFin.value = '';
+
+        const me = (window.CURRENT_USER || {});
+        if (!me.id || !me.email) {
+          showMsg('Faltan datos del analista (CURRENT_USER) para autollenado.', false);
+          return;
+        }
+
+        setUser({
+          id: me.id,
+          email: me.email,
+          number_sap: me.sap,
+          name: me.name,
+          last_name: '',
+          area: me.area
+        });
+
+        txtDesc.focus();
+
+      } else {
+        showEl(selProblema, true);
+        showEl(selPrioridad, true);
+        showEl(dtInicio, true);
+        showEl(dtFin, true);
+        showEl(areaDestino, true);
+
+        emailInput.disabled = false;
+        areaDestino.disabled = false;
+
+        clearUser();
+        emailInput.focus();
+      }
+    }
+
+    if (ticketMi) {
+      ticketMi.addEventListener('change', () => applyTicketMiMode(ticketMi.checked));
+      ticketMi.checked = false;
+      applyTicketMiMode(false);
+    }
+
+    // ===============================
+    // AUTOCOMPLETE REAL (tipo Gmail) + datalist
+    // - No usa ghost
+    // - Completa dentro del input y selecciona lo autocompletado
+    // - TAB o → acepta
+    // ===============================
+    function applyInlineSuggestion(typed, suggestion) {
+      if (!typed || !suggestion) return;
+
+      const t = typed.toLowerCase();
+      const s = suggestion.toLowerCase();
+
+      if (!s.startsWith(t) || suggestion.length <= typed.length) return;
+
+      isAutofilling = true;
+      emailInput.value = suggestion;
+
+      // Selecciona lo autocompletado
+      try {
+        emailInput.setSelectionRange(typed.length, suggestion.length);
+      } catch (e) {}
+      isAutofilling = false;
+    }
+
+    emailInput.addEventListener('input', () => {
+      if (ticketMi && ticketMi.checked) return;
+      if (isAutofilling) return;
+
+      const typed = emailInput.value.trim();
+      hideMsg();
+      clearUser();
+
+      clearTimeout(timer);
+      timer = setTimeout(async () => {
+        if (typed.length < 1) { datalist.innerHTML = ''; return; }
+
+        try {
+          const r = await fetch(`/HelpDesk_EQF/modules/dashboard/analyst/ajax/search_users.php?q=${encodeURIComponent(typed)}`, { cache:'no-store' });
+          const j = await r.json();
+          if (!j.ok) { datalist.innerHTML=''; return; }
+
+          const items = j.items || [];
+          const top = items[0]?.email || '';
+
+          // datalist para que veas varias opciones
+          datalist.innerHTML = items.map(u =>
+            `<option value="${u.email}">${u.email} — ${u.number_sap} — ${u.name} ${u.last_name}</option>`
+          ).join('');
+
+          // autocompletado inline
+          applyInlineSuggestion(typed, top);
+
+        } catch (err) {
+          console.error('autocomplete error', err);
+        }
+      }, 180);
+    });
+
+    // TAB o → acepta sugerencia (si hay selección)
+    emailInput.addEventListener('keydown', (e) => {
+      if (ticketMi && ticketMi.checked) return;
+
+      if (e.key === 'Tab' || e.key === 'ArrowRight') {
+        const start = emailInput.selectionStart;
+        const end = emailInput.selectionEnd;
+
+        // si hay texto seleccionado (parte sugerida)
+        if (typeof start === 'number' && typeof end === 'number' && end > start) {
+          e.preventDefault();
+          emailInput.setSelectionRange(end, end);
+          emailInput.dispatchEvent(new Event('change'));
+        }
+      }
+    });
+
+    // Lookup automático al elegir un email (datalist o autocompletado)
+    emailInput.addEventListener('change', async () => {
+      if (ticketMi && ticketMi.checked) return;
+
+      const email = emailInput.value.trim();
+      if (!isValidEmail(email)) return;
+
+      try {
+        const r = await fetch(`/HelpDesk_EQF/modules/dashboard/analyst/ajax/get_user_by_email.php?email=${encodeURIComponent(email)}`, { cache:'no-store' });
+        const j = await r.json();
+
+        if (!j.ok) {
+          clearUser();
+          showMsg(j.msg || 'Usuario no encontrado', false);
+          return;
+        }
+
+        setUser(j.user);
+        showMsg('Usuario encontrado.', true);
+
+        if (dtInicio && !dtInicio.value) dtInicio.value = toDateTimeLocal(new Date());
+
+      } catch (err) {
+        console.error(err);
+        showMsg('Error al buscar usuario.', false);
+      }
+    });
+
+    // ===============================
+    // Submit (payload para backend)
+    // ===============================
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      hideMsg();
+
+      if (!foundUserId) {
+        showMsg('Selecciona un usuario válido (o usa "Ticket para mí").', false);
+        return;
+      }
+
+      const payload = new URLSearchParams();
+      payload.append('user_id', String(foundUserId));
+      payload.append('ticket_para_mi', (ticketMi && ticketMi.checked) ? '1' : '0');
+
+      payload.append('area_destino', (ticketMi && ticketMi.checked) ? 'TI' : (areaDestino.value || ''));
+      payload.append('problema', (selProblema?.value || ''));
+      payload.append('prioridad', (selPrioridad?.value || 'media'));
+      payload.append('descripcion', (txtDesc?.value || ''));
+
+      payload.append('inicio', (ticketMi && ticketMi.checked) ? '' : (dtInicio?.value || ''));
+      payload.append('fin', (ticketMi && ticketMi.checked) ? '' : (dtFin?.value || ''));
+
+      try {
+        const r = await fetch('/HelpDesk_EQF/modules/ticket/create_ticket_by_analyst.php', {
+          method:'POST',
+          headers:{'Content-Type':'application/x-www-form-urlencoded'},
+          body: payload.toString()
+        });
+
+        const j = await r.json();
+        if (!j.ok) {
+          showMsg(j.msg || 'No se pudo guardar el ticket.', false);
+          return;
+        }
+
+        showMsg('Ticket creado correctamente.', true);
+        setTimeout(closeModal, 600);
+
+      } catch (err) {
+        console.error(err);
+        showMsg('Error al guardar ticket (revisa consola).', false);
+      }
+    });
+
+  });
+
+})();
+</script>
+
+<script src="/HelpDesk_EQF/assets/js/script.js?v=20251208a"></script>
 
 </body>
 </html>
