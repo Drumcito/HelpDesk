@@ -158,7 +158,7 @@ $problema = (string)($feedback['problema'] ?? '');
     <h2>Encuesta de satisfacción</h2>
     <div class="fb-prob"><?php echo htmlspecialchars($problema, ENT_QUOTES, 'UTF-8'); ?></div>
 
-    <form method="POST" action="/HelpDesk_EQF/modules/feedback/submit_feedback.php">
+    <form id="feedbackForm" method="POST" action="/HelpDesk_EQF/modules/feedback/submit_feedback.php">
       <input type="hidden" name="token" value="<?php echo htmlspecialchars($token, ENT_QUOTES, 'UTF-8'); ?>">
 
       <div class="fb-q">¿Cómo calificas la atención recibida?</div>
@@ -238,6 +238,65 @@ document.addEventListener('change', (e) => {
 
   input.closest('.fb-btn')?.classList.add('is-checked');
 });
+</script>
+<script>
+(() => {
+  const form = document.getElementById('feedbackForm');
+  const msg  = document.getElementById('fbMsg');
+  if (!form) return;
+
+  function show(text, ok=false){
+    if (!msg) return;
+    msg.style.display = 'block';
+    msg.style.color = ok ? '#065f46' : '#9a3412';
+    msg.textContent = text || '';
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const btn = form.querySelector('button[type="submit"]');
+    if (btn) { btn.disabled = true; btn.textContent = 'Enviando...'; }
+
+    try {
+      const fd = new FormData(form);
+const r = await fetch(form.action, {
+  method: 'POST',
+  body: fd,
+  cache: 'no-store',
+  headers: { 'Accept': 'application/json' }
+});
+      const raw = await r.text();
+      let j = null; try { j = JSON.parse(raw); } catch(e){}
+
+      if (!r.ok || !j) {
+        console.error('submit_feedback bad response', r.status, raw);
+        show('No se pudo enviar la encuesta.', false);
+        return;
+      }
+
+      if (!j.ok) {
+        show(j.msg || 'No se pudo enviar la encuesta.', false);
+        return;
+      }
+
+      // ✅ Éxito: cerrar modal del padre y refrescar lista
+      show('¡Gracias! Encuesta enviada.', true);
+
+      if (window.parent) {
+        // refresca el listado de "tickets de apoyo" si lo expones (abajo te digo)
+        if (typeof window.parent.refreshMyTI === 'function') window.parent.refreshMyTI();
+        if (typeof window.parent.closeFeedbackModal === 'function') window.parent.closeFeedbackModal();
+      }
+
+    } catch (err) {
+      console.error(err);
+      show('Error enviando la encuesta.', false);
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Enviar encuesta'; }
+    }
+  });
+})();
 </script>
 
 </body>

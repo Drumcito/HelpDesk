@@ -16,19 +16,37 @@ $valid =
     in_array($q3, [1, 2, 3], true) &&
     mb_strlen($comment, 'UTF-8') <= 500;
 
+// Detecta si el submit vino por fetch/ajax
+function is_ajax_request(): bool {
+    $h = $_SERVER['HTTP_X_REQUESTED_WITH'] ?? '';
+    if (strtolower($h) === 'xmlhttprequest') return true;
+
+    $accept = $_SERVER['HTTP_ACCEPT'] ?? '';
+    if (stripos($accept, 'application/json') !== false) return true;
+
+    return false;
+}
+
+function json_end(bool $ok, string $msg, int $code = 200): void {
+    http_response_code($code);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['ok' => $ok, 'msg' => $msg], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 function render_end(string $title, string $msg, bool $ok): void {
     header('Content-Type: text/html; charset=utf-8');
     $safeTitle = htmlspecialchars($title, ENT_QUOTES, 'UTF-8');
     $safeMsg   = htmlspecialchars($msg, ENT_QUOTES, 'UTF-8');
 
-    // si ok => cerrar modal/iframe y recargar user.php
-    // si no ok => no cerrar, solo mostrar mensaje (y que el usuario cierre o regrese)
+    // OJO: en analyst.php tu función es closeFeedbackModal()
+    // y (opcional) refreshMyTI()
     $script = $ok ? "
       (function(){
         try {
-          if (window.parent && typeof window.parent.closeFeedbackIframe === 'function') {
-            window.parent.closeFeedbackIframe();
-            window.parent.location.reload();
+          if (window.parent) {
+            if (typeof window.parent.refreshMyTI === 'function') window.parent.refreshMyTI();
+            if (typeof window.parent.closeFeedbackModal === 'function') window.parent.closeFeedbackModal();
             return;
           }
         } catch(e) {}
@@ -55,7 +73,11 @@ function render_end(string $title, string $msg, bool $ok): void {
     exit;
 }
 
+// Si es AJAX, respondemos JSON; si no, HTML.
+$ajax = is_ajax_request();
+
 if (!$valid) {
+    if ($ajax) json_end(false, 'Datos inválidos. Revisa tus respuestas e inténtalo de nuevo.', 400);
     render_end('Datos inválidos', 'Revisa tus respuestas e inténtalo de nuevo.', false);
 }
 
@@ -73,12 +95,15 @@ try {
     $stmt->execute([$q1, $q2, $q3, $comment, $token]);
 
     if ($stmt->rowCount() === 0) {
+        if ($ajax) json_end(false, 'La encuesta ya fue respondida o el token no es válido.', 409);
         render_end('Encuesta no disponible', 'La encuesta ya fue respondida o el token no es válido.', false);
     }
 
+    if ($ajax) json_end(true, 'Tu feedback fue registrado correctamente.', 200);
     render_end('¡Gracias!', 'Tu feedback fue registrado correctamente.', true);
 
 } catch (Throwable $e) {
     error_log('submit_feedback.php error: ' . $e->getMessage());
+    if ($ajax) json_end(false, 'No se pudo guardar tu respuesta. Intenta de nuevo.', 500);
     render_end('Error interno', 'No se pudo guardar tu respuesta. Intenta de nuevo.', false);
 }

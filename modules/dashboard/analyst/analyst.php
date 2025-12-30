@@ -249,62 +249,40 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC);
                     </div>
                 </div>
             </div>
+
 <!-- MIS TICKETS PARA TI -->
- <div class="user-info-card" id="my-ti-requests">
-  <h3>Mis solicitudes a TI</h3>
+<div class="user-info-card" id="my-ti-requests">
+  <h3>TICKETS DE APOYO</h3>
 
   <?php if (empty($myToTI)): ?>
     <p style="opacity:.8;">No tienes solicitudes activas a TI ni encuestas pendientes.</p>
   <?php else: ?>
-    <ul class="user-tickets-list" style="margin-top:10px;">
-      <?php foreach ($myToTI as $t): 
-        $ticketId = (int)$t['id'];
-        $atendido = trim((string)$t['atendido_por']);
-        $atendido = $atendido !== '' ? $atendido : 'Sin asignar';
-      ?>
-        <li class="user-ticket-item">
-          <div class="user-ticket-info">
-            <div>
-              <strong>#<?php echo $ticketId; ?></strong>
-              <?php if (!empty($t['feedback_token'])): ?>
-                <span class="feedback-badge">encuesta pendiente</span>
-              <?php endif; ?>
-            </div>
-            <small>
-              <?php echo htmlspecialchars((string)$t['fecha_envio'], ENT_QUOTES, 'UTF-8'); ?>
-              · <?php echo htmlspecialchars((string)$t['estado'], ENT_QUOTES, 'UTF-8'); ?>
-              · <strong>Atiende:</strong> <?php echo htmlspecialchars($atendido, ENT_QUOTES, 'UTF-8'); ?>
-            </small>
-          </div>
 
-          <div class="user-ticket-actions">
-            <?php if (!empty($t['feedback_token'])): ?>
-              <button type="button"
-                      class="btn-main-combined"
-                      style="padding:6px 14px; font-size:0.75rem;"
-                      onclick="openFeedbackIframe(
-                        '<?php echo htmlspecialchars((string)$t['feedback_token'], ENT_QUOTES, 'UTF-8'); ?>',
-                        <?php echo $ticketId; ?>,
-                        'Encuesta ticket #<?php echo $ticketId; ?>'
-                      )">
-                Encuesta
-              </button>
-            <?php else: ?>
-              <button type="button"
-                      class="btn-main-combined"
-                      style="padding:6px 14px; font-size:0.75rem;"
-                      onclick="openTicketChat(<?php echo $ticketId; ?>,'Solicitud a TI')">
-                Ver chat
-              </button>
-            <?php endif; ?>
-          </div>
-        </li>
-      <?php endforeach; ?>
-    </ul>
+    <!-- contenedor para el polling (SOLO 1 VEZ) -->
+    <div id="myTiListWrap">
+      <p style="opacity:.8;">Cargando…</p>
+    </div>
+
+    
+
   <?php endif; ?>
 </div>
 
 
+<!-- MODAL ENCUESTA -->
+<div class="modal-backdrop" id="feedback-modal" style="display:none;">
+  <div class="modal-card" style="max-width:900px; width:92vw; height:82vh;">
+    <div class="modal-header">
+      <h3 id="feedbackTitle">Encuesta</h3>
+      <button type="button" class="modal-close" onclick="closeFeedbackModal()">✕</button>
+    </div>
+    <div class="modal-body" style="padding:0; height:calc(82vh - 56px);">
+      <iframe id="feedbackFrame"
+              src=""
+              style="width:100%; height:100%; border:0; border-bottom-left-radius:16px; border-bottom-right-radius:16px;"></iframe>
+    </div>
+  </div>
+</div>
             <!-- ENTRANTES -->
             <div id="incoming-section" class="user-info-card">
                 <h3>Tickets entrantes</h3>
@@ -432,8 +410,7 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC);
         <div style="opacity:.8;">Cargando...</div>
       </div>
       <div class="modal-actions" style="margin-top:14px; display:flex; gap:10px; justify-content:flex-end;">
-        <button type="button" class="btn-secondary" onclick="closeTicketDetail()">Cerrar</button>
-        <button type="button"  class="btn-primary" id="ticketDetailChatBtn" style="display:none;">Abrir chat</button>
+        <button type="button" class="btn-main-combined" onclick="closeTicketDetail()">Cerrar</button>
       </div>
     </div>
   </div>
@@ -1661,6 +1638,150 @@ window.CURRENT_USER = {
 
   });
 })();
+</script>
+<script>
+(() => {
+  'use strict';
+
+  const wrap = document.getElementById('myTiListWrap');
+  if (!wrap) return;
+
+  function esc(s){
+    return String(s ?? '')
+      .replaceAll('&','&amp;')
+      .replaceAll('<','&lt;')
+      .replaceAll('>','&gt;')
+      .replaceAll('"','&quot;')
+      .replaceAll("'","&#039;");
+  }
+
+  function render(items){
+    if (!items || !items.length) {
+      wrap.innerHTML = `<p style="opacity:.8;">No tienes solicitudes activas a TI ni encuestas pendientes.</p>`;
+      return;
+    }
+
+    wrap.innerHTML = `
+      <ul class="user-tickets-list" style="margin-top:10px;">
+        ${items.map(t => {
+          const id = parseInt(t.id, 10);
+          const fecha = esc(t.fecha_envio || '');
+          const estado = esc(t.estado || '');
+          const atendidoPor = esc((t.atendido_por || '').trim() || 'Sin asignar');
+          const token = t.feedback_token ? String(t.feedback_token) : '';
+
+          const badge = token ? `<span class="feedback-badge">encuesta pendiente</span>` : '';
+
+          const actionBtn = token
+            ? `<button type="button"
+                        class="btn-main-combined"
+                        style="padding:6px 14px; font-size:0.75rem;"
+                        onclick="openFeedbackIframe('${esc(token)}', ${id}, 'Encuesta ticket #${id}')">
+                  Encuesta
+               </button>`
+            : `<button type="button"
+                        class="btn-main-combined"
+                        style="padding:6px 14px; font-size:0.75rem;"
+                        onclick="openTicketChat(${id}, 'Solicitud a TI')">
+                  Ver chat
+               </button>`;
+
+          return `
+            <li class="user-ticket-item" data-ticket-id="${id}">
+              <div class="user-ticket-info">
+                <div>
+                  <strong>#${id}</strong> ${badge}
+                </div>
+                <small>
+                  ${fecha} · ${estado} · <strong>Atiende:</strong> ${atendidoPor}
+                </small>
+              </div>
+              <div class="user-ticket-actions">
+                ${actionBtn}
+              </div>
+            </li>
+          `;
+        }).join('')}
+      </ul>
+    `;
+  }
+
+  let lastSignature = '';
+
+  async function pollMyTI(){
+    window.refreshMyTI = pollMyTI;
+
+    try {
+      const r = await fetch('/HelpDesk_EQF/modules/ticket/my_ti_snapshot.php', { cache:'no-store' });
+      const j = await r.json();
+      if (!r.ok || !j || !j.ok) return;
+
+      const items = j.items || [];
+
+      // ✅ firma incluye atendido_por (y/o asignado_a)
+      const sig = JSON.stringify(items.map(x => [
+        x.id, x.estado, x.asignado_a, x.atendido_por, x.feedback_token
+      ]));
+
+      if (sig === lastSignature) return;
+      lastSignature = sig;
+
+      render(items);
+    } catch (_) {}
+  }
+
+  pollMyTI();
+  setInterval(pollMyTI, 4000); // 4s para que se note "tiempo real"
+})();
+</script>
+
+
+<!----------------------------
+    FEEDBACK
+    ------------------------->
+<script>
+function openFeedbackIframe(token, ticketId, title){
+  const modal = document.getElementById('feedback-modal');
+  const frame = document.getElementById('feedbackFrame');
+  const t = document.getElementById('feedbackTitle');
+
+  if (!modal || !frame) return;
+
+  if (t) t.textContent = title || ('Encuesta ticket #' + ticketId);
+
+  // Ajusta esta ruta si tu encuesta vive en otro lado:
+  frame.src = '/HelpDesk_EQF/modules/feedback/feedback.php?token=' + encodeURIComponent(token);
+
+  // mostrar modal
+  modal.style.display = 'flex';
+  modal.classList.add('show');
+}
+
+function closeFeedbackModal(){
+  const modal = document.getElementById('feedback-modal');
+  const frame = document.getElementById('feedbackFrame');
+
+  if (frame) frame.src = '';
+  if (modal) {
+    modal.classList.remove('show');
+    modal.style.display = 'none';
+  }
+}
+
+// cerrar con click fuera + ESC
+document.addEventListener('click', (e) => {
+  const modal = document.getElementById('feedback-modal');
+  if (!modal || modal.style.display === 'none') return;
+
+  if (e.target === modal) closeFeedbackModal();
+});
+
+document.addEventListener('keydown', (e) => {
+  const modal = document.getElementById('feedback-modal');
+  if (!modal || modal.style.display === 'none') return;
+
+  if (e.key === 'Escape') closeFeedbackModal();
+});
 </script>
 
 <script src="/HelpDesk_EQF/assets/js/script.js?v=20251208a"></script>
