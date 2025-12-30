@@ -209,7 +209,7 @@ onclick="toggleSidebar()" aria-label="Abrir/cerrar menú">
                 <span>Dashboard</span>
             </button>
              <button type="button" class="user-menu-item" id="btnOpenCreateTicket">
-                <span class="user-menu-icon">＋</span>
+                <span class="user-menu-icon">➕</span>
                 <span>Crear ticket</span>
             </button>
             <button type="button" class="user-menu-item" 

@@ -4,165 +4,111 @@ require_once __DIR__ . '/../../config/connectionBD.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
+if (!isset($_SESSION['user_id'])) {
+  http_response_code(403);
+  echo json_encode(['ok'=>false,'msg'=>'No autenticado'], JSON_UNESCAPED_UNICODE);
+  exit;
+}
+
+$pdo = Database::getConnection();
+
 try {
-    if (!isset($_SESSION['user_id'])) {
-        http_response_code(403);
-        echo json_encode(['ok'=>false,'msg'=>'No autenticado'], JSON_UNESCAPED_UNICODE);
-        exit;
-    }
+  $creatorId   = (int)$_SESSION['user_id'];
+  $creatorArea = trim((string)($_SESSION['user_area'] ?? '')); // TI / SAP / MKT
 
-    // Permitimos SA/Admin/Analista (1,2,3) a crear tickets desde panel
-    $rol = (int)($_SESSION['user_rol'] ?? 0);
-    if (!in_array($rol, [1,2,3], true)) {
-        http_response_code(403);
-        echo json_encode(['ok'=>false,'msg'=>'Sin permisos'], JSON_UNESCAPED_UNICODE);
-        exit;
-    }
+  $userId = (int)($_POST['user_id'] ?? 0);
+  $desc   = trim((string)($_POST['descripcion'] ?? ''));
+  $inicio = trim((string)($_POST['inicio'] ?? ''));
+  $fin    = trim((string)($_POST['fin'] ?? ''));
+  $ticketParaMi = (int)($_POST['ticket_para_mi'] ?? 0) === 1;
 
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-        http_response_code(405);
-        echo json_encode(['ok'=>false,'msg'=>'Método no permitido'], JSON_UNESCAPED_UNICODE);
-        exit;
-    }
+  if ($userId <= 0) throw new Exception('Usuario inválido.');
+  if ($desc === '') throw new Exception('La descripción es obligatoria.');
 
-    $pdo = Database::getConnection();
+  // ====== FORZADOS ======
+  $problema  = 'otro';
+  $prioridad = 'alta';
 
-    $creatorId   = (int)($_SESSION['user_id'] ?? 0);
-    $userId      = (int)($_POST['user_id'] ?? 0);
-    $areaDestino = trim((string)($_POST['area_destino'] ?? ''));
-    $problema    = trim((string)($_POST['problema'] ?? ''));
-    $prioridad   = strtolower(trim((string)($_POST['prioridad'] ?? 'media')));
-    $descripcion = trim((string)($_POST['descripcion'] ?? ''));
+  // ====== DESTINO POR REGLA ======
+  if ($ticketParaMi) {
+    $areaDestino = 'TI';
+  } else {
+    if ($creatorArea === '') throw new Exception('No se detectó el área del analista.');
+    $areaDestino = $creatorArea;
+  }
 
-    $inicio      = trim((string)($_POST['inicio'] ?? '')); // datetime-local o vacío
-    $fin         = trim((string)($_POST['fin'] ?? ''));    // datetime-local o vacío
-    $ticketParaMi = (int)($_POST['ticket_para_mi'] ?? 0) === 1;
+  // ====== TRAER DATOS DEL USUARIO (para llenar snapshot en tickets) ======
+  $stU = $pdo->prepare("SELECT id, number_sap, name, last_name, email, area FROM users WHERE id = ? LIMIT 1");
+  $stU->execute([$userId]);
+  $u = $stU->fetch(PDO::FETCH_ASSOC);
+  if (!$u) throw new Exception('Usuario no encontrado.');
 
-    if ($userId <= 0) {
-        echo json_encode(['ok'=>false,'msg'=>'Falta user_id'], JSON_UNESCAPED_UNICODE);
-        exit;
-    }
-    if ($descripcion === '') {
-        echo json_encode(['ok'=>false,'msg'=>'La descripción es obligatoria'], JSON_UNESCAPED_UNICODE);
-        exit;
-    }
+  $sap    = (string)$u['number_sap'];
+  $nombre = trim(($u['name'] ?? '').' '.($u['last_name'] ?? ''));
+  $email  = (string)$u['email'];
 
-    // Validar prioridad (tu enum es baja/media/alta)
-    if (!in_array($prioridad, ['baja','media','alta'], true)) {
-        $prioridad = 'media';
-    }
+  // ====== ESTADO segun fin ======
+  $estado = 'abierto';
+  $fechaResolucion = null;
 
-    // Si ticket_para_mi => fuerza TI
-    if ($ticketParaMi) {
-        $areaDestino = 'TI';
-        $problema = '';   // oculto en UI
-        $prioridad = 'media';
-        $inicio = '';
-        $fin = '';
-    } else {
-        if ($areaDestino === '') {
-            echo json_encode(['ok'=>false,'msg'=>'Selecciona área destino'], JSON_UNESCAPED_UNICODE);
-            exit;
-        }
-        if ($problema === '') {
-            echo json_encode(['ok'=>false,'msg'=>'Selecciona problema'], JSON_UNESCAPED_UNICODE);
-            exit;
-        }
-    }
+  // Si NO es ticket para mi y capturan FIN -> se crea CERRADO
+  if (!$ticketParaMi && $fin !== '') {
+    $estado = 'cerrado';
+    $fechaResolucion = $fin;
+    if ($inicio === '') $inicio = date('Y-m-d H:i:s'); // fallback
+  }
 
-    // 1) Obtener datos del usuario desde users
-    $stmtU = $pdo->prepare("SELECT id, number_sap, name, last_name, email, area FROM users WHERE id = ? LIMIT 1");
-    $stmtU->execute([$userId]);
-    $u = $stmtU->fetch(PDO::FETCH_ASSOC);
+  // fecha_envio siempre ahora
+  $fechaEnvio = date('Y-m-d H:i:s');
 
-    if (!$u) {
-        echo json_encode(['ok'=>false,'msg'=>'Usuario no existe en users'], JSON_UNESCAPED_UNICODE);
-        exit;
-    }
+  $sql = "
+    INSERT INTO tickets
+      (user_id, sap, nombre, area, email, problema, prioridad, descripcion, fecha_envio, estado,
+       creado_por_ip, creado_por_navegador,
+       fecha_primera_respuesta, fecha_resolucion)
+    VALUES
+      (:user_id, :sap, :nombre, :area, :email, :problema, :prioridad, :descripcion, :fecha_envio, :estado,
+       :ip, :ua,
+       :fpr, :fres)
+  ";
 
-    $sapUser    = (string)($u['number_sap'] ?? '');
-    $nombreUser = trim(($u['name'] ?? '') . ' ' . ($u['last_name'] ?? ''));
-    $emailUser  = (string)($u['email'] ?? '');
+  $stmt = $pdo->prepare($sql);
+  $stmt->execute([
+    ':user_id' => $userId,
+    ':sap' => $sap,
+    ':nombre' => $nombre,
+    ':area' => $areaDestino,          // 👈 destino real del ticket (área del analista o TI)
+    ':email' => $email,
+    ':problema' => $problema,
+    ':prioridad' => $prioridad,
+    ':descripcion' => $desc,
+    ':fecha_envio' => $fechaEnvio,
+    ':estado' => $estado,
+    ':ip' => $_SERVER['REMOTE_ADDR'] ?? null,
+    ':ua' => $_SERVER['HTTP_USER_AGENT'] ?? null,
+    ':fpr' => $inicio !== '' ? $inicio : null,
+    ':fres' => $fechaResolucion,
+  ]);
 
-    // 2) Determinar si se crea cerrado (si hay FIN)
-    // Convertimos datetime-local "YYYY-MM-DDTHH:MM" -> "YYYY-MM-DD HH:MM:SS"
-    $toSqlDT = function(string $v): ?string {
-        $v = trim($v);
-        if ($v === '') return null;
-        $v = str_replace('T', ' ', $v);
-        if (preg_match('/^\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}$/', $v)) {
-            return $v . ':00';
-        }
-        if (preg_match('/^\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}$/', $v)) {
-            return $v;
-        }
-        return null;
-    };
+  $ticketId = (int)$pdo->lastInsertId();
 
-    $inicioSql = $toSqlDT($inicio);
-    $finSql    = $toSqlDT($fin);
+  // ====== Si se creó CERRADO -> generar encuesta ======
+  if ($estado === 'cerrado') {
+    $token = bin2hex(random_bytes(32));
 
-    $isClosed = ($finSql !== null); // si capturaron FIN => cerrado
-
-    $estado = $isClosed ? 'cerrado' : 'abierto';
-
-    // Si se crea cerrado: lo “asignamos” al creador (para trazabilidad)
-    $asignadoA = $isClosed ? $creatorId : null;
-
-    // timestamps
-    $nowIp = $_SERVER['REMOTE_ADDR'] ?? null;
-    $ua    = $_SERVER['HTTP_USER_AGENT'] ?? null;
-
-    // 3) Insert en tickets
-    // OJO: tu columna "area" la usas como área destino (porque filtras por area en panel de analista)
-    $sql = "
-        INSERT INTO tickets
-        (user_id, sap, nombre, area, email, problema, prioridad, descripcion,
-         fecha_envio, estado, asignado_a, fecha_asignacion, fecha_primera_respuesta, fecha_resolucion,
-         creado_por_ip, creado_por_navegador)
-        VALUES
-        (:user_id, :sap, :nombre, :area, :email, :problema, :prioridad, :descripcion,
-         NOW(), :estado, :asignado_a, :fecha_asignacion, :fecha_primera_respuesta, :fecha_resolucion,
-         :ip, :ua)
-    ";
-
-    $stmt = $pdo->prepare($sql);
-
-    // Para cerrados: si no mandaron inicio pero sí fin, usamos fin como inicio “mínimo”
-    $fechaAsign = $isClosed ? ($inicioSql ?? $finSql) : null;
-    $fechaPrim  = $isClosed ? ($inicioSql ?? $finSql) : null;
-
-    $stmt->execute([
-        ':user_id' => $userId,
-        ':sap' => $sapUser,
-        ':nombre' => $nombreUser,
-        ':area' => $areaDestino,
-        ':email' => $emailUser,
-        ':problema' => $problema,
-        ':prioridad' => $prioridad,
-        ':descripcion' => $descripcion,
-        ':estado' => $estado,
-        ':asignado_a' => $asignadoA,
-        ':fecha_asignacion' => $fechaAsign,
-        ':fecha_primera_respuesta' => $fechaPrim,
-        ':fecha_resolucion' => ($isClosed ? $finSql : null),
-        ':ip' => $nowIp,
-        ':ua' => $ua,
+    $stF = $pdo->prepare("
+      INSERT INTO ticket_feedback (ticket_id, user_id, token, created_at)
+      VALUES (:tid, :uid, :tok, NOW())
+    ");
+    $stF->execute([
+      ':tid' => $ticketId,
+      ':uid' => $userId,
+      ':tok' => $token
     ]);
+  }
 
-    $ticketId = (int)$pdo->lastInsertId();
-
-    echo json_encode([
-        'ok' => true,
-        'id' => $ticketId,
-        'estado' => $estado
-    ], JSON_UNESCAPED_UNICODE);
-
+  echo json_encode(['ok'=>true,'ticket_id'=>$ticketId], JSON_UNESCAPED_UNICODE);
 } catch (Throwable $e) {
-    http_response_code(500);
-    echo json_encode([
-        'ok'=>false,
-        'msg'=>'Error interno',
-        'debug'=>$e->getMessage()
-    ], JSON_UNESCAPED_UNICODE);
+  http_response_code(400);
+  echo json_encode(['ok'=>false,'msg'=>'Error interno','debug'=>$e->getMessage()], JSON_UNESCAPED_UNICODE);
 }

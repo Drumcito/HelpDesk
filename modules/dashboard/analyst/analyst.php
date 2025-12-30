@@ -54,6 +54,41 @@ $kpi = $stmtKpi->fetch() ?: [
     'total'       => 0,
 ];
 
+/* ===========================
+   MIS SOLICITUDES A TI (Ticket para mí)
+   - user_id = yo
+   - area = 'TI'
+   - abierto/en_proceso
+   - cerrado + encuesta pendiente
+=========================== */
+$stmtMyToTI = $pdo->prepare("
+  SELECT 
+    t.id,
+    t.fecha_envio,
+    t.estado,
+    t.asignado_a,
+    CONCAT(COALESCE(u.name,''),' ',COALESCE(u.last_name,'')) AS atendido_por,
+    f.token AS feedback_token
+  FROM tickets t
+  LEFT JOIN users u
+    ON u.id = t.asignado_a
+  LEFT JOIN ticket_feedback f
+    ON f.ticket_id = t.id
+   AND f.answered_at IS NULL
+  WHERE t.user_id = :uid
+    AND t.area = 'TI'
+    AND (
+          t.estado IN ('abierto','en_proceso')
+       OR (t.estado = 'cerrado' AND f.id IS NOT NULL)
+    )
+  ORDER BY t.fecha_envio DESC
+  LIMIT 10
+");
+$stmtMyToTI->execute([':uid' => $userId]);
+$myToTI = $stmtMyToTI->fetchAll(PDO::FETCH_ASSOC);
+
+
+
 /* Tickets entrantes (abiertos, sin asignar) + label desde catálogo */
 $stmtIncoming = $pdo->prepare("
     SELECT 
@@ -214,6 +249,60 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC);
                     </div>
                 </div>
             </div>
+<!-- MIS TICKETS PARA TI -->
+ <div class="user-info-card" id="my-ti-requests">
+  <h3>Mis solicitudes a TI</h3>
+
+  <?php if (empty($myToTI)): ?>
+    <p style="opacity:.8;">No tienes solicitudes activas a TI ni encuestas pendientes.</p>
+  <?php else: ?>
+    <ul class="user-tickets-list" style="margin-top:10px;">
+      <?php foreach ($myToTI as $t): 
+        $ticketId = (int)$t['id'];
+        $atendido = trim((string)$t['atendido_por']);
+        $atendido = $atendido !== '' ? $atendido : 'Sin asignar';
+      ?>
+        <li class="user-ticket-item">
+          <div class="user-ticket-info">
+            <div>
+              <strong>#<?php echo $ticketId; ?></strong>
+              <?php if (!empty($t['feedback_token'])): ?>
+                <span class="feedback-badge">encuesta pendiente</span>
+              <?php endif; ?>
+            </div>
+            <small>
+              <?php echo htmlspecialchars((string)$t['fecha_envio'], ENT_QUOTES, 'UTF-8'); ?>
+              · <?php echo htmlspecialchars((string)$t['estado'], ENT_QUOTES, 'UTF-8'); ?>
+              · <strong>Atiende:</strong> <?php echo htmlspecialchars($atendido, ENT_QUOTES, 'UTF-8'); ?>
+            </small>
+          </div>
+
+          <div class="user-ticket-actions">
+            <?php if (!empty($t['feedback_token'])): ?>
+              <button type="button"
+                      class="btn-main-combined"
+                      style="padding:6px 14px; font-size:0.75rem;"
+                      onclick="openFeedbackIframe(
+                        '<?php echo htmlspecialchars((string)$t['feedback_token'], ENT_QUOTES, 'UTF-8'); ?>',
+                        <?php echo $ticketId; ?>,
+                        'Encuesta ticket #<?php echo $ticketId; ?>'
+                      )">
+                Encuesta
+              </button>
+            <?php else: ?>
+              <button type="button"
+                      class="btn-main-combined"
+                      style="padding:6px 14px; font-size:0.75rem;"
+                      onclick="openTicketChat(<?php echo $ticketId; ?>,'Solicitud a TI')">
+                Ver chat
+              </button>
+            <?php endif; ?>
+          </div>
+        </li>
+      <?php endforeach; ?>
+    </ul>
+  <?php endif; ?>
+</div>
 
 
             <!-- ENTRANTES -->
@@ -382,6 +471,7 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC);
 <!-- MODAL CREAR TICKET (Analista) -->
 <div class="eqf-modal-backdrop" id="createTicketBackdrop" aria-hidden="true">
   <div class="eqf-modal" role="dialog" aria-modal="true" aria-labelledby="createTicketTitle">
+
     <div class="eqf-modal-header">
       <h2 id="createTicketTitle">Crear ticket</h2>
       <button type="button" class="eqf-modal-close" id="btnCloseCreateTicket" aria-label="Cerrar">✕</button>
@@ -390,24 +480,38 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC);
     <form id="formCreateTicket">
       <div class="eqf-modal-body">
 
-        <!-- CORREO + BUSCAR -->
-        <div class="eqf-grid-2">
-          <div class="eqf-field">
+        <!-- CORREO + CHECK -->
+        <div class="eqf-grid-2" style="align-items:end;">
+          <div class="eqf-field" style="position:relative;">
             <label for="ct_email">Correo del usuario</label>
-            <input type="text" id="ct_email" name="email" list="usersEmailList" placeholder="usuario@eqf.com" required list="usersEmailList"
-  autocomplete="off"
-/>
-<datalist id="usersEmailList"></datalist>
-<span id="ct_email_ok" class="ct-ok" aria-hidden="true" title="Usuario encontrado">✓</span>
-  <div class="eqf-field" style="display:flex; gap:10px; align-items:center;">
-    <input type="checkbox" id="ct_ticket_mi" />
-    <label for="ct_ticket_mi" style="margin:0;">Ticket para mí</label>
-  </div>
+
+            <div style="position:relative;">
+              <input
+                type="text"
+                id="ct_email"
+                name="email"
+                list="usersEmailList"
+                placeholder="usuario@eqf.com"
+                autocomplete="off"
+                required
+                style="padding-right:34px;"
+              >
+              <span id="ct_email_ok" class="ct-ok" aria-hidden="true" title="Usuario encontrado"
+                    style="display:none; position:absolute; right:12px; top:50%; transform:translateY(-50%);">
+                ✓
+              </span>
+            </div>
+
+            <datalist id="usersEmailList"></datalist>
+          </div>
+
+          <div class="eqf-field" style="display:flex; align-items:center; gap:10px; padding-top:22px;">
+            <input type="checkbox" id="ct_ticket_mi">
+            <label for="ct_ticket_mi" style="margin:0;">Ticket para mí</label>
           </div>
         </div>
 
-  
-        <!-- DATOS AUTORELLENOS (bloqueados) -->
+        <!-- DATOS AUTORELLENOS -->
         <div class="eqf-grid-2">
           <div class="eqf-field">
             <label>#SAP</label>
@@ -429,71 +533,48 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC);
             <input type="text" id="ct_email_locked" disabled>
           </div>
         </div>
-<div class="eqf-field">
-  <label for="ct_area_destino">Área destino</label>
-  <select id="ct_area_destino" name="area_destino" required>
-    <option value="" disabled selected>Selecciona…</option>
-    <option value="TI">TI</option>
-    <option value="SAP">SAP</option>
-    <option value="MKT">MKT</option>
-  </select>
-</div>
+
+        <!-- ÁREA DESTINO (solo lectura: la define el sistema) -->
+        <div class="eqf-field">
+          <label>Área destino</label>
+          <input type="text" id="ct_area_destino" disabled value="">
+        </div>
 
         <hr class="eqf-hr">
 
-        <!-- CATALOGO PROBLEMA / PRIORIDAD / DESCRIPCION -->
+        <!-- FECHAS -->
         <div class="eqf-grid-2">
           <div class="eqf-field">
-            <label for="ct_problema">Problema</label>
-            <select id="ct_problema" name="problema" required>
-              <option value="" selected disabled>Selecciona…</option>
-              <!-- Rellena con tu catálogo -->
-              <option value="SAP">SAP</option>
-              <option value="Impresora">Impresora</option>
-              <option value="Red/Internet">Red/Internet</option>
-              <option value="Equipo de cómputo">Equipo de cómputo</option>
-              <option value="Otro">Otro</option>
-            </select>
+            <label for="ct_inicio">Inicio (fecha y hora)</label>
+            <input type="datetime-local" id="ct_inicio" name="inicio">
           </div>
-
           <div class="eqf-field">
-            <label for="ct_prioridad">Prioridad</label>
-            <select id="ct_prioridad" name="prioridad" required>
-              <option value="baja">Baja</option>
-              <option value="media" selected>Media</option>
-              <option value="alta">Alta</option>
-            </select>
+            <label for="ct_fin">Fin (fecha y hora)</label>
+            <input type="datetime-local" id="ct_fin" name="fin">
           </div>
         </div>
-        <div class="eqf-grid-2">
-  <div class="eqf-field">
-    <label for="ct_inicio">Inicio (fecha y hora)</label>
-    <input type="datetime-local" id="ct_inicio" name="inicio">
-  </div>
-  <div class="eqf-field">
-    <label for="ct_fin">Fin (fecha y hora)</label>
-    <input type="datetime-local" id="ct_fin" name="fin">
-    <small class="eqf-hint">Si capturas FIN, el ticket se creará como CERRADO.</small>
-  </div>
-</div>
 
+        <!-- DESCRIPCION -->
         <div class="eqf-field">
           <label for="ct_descripcion">Descripción</label>
-          <textarea id="ct_descripcion" name="descripcion" rows="4" required
-            placeholder="Describe lo que reportó la sucursal…"></textarea>
+          <textarea
+            id="ct_descripcion"
+            name="descripcion"
+            rows="4"
+            required
+            placeholder="Describe el problema. Incluye sucursal/equipo, mensaje de error y qué intentaron."
+          ></textarea>
         </div>
 
         <div class="eqf-alert" id="ct_msg" style="display:none;"></div>
-
       </div>
 
       <div class="eqf-modal-footer">
         <button type="button" class="btn-secondary" id="btnCancelCreateTicket">Cancelar</button>
-        <button type="submit" class="btn-primary" id="btnSubmitCreateTicket" disabled>
-          Guardar 
-        </button>
+        <button type="submit" class="btn-primary" id="btnSubmitCreateTicket" disabled>Guardar</button>
       </div>
     </form>
+
   </div>
 </div>
 
@@ -1201,10 +1282,11 @@ pollStaffUnread();
 
 <script>
 window.CURRENT_USER = {
-  id: <?php echo (int)$userId; ?>,
+  id: <?php echo (int)$_SESSION['user_id']; ?>,
   email: <?php echo json_encode($_SESSION['user_email'] ?? ''); ?>,
   sap: <?php echo json_encode($_SESSION['number_sap'] ?? ''); ?>,
-  name: <?php echo json_encode(trim(($_SESSION['user_name'] ?? '').' '.($_SESSION['user_last'] ?? ''))); ?>,
+  name: <?php echo json_encode($_SESSION['user_name'] ?? ''); ?>,
+  last_name: <?php echo json_encode($_SESSION['user_last'] ?? ''); ?>,
   area: <?php echo json_encode($_SESSION['user_area'] ?? ''); ?>
 };
 </script>
@@ -1214,9 +1296,7 @@ window.CURRENT_USER = {
 (() => {
   'use strict';
 
-  // ===============================
-  // Abrir modal desde sidebar (delegación)
-  // ===============================
+  // Abrir modal desde sidebar 
   document.addEventListener('click', (e) => {
     const btn = e.target.closest('#btnOpenCreateTicket');
     if (!btn) return;
@@ -1240,11 +1320,13 @@ window.CURRENT_USER = {
 
     const msg = document.getElementById('ct_msg');
     if (msg) { msg.style.display = 'none'; msg.textContent = ''; }
+
+    // área destino informativa (por regla: mi área)
+    const areaDestino = document.getElementById('ct_area_destino');
+    const me = (window.CURRENT_USER || {});
+    if (areaDestino) areaDestino.value = me.area || '';
   });
 
-  // ===============================
-  // DOM Ready
-  // ===============================
   document.addEventListener('DOMContentLoaded', () => {
     const backdrop  = document.getElementById('createTicketBackdrop');
     const btnClose  = document.getElementById('btnCloseCreateTicket');
@@ -1263,14 +1345,12 @@ window.CURRENT_USER = {
     const area        = document.getElementById('ct_area');
     const emailLocked = document.getElementById('ct_email_locked');
 
-    const areaDestino = document.getElementById('ct_area_destino');
+    const areaDestino = document.getElementById('ct_area_destino'); // input disabled (info)
     const ticketMi    = document.getElementById('ct_ticket_mi');
 
     const dtInicio    = document.getElementById('ct_inicio');
     const dtFin       = document.getElementById('ct_fin');
 
-    const selProblema  = document.getElementById('ct_problema');
-    const selPrioridad = document.getElementById('ct_prioridad');
     const txtDesc      = document.getElementById('ct_descripcion');
 
     if (!backdrop || !form || !msg || !btnSubmit || !emailInput || !datalist || !areaDestino || !txtDesc) {
@@ -1278,20 +1358,13 @@ window.CURRENT_USER = {
       return;
     }
 
-    // Evita bloqueos silenciosos por "required" cuando ocultas campos
     form.setAttribute('novalidate','novalidate');
 
-    // ===============================
-    // State
-    // ===============================
     let foundUserId = null;
     let timer = null;
     let isAutofilling = false;
     let topSuggestion = '';
 
-    // ===============================
-    // Helpers
-    // ===============================
     function isValidEmail(v){
       return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v||'').trim());
     }
@@ -1323,8 +1396,8 @@ window.CURRENT_USER = {
       foundUserId = null;
       if (sap) sap.value = '';
       if (nombre) nombre.value = '';
-      if (area) area.value = '';
       if (emailLocked) emailLocked.value = '';
+      if (area) area.value = '';
       btnSubmit.disabled = true;
       showOk(false);
     }
@@ -1344,16 +1417,12 @@ window.CURRENT_USER = {
       return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
     }
 
-    // Ocultar/mostrar campo (field o grid)
     const wrapOf = (el) => el ? (el.closest('.eqf-field') || el.closest('.eqf-grid-2') || el.parentElement) : null;
     const showEl = (el, show) => {
       const w = wrapOf(el);
       if (w) w.style.display = show ? '' : 'none';
     };
 
-    // ===============================
-    // Cerrar modal
-    // ===============================
     btnClose?.addEventListener('click', closeModal);
     btnCancel?.addEventListener('click', closeModal);
 
@@ -1365,10 +1434,10 @@ window.CURRENT_USER = {
       if (e.key === 'Escape' && backdrop.classList.contains('show')) closeModal();
     });
 
-    // ===============================
-    // Checkbox: Ticket para mí
-    // (Oculta problema/prioridad/inicio/fin)
-    // ===============================
+    // Ticket para mí:
+    // - Oculta inicio/fin (como pediste en chat anterior para ticket-mi)
+    // - Deshabilita búsqueda
+    // - Área destino visible: TI
     function applyTicketMiMode(on){
       hideMsg();
       datalist.innerHTML = '';
@@ -1377,8 +1446,6 @@ window.CURRENT_USER = {
       showOk(false);
 
       if (on) {
-        showEl(selProblema, false);
-        showEl(selPrioridad, false);
         showEl(dtInicio, false);
         showEl(dtFin, false);
 
@@ -1386,12 +1453,10 @@ window.CURRENT_USER = {
         emailInput.disabled = true;
 
         areaDestino.value = 'TI';
-        areaDestino.disabled = true;
 
         if (dtInicio) dtInicio.value = '';
         if (dtFin) dtFin.value = '';
 
-        // Autollenado (requiere que tú definas window.CURRENT_USER en analyst.php)
         const me = (window.CURRENT_USER || {});
         if (me.id && me.email) {
           setUser({
@@ -1402,23 +1467,27 @@ window.CURRENT_USER = {
             last_name: me.last_name || '',
             area: me.area
           });
-          hideMsg(); // sin mensaje abajo en éxito
+          hideMsg();
         } else {
           showMsg('Faltan datos del analista (CURRENT_USER) para autollenado.');
         }
 
         txtDesc.focus();
       } else {
-        showEl(selProblema, true);
-        showEl(selPrioridad, true);
         showEl(dtInicio, true);
         showEl(dtFin, true);
 
         emailInput.disabled = false;
-        areaDestino.disabled = false;
+
+        // área destino vuelve a mi área
+        const me = (window.CURRENT_USER || {});
+        areaDestino.value = me.area || '';
 
         clearUser();
         emailInput.focus();
+
+        // default inicio
+        if (dtInicio && !dtInicio.value) dtInicio.value = toDateTimeLocal(new Date());
       }
     }
 
@@ -1428,9 +1497,6 @@ window.CURRENT_USER = {
       applyTicketMiMode(false);
     }
 
-    // ===============================
-    // Autocomplete inline (sin ghost)
-    // ===============================
     function applyInlineSuggestion(typed, suggestion){
       if (!typed || !suggestion) return;
 
@@ -1452,7 +1518,6 @@ window.CURRENT_USER = {
 
       const typed = emailInput.value.trim();
 
-      // al escribir: limpiar estado + apagar palomita y errores
       hideMsg();
       clearUser();
       showOk(false);
@@ -1480,7 +1545,6 @@ window.CURRENT_USER = {
             `<option value="${u.email}">${u.email} — ${u.number_sap} — ${u.name} ${u.last_name}</option>`
           ).join('');
 
-          // inline suggestion (tipo Gmail)
           applyInlineSuggestion(typed, topSuggestion);
 
         } catch(err) {
@@ -1489,7 +1553,6 @@ window.CURRENT_USER = {
       }, 180);
     });
 
-    // TAB / → acepta autocompletado (si hay selección)
     emailInput.addEventListener('keydown', (e) => {
       if (ticketMi && ticketMi.checked) return;
 
@@ -1505,7 +1568,6 @@ window.CURRENT_USER = {
       }
     });
 
-    // Lookup automático al seleccionar/confirmar correo
     emailInput.addEventListener('change', async () => {
       if (ticketMi && ticketMi.checked) return;
 
@@ -1531,7 +1593,7 @@ window.CURRENT_USER = {
         }
 
         setUser(j.user);
-        hideMsg(); // ✅ éxito = sin mensaje abajo (solo palomita)
+        hideMsg();
 
         if (dtInicio && !dtInicio.value) dtInicio.value = toDateTimeLocal(new Date());
 
@@ -1542,9 +1604,7 @@ window.CURRENT_USER = {
       }
     });
 
-    // ===============================
-    // Submit (Guardar)
-    // ===============================
+    // Guardar
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       hideMsg();
@@ -1554,13 +1614,6 @@ window.CURRENT_USER = {
       if (!foundUserId) { showMsg('Selecciona un usuario válido.'); return; }
       if (!txtDesc.value.trim()) { showMsg('La descripción es obligatoria.'); txtDesc.focus(); return; }
 
-      // validaciones en modo normal
-      if (!isMine) {
-        if (!areaDestino.value) { showMsg('Selecciona el área destino.'); return; }
-        if (selProblema && !selProblema.value) { showMsg('Selecciona el problema.'); return; }
-        if (selPrioridad && !selPrioridad.value) { showMsg('Selecciona la prioridad.'); return; }
-      }
-
       btnSubmit.disabled = true;
       const prevTxt = btnSubmit.textContent;
       btnSubmit.textContent = 'Guardando...';
@@ -1568,9 +1621,6 @@ window.CURRENT_USER = {
       const payload = new URLSearchParams();
       payload.append('user_id', String(foundUserId));
       payload.append('ticket_para_mi', isMine ? '1' : '0');
-      payload.append('area_destino', isMine ? 'TI' : (areaDestino.value || ''));
-      payload.append('problema', isMine ? '' : (selProblema?.value || ''));
-      payload.append('prioridad', isMine ? '' : (selPrioridad?.value || 'media'));
       payload.append('descripcion', txtDesc.value || '');
       payload.append('inicio', isMine ? '' : (dtInicio?.value || ''));
       payload.append('fin', isMine ? '' : (dtFin?.value || ''));
@@ -1596,10 +1646,9 @@ window.CURRENT_USER = {
           return;
         }
 
-        // éxito
         showOk(true);
         hideMsg();
-        setTimeout(() => closeModal(), 400);
+        setTimeout(() => closeModal(), 350);
 
       } catch(err) {
         console.error(err);
@@ -1613,10 +1662,6 @@ window.CURRENT_USER = {
   });
 })();
 </script>
-
-
-
-
 
 <script src="/HelpDesk_EQF/assets/js/script.js?v=20251208a"></script>
 
