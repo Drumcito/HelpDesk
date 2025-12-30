@@ -46,13 +46,19 @@ try {
 
     $allowed = false;
 
-    if ($rol === 4 && $userId === $ticketUserId) {
-        $allowed = true;
-    } elseif ($rol === 3 && $userId === $ticketAnalystId) {
-        $allowed = true;
-    } elseif (in_array($rol, [1, 2], true)) {
-        $allowed = true;
-    }
+//  Dueño del ticket puede ver mensajes (sea usuario final o analista)
+if ($userId === $ticketUserId) {
+    $allowed = true;
+
+//  Analista asignado puede ver mensajes
+} elseif ($rol === 3 && $userId === $ticketAnalystId) {
+    $allowed = true;
+
+//  SA / Admin
+} elseif (in_array($rol, [1, 2], true)) {
+    $allowed = true;
+}
+
 
     if (!$allowed) {
         http_response_code(403);
