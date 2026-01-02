@@ -64,11 +64,18 @@ $stmtOpen = $pdo->prepare("
         t.problema,
         t.fecha_envio,
         t.estado,
-        f.token AS feedback_token
+        f.token AS feedback_token,
+        u.name AS analyst_name,
+        u.last_name AS analyst_last
+
     FROM tickets t
     LEFT JOIN ticket_feedback f
         ON f.ticket_id = t.id
        AND f.answered_at IS NULL
+
+    LEFT JOIN users u
+        ON u.id = t.asignado_a
+        
     WHERE t.user_id = :uid
       AND (
             t.estado IN ('abierto','en_proceso')
@@ -282,6 +289,8 @@ foreach ($openTickets as $t) {
                                 $ticketId = (int)$t['id'];
                                 $problemCode = (string)($t['problema'] ?? '');
                                 $problemLabel = problemLabelFromDb($problemCode, $problemMap);
+                                $analystFull = trim(($t['analyst_name'] ?? '') . ' ' . ($t['analyst_last'] ?? ''));
+                                $analystText = $analystFull !== '' ? $analystFull : 'Sin asignar';
                             ?>
                             <li class="user-ticket-item">
                                 <div class="user-ticket-info">
@@ -296,7 +305,8 @@ foreach ($openTickets as $t) {
                                     <small>
                                         <?php echo htmlspecialchars((string)$t['fecha_envio'], ENT_QUOTES, 'UTF-8'); ?>
                                         · <?php echo htmlspecialchars((string)$t['estado'], ENT_QUOTES, 'UTF-8'); ?>
-                                    </small>
+                                        · <strong>Atiende:</strong> <?php echo htmlspecialchars($analystText, ENT_QUOTES, 'UTF-8'); ?>
+                                      </small>
                                 </div>
 
                                 <div class="user-ticket-actions">
@@ -450,7 +460,7 @@ foreach ($openTickets as $t) {
   <div class="modal-card" style="max-width:780px; width:min(92vw,780px);">
     <div class="modal-header">
       <h3 id="feedbackTitle">Encuesta de satisfacción</h3>
-      <button type="button" class="modal-close" onclick="closeFeedbackIframe()">✕</button>
+      <button type="button" class="modal-close" onclick="closeFeedbackModal()">✕</button>
     </div>
 
     <div class="modal-body" style="padding:0; height:520px;">
@@ -665,15 +675,18 @@ function openFeedbackIframe(token, ticketId, title){
   else if (modal) modal.classList.add('show');
 }
 
-function closeFeedbackIframe(){
+function closeFeedbackModal(){
   const modal = document.getElementById('feedback-modal');
   if (typeof closeModal === 'function') closeModal('feedback-modal');
   else if (modal) modal.classList.remove('show');
 
-  // opcional: limpia el iframe para que no se quede “pegado”
   const frame = document.getElementById('feedbackFrame');
   if (frame) frame.src = 'about:blank';
+
+  // ✅ refresca inmediatamente la UI (quita encuesta pendiente)
+  if (typeof pollUserSnapshot === 'function') pollUserSnapshot();
 }
+
 
 </script>
 
@@ -704,8 +717,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function pollUserNotifications() {
         fetch('/HelpDesk_EQF/modules/ticket/check_user_notifications.php')
-            .then(r => r.json())
+        .then(r => r.json())
             .then(data => {
+
                 if (!data.ok || !data.has) return;
                 if (!Array.isArray(data.notifications)) return;
 
@@ -722,176 +736,11 @@ document.addEventListener('DOMContentLoaded', function () {
                         });
                     }
                 });
+                if (typeof pollUserSnapshot === 'function') pollUserSnapshot();
             })
             .catch(err => console.error('Error consultando notificaciones de usuario:', err));
     }
-
     setInterval(pollUserNotifications, 10000);
-});
-</script>
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-
-  function setCreateTicketEnabled(enabled){
-    const btn = document.getElementById('btnCreateTicket');
-    if (!btn) return;
-
-    if (enabled){
-      btn.disabled = false;
-      btn.style.opacity = '';
-      btn.style.cursor = '';
-      btn.setAttribute('onclick', 'openTicketModal()');
-    } else {
-      btn.disabled = true;
-      btn.style.opacity = '.6';
-      btn.style.cursor = 'not-allowed';
-      btn.setAttribute('onclick', 'return false;');
-    }
-  }
-
-  function renderTicketsList(tickets){
-    const ul = document.getElementById('userTicketsList');
-    if (!ul) return;
-
-    if (!tickets || !tickets.length){
-      ul.innerHTML = '';
-      const wrap = document.querySelector('#tickets-section');
-      if (wrap){
-        // si quieres, podrías actualizar el texto vacío aquí
-      }
-      return;
-    }
-
-    ul.innerHTML = tickets.map(t => {
-      const badge = t.feedback_token
-        ? `<span class="feedback-badge">encuesta pendiente</span>`
-        : '';
-
-      const actionBtn = t.feedback_token
-        ? `<button type="button"
-                  class="btn-main-combined"
-                  style="padding:6px 14px; font-size:0.75rem;"
-                  onclick="openFeedbackIframe('${escapeAttr(t.feedback_token)}', ${t.id}, '${escapeAttr(t.problema_label)}')">
-              Encuesta pendiente
-           </button>`
-        : `<button type="button"
-                  class="btn-main-combined"
-                  style="padding:6px 14px; font-size:0.75rem;"
-                  onclick="openTicketChat(${t.id}, '${escapeAttr(t.problema_label)}')">
-              Ver chat
-           </button>`;
-
-      return `
-        <li class="user-ticket-item">
-          <div class="user-ticket-info">
-            <div>
-              <strong>#${t.id}</strong>
-              — ${escapeHtml(t.problema_label)}
-              ${badge}
-            </div>
-            <small>
-              ${escapeHtml(t.fecha_envio)} · ${escapeHtml(t.estado)}
-            </small>
-          </div>
-          <div class="user-ticket-actions">
-            ${actionBtn}
-          </div>
-        </li>
-      `;
-    }).join('');
-  }
-
-  function escapeHtml(str){
-    return String(str ?? '')
-      .replaceAll('&','&amp;')
-      .replaceAll('<','&lt;')
-      .replaceAll('>','&gt;')
-      .replaceAll('"','&quot;')
-      .replaceAll("'","&#039;");
-  }
-
-  function escapeAttr(str){
-    // para meter en onclick con comillas simples
-    return String(str ?? '').replaceAll("\\", "\\\\").replaceAll("'", "\\'");
-  }
-
-  function updatePendingUI(pendingCount){
-    const card = document.getElementById('pendingCard');
-
-    if (pendingCount > 0){
-      setCreateTicketEnabled(false);
-
-      // Si no existe la card (porque estaba en 0 al cargar), la creamos arriba del botón
-      if (!card){
-        const content = document.querySelector('.user-main-content');
-        const btnWrap = document.querySelector('.button');
-        if (content && btnWrap){
-          const div = document.createElement('div');
-          div.className = 'user-info-card';
-          div.id = 'pendingCard';
-          div.innerHTML = `
-            <h2>Encuestas pendientes</h2>
-            <p>
-              Tienes <strong>${pendingCount}</strong> encuesta(s) pendiente(s).
-              Debes responderlas antes de crear un nuevo ticket.
-            </p>
-          `;
-          content.insertBefore(div, btnWrap);
-        }
-      } else {
-        // si ya existe, solo actualizamos número
-        const strong = card.querySelector('strong');
-        if (strong) strong.textContent = String(pendingCount);
-      }
-    } else {
-      setCreateTicketEnabled(true);
-      if (card) card.remove();
-    }
-  }
-
-  async function refreshUserTickets(){
-    try {
-      const r = await fetch('/HelpDesk_EQF/modules/ticket/user_tickets_snapshot.php');
-      const data = await r.json();
-      if (!data.ok) return;
-
-      updatePendingUI(parseInt(data.pendingCount || 0, 10));
-      renderTicketsList(data.tickets || []);
-    } catch (e) {
-      console.error('refreshUserTickets error:', e);
-    }
-  }
-
-  // ✅ Hook: cuando llegue notificación, actualiza UI (estado / encuesta / lista)
-  const oldPoll = window.pollUserNotifications;
-  window.pollUserNotifications = function(){
-    fetch('/HelpDesk_EQF/modules/ticket/check_user_notifications.php')
-      .then(r => r.json())
-      .then(data => {
-        if (!data.ok || !data.has) return;
-
-        // tu lógica actual de toasts/notifs
-        if (Array.isArray(data.notifications)){
-          data.notifications.forEach(n => {
-            const msg = n.body || 'Tienes una actualización de tu ticket.';
-            const title = n.title || 'HelpDesk EQF';
-            // reusa tu función showUserToast si existe
-            if (typeof showUserToast === 'function') showUserToast(msg);
-
-            if ('Notification' in window && Notification.permission === 'granted') {
-              new Notification(title, { body: msg, icon: '/HelpDesk_EQF/assets/img/icon_helpdesk.png' });
-            }
-          });
-        }
-
-        //  y aquí refrescamos lista/estado/bloqueo
-        refreshUserTickets();
-      })
-      .catch(err => console.error('Error consultando notificaciones de usuario:', err));
-  };
-
-  // Si ya traías interval, no lo duplicamos: solo refrescamos una vez y listo
-  refreshUserTickets();
 });
 </script>
 
@@ -927,6 +776,7 @@ function buildTicketLi(t){
   const estado = t.estado || '';
   const fecha = t.fecha_envio || '';
   const token = t.feedback_token;
+const attends = (t.analyst_full || '').trim() || 'Sin asignar';
 
   const badge = token ? `<span class="feedback-badge">encuesta pendiente</span>` : '';
 
@@ -952,7 +802,9 @@ function buildTicketLi(t){
         </div>
         <small>
           ${escapeHtml(fecha)} · <span class="ticket-estado">${escapeHtml(estado)}</span>
-        </small>
+          · <strong>Atiende:</strong> ${escapeHtml(attends)}
+
+          </small>
       </div>
       <div class="user-ticket-actions">
         ${actionBtn}
@@ -961,8 +813,47 @@ function buildTicketLi(t){
   `;
 }
 
+//seras atendido por:
+// ✅ memoria: para no repetir toast en cada polling
+const assignToastSeen = new Map(); // ticket_id => analyst_full ya mostrado
+
+function showAssignToast(text){
+  const toast = document.createElement('div');
+  toast.textContent = text;
+
+  // estilo inline (no dependemos de CSS)
+  Object.assign(toast.style, {
+    position: 'fixed',
+    top: '24px',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    padding: '14px 18px',
+    borderRadius: '16px',
+    background: 'var(--eqf-combined, #6e1c5c)',
+    color: '#fff',
+    fontWeight: '900',
+    boxShadow: '0 10px 25px rgba(0,0,0,.25)',
+    zIndex: 99999,
+    opacity: '0',
+    transition: 'opacity .25s ease'
+  });
+
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => toast.style.opacity = '1');
+
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    setTimeout(() => toast.remove(), 250);
+  }, 3000);
+}
+
+
+
 function applyUserSnapshot(payload){
   if (!payload || !payload.ok) return;
+
+  // 0) tickets (DEBE IR ARRIBA)
+  const tickets = Array.isArray(payload.tickets) ? payload.tickets : [];
 
   // 1) Bloqueo "Crear ticket"
   const pending = parseInt(payload.pending_feedback_count || 0, 10);
@@ -980,7 +871,6 @@ function applyUserSnapshot(payload){
       btn.onclick = () => false;
     }
     if (!card){
-      // si la tarjeta no existía (porque antes era 0), la creamos arriba del botón
       const btnWrap = document.querySelector('.button');
       if (btnWrap){
         const div = document.createElement('div');
@@ -1006,11 +896,22 @@ function applyUserSnapshot(payload){
     if (card) card.remove();
   }
 
+  // ✅ Toast cuando se asigna analista (ya con tickets definido)
+  tickets.forEach(t => {
+    const id = String(t.id);
+    const analyst = String(t.analyst_full || '').trim();
+    const prev = assignToastSeen.get(id) || '';
+
+    if (!prev && analyst) {
+      showAssignToast(`Te atenderá Analista: ${analyst}`);
+      assignToastSeen.set(id, analyst);
+    }
+    if (analyst) assignToastSeen.set(id, analyst);
+  });
+
   // 2) Refrescar lista "Tus tickets"
   const list = document.querySelector('.user-tickets-list');
   const placeholder = document.getElementById('tickets-section');
-
-  const tickets = Array.isArray(payload.tickets) ? payload.tickets : [];
 
   // si no hay lista y sí hay tickets, creamos la UL
   let ul = list;
@@ -1052,11 +953,15 @@ function applyUserSnapshot(payload){
 }
 
 function pollUserSnapshot(){
-  fetch('/HelpDesk_EQF/modules/ticket/user_snapshot.php', { cache: 'no-store' })
+  fetch('/HelpDesk_EQF/modules/ticket/user_snapshot.php?_=' + Date.now(), {
+    cache: 'no-store',
+    headers: { 'Accept': 'application/json' }
+  })
     .then(r => r.json())
     .then(applyUserSnapshot)
     .catch(()=>{});
 }
+
 
 document.addEventListener('DOMContentLoaded', () => {
   pollUserSnapshot();
@@ -1112,6 +1017,16 @@ document.addEventListener('DOMContentLoaded', () => {
   if (problema) {
     problema.addEventListener('change', syncPriority);
     syncPriority();
+  }
+});
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const url = new URL(window.location.href);
+  if (url.searchParams.has('created') || url.searchParams.has('deleted')) {
+    url.searchParams.delete('created');
+    url.searchParams.delete('deleted');
+    window.history.replaceState({}, document.title, url.pathname + url.search);
   }
 });
 </script>

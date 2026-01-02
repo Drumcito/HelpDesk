@@ -3,6 +3,9 @@ session_start();
 require_once __DIR__ . '/../../config/connectionBD.php';
 
 header('Content-Type: application/json; charset=utf-8');
+header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+header("Pragma: no-cache");
+header("Expires: 0");
 
 if (!isset($_SESSION['user_id'])) {
     http_response_code(403);
@@ -30,13 +33,21 @@ try {
             t.fecha_envio,
             t.problema AS problema_raw,
             COALESCE(cp.label, t.problema) AS problema_label,
-            f.token AS feedback_token
+            f.token AS feedback_token,
+
+            t.asignado_a AS analyst_id,
+            u.name AS analyst_name,
+            u.last_name AS analyst_last
+
         FROM tickets t
         LEFT JOIN catalog_problems cp
                ON cp.code = t.problema
         LEFT JOIN ticket_feedback f
                ON f.ticket_id = t.id
               AND f.answered_at IS NULL
+        LEFT JOIN users u
+               ON u.id = t.asignado_a
+
         WHERE t.user_id = :uid
           AND (
                 t.estado IN ('abierto','en_proceso')
@@ -61,6 +72,7 @@ try {
         'ok' => true,
         'pending_feedback_count' => $pendingCount,
         'tickets' => array_map(function ($t) {
+                $full = trim((($t['analyst_name'] ?? '') . ' ' . ($t['analyst_last'] ?? '')));
             return [
                 'id' => (int)$t['id'],
                 'estado' => (string)$t['estado'],
@@ -68,8 +80,11 @@ try {
                 'problema_raw' => (string)$t['problema_raw'],
                 'problema_label' => (string)$t['problema_label'],
                 'feedback_token' => $t['feedback_token'] ? (string)$t['feedback_token'] : null,
-            ];
-        }, $tickets)
+
+                'analyst_id' => isset($t['analyst_id']) ? (int)$t['analyst_id'] : 0,
+        'analyst_full' => $full, // '' si no hay asignado
+    ];
+}, $tickets)
     ], JSON_UNESCAPED_UNICODE);
     exit;
 
