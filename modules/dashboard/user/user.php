@@ -1,8 +1,14 @@
 <?php
+
 session_start();
 require_once __DIR__ . '/../../../config/connectionBD.php';
 include __DIR__ . '/../../../template/header.php';
 include __DIR__ . '/../../../template/sidebar.php';
+
+// helper de escape HTML
+function h($value): string {
+    return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
+}
 
 /* ===========================
    ALERTAS
@@ -42,6 +48,67 @@ $userSap   = $_SESSION['number_sap'] ?? '';
 $profileImg = ($userArea === 'Sucursal')
     ? '/HelpDesk_EQF/assets/img/pp/pp_sucursal.jpg'
     : '/HelpDesk_EQF/assets/img/pp/pp_corporativo.jpg';
+
+// ============================
+// AVISOS para el usuario (TI/MKT/SAP o ALL)
+// ============================
+$userArea = trim((string)($_SESSION['user_area'] ?? '')); // si tu session se llama diferente, ajusta aquí
+$allowedAreas = ['TI','MKT','SAP'];
+
+if (!in_array($userArea, $allowedAreas, true)) {
+    $userArea = ''; // si no es TI/MKT/SAP, solo mostrará ALL
+}
+
+$announcements = [];
+try {
+    $now = (new DateTime('now'))->format('Y-m-d H:i:s');
+
+    $sqlAnn = "
+      SELECT id, title, body, level, target_area, starts_at, ends_at, created_at
+      FROM announcements
+      WHERE is_active = 1
+        AND (target_area = 'ALL' " . ($userArea ? " OR target_area = ?" : "") . ")
+        AND (starts_at IS NULL OR starts_at <= ?)
+        AND (ends_at IS NULL OR ends_at >= ?)
+      ORDER BY
+        CASE level
+          WHEN 'CRITICAL' THEN 1
+          WHEN 'WARN' THEN 2
+          ELSE 3
+        END,
+        COALESCE(starts_at, created_at) DESC
+      LIMIT 6
+    ";
+
+    $params = [];
+    if ($userArea) $params[] = $userArea;
+    $params[] = $now;
+    $params[] = $now;
+
+    $stmtAnn = $pdo->prepare($sqlAnn);
+    $stmtAnn->execute($params);
+    $announcements = $stmtAnn->fetchAll(PDO::FETCH_ASSOC) ?: [];
+} catch (Throwable $e) {
+    $announcements = [];
+}
+
+function annClass(string $level): string {
+    return match ($level) {
+        'CRITICAL' => 'announcement--critical',
+        'WARN'     => 'announcement--warn',
+        default    => 'announcement--info',
+    };
+}
+
+function annLabel(string $level): string {
+    return match ($level) {
+        'CRITICAL' => 'Crítico',
+        'WARN'     => 'Aviso',
+        default    => 'Info',
+    };
+}
+
+
 
 
 /* ===========================
@@ -250,12 +317,48 @@ foreach ($openTickets as $t) {
 
         <section class="user-main-content">
             <div class="user-info-card">
-                <h2>Resumen</h2>
-                <p>
-                    Desde aquí puedes crear tickets, consultar el historial de los que has levantado
-                    y acceder a documentos importantes para la operación de tu sucursal o área.
+  <h2>Resumen</h2>
+  <p>
+    Desde aquí puedes crear tickets, consultar el historial de los que has levantado y acceder a documentos importantes para la operación de tu sucursal o área.
+  </p>
+
+  <?php if (!empty($announcements)): ?>
+    <div class="user-announcements">
+      <div class="user-announcements__head">
+        <h3 class="user-announcements__title">
+          Avisos
+          <span class="user-announcements__badge">
+            <?php echo count($announcements); ?>
+          </span>
+        </h3>
+      </div>
+
+      <div class="user-announcements__list">
+        <?php foreach ($announcements as $a): ?>
+          <div class="announcement <?php echo annClass($a['level']); ?>">
+            <div class="announcement__top">
+              <div>
+                <p class="announcement__h"><?php echo h($a['title']); ?></p>
+                <p class="announcement__meta">
+                  <?php echo h($a['target_area'] === 'ALL' ? 'General' : 'Área: '.$a['target_area']); ?>
                 </p>
+              </div>
+              <span class="announcement__pill">
+                <?php echo annLabel($a['level']); ?>
+              </span>
             </div>
+
+            <div class="announcement__body">
+              <?php echo nl2br(h($a['body'])); ?>
+            </div>
+          </div>
+        <?php endforeach; ?>
+      </div>
+    </div>
+  <?php endif; ?>
+</div>
+
+
 
             <?php if ($pendingCount > 0): ?>
     <div class="user-info-card" id="pendingFeedbackCard">
@@ -687,7 +790,7 @@ function closeFeedbackModal(){
   const frame = document.getElementById('feedbackFrame');
   if (frame) frame.src = 'about:blank';
 
-  // ✅ refresca inmediatamente la UI (quita encuesta pendiente)
+  //  refresca inmediatamente la UI (quita encuesta pendiente)
   if (typeof pollUserSnapshot === 'function') pollUserSnapshot();
 }
 

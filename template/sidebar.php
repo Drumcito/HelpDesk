@@ -262,6 +262,10 @@ onclick="toggleSidebar()" aria-label="Abrir/cerrar menú">
 
         <?php elseif ($rol === 4): ?>
             <!-- ================= USUARIO ================= -->
+            <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/user/user.php'">
+                <span class="user-menu-icon">⭐</span>
+                <span>Dashboard</span>
+            </button>
             <button type="button" class="user-menu-item" onclick="openTicketModal()">
                 <span class="user-menu-icon">➕</span>
                 <span>Crear ticket</span>
@@ -272,11 +276,11 @@ onclick="toggleSidebar()" aria-label="Abrir/cerrar menú">
                 <span class="user-menu-icon">📄</span>
                 <span>Tickets</span>
             </button>
-            
+
             <button type="button" class="user-menu-item"
                     onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/user/support_team.php'">
                 <span class="user-menu-icon">🫂</span>
-                <span>Soporte</span>
+                <span>Team</span>
             </button>
 
             <button type="button" class="user-menu-item"
