@@ -1,7 +1,7 @@
 <footer>
     <div class="box__copyright">
         <p>
-            Todos los derechos reservados ©2025 
+            Todos los derechos reservados ©2026
             <b>Equilibrio Farmacéutico</b> 
             <span class="logoNR"></span>
         </p>

@@ -17,7 +17,7 @@ $pdo = Database::getConnection();
 function h($s){ return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 
 $tab = $_GET['tab'] ?? 'areas';
-$allowedTabs = ['areas','status','priorities','problems'];
+$allowedTabs = ['areas','status','priorities','problems','absence_reasons','shifts','sat_patterns'];
 if (!in_array($tab, $allowedTabs, true)) $tab = 'areas';
 
 /* alerts */
@@ -69,6 +69,24 @@ try {
     $st->execute();
     $rows = $st->fetchAll(PDO::FETCH_ASSOC);
   }
+  elseif ($tab === 'absence_reasons') {
+    $st = $pdo->prepare("SELECT id, code, label, sort_order, active, created_at
+                         FROM catalog_absence_reasons ORDER BY sort_order ASC, id ASC");
+    $st->execute();
+    $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+  }
+  elseif ($tab === 'shifts') {
+    $st = $pdo->prepare("SELECT id, code, label, start_time, end_time, sort_order, active, created_at
+                         FROM catalog_shifts ORDER BY sort_order ASC, id ASC");
+    $st->execute();
+    $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+  }
+  elseif ($tab === 'sat_patterns') {
+    $st = $pdo->prepare("SELECT id, code, label, sort_order, active, created_at
+                         FROM catalog_sat_patterns ORDER BY sort_order ASC, id ASC");
+    $st->execute();
+    $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+  }
 } catch(Throwable $e) {
   $rows = [];
   $alerts[] = ['type'=>'danger','icon'=>'capsulin_delete.png','text'=>'NO SE PUDO LEER EL CATÁLOGO (REVISA TABLA)'];
@@ -76,6 +94,8 @@ try {
 
 /* helpers UI */
 function tabClass($current, $t){ return $current===$t ? 'chip-filter chip-active' : 'chip-filter'; }
+
+$emptyColspan = ($tab === 'shifts') ? 8 : 7;
 ?>
 <link rel="stylesheet" href="/HelpDesk_EQF/assets/css/style.css">
 
@@ -104,6 +124,9 @@ function tabClass($current, $t){ return $current===$t ? 'chip-filter chip-active
       <a class="<?=h(tabClass($tab,'status'))?>" href="?tab=status">Estatus</a>
       <a class="<?=h(tabClass($tab,'priorities'))?>" href="?tab=priorities">Prioridades</a>
       <a class="<?=h(tabClass($tab,'problems'))?>" href="?tab=problems">Problemas</a>
+      <a class="<?=h(tabClass($tab,'absence_reasons'))?>" href="?tab=absence_reasons">Ausencias</a>
+      <a class="<?=h(tabClass($tab,'shifts'))?>" href="?tab=shifts">Turnos</a>
+      <a class="<?=h(tabClass($tab,'sat_patterns'))?>" href="?tab=sat_patterns">Sábados</a>
     </div>
   </section>
 
@@ -117,6 +140,9 @@ function tabClass($current, $t){ return $current===$t ? 'chip-filter chip-active
             'status' => 'Catálogo de Estatus',
             'priorities' => 'Catálogo de Prioridades',
             'problems' => 'Catálogo de Problemas',
+            'absence_reasons' => 'Catálogo de Motivos de Ausencia',
+            'shifts' => 'Catálogo de Turnos (L–V)',
+            'sat_patterns' => 'Catálogo de Patrones de Sábado',
             default => 'Catálogo'
           };
         ?>
@@ -139,7 +165,9 @@ function tabClass($current, $t){ return $current===$t ? 'chip-filter chip-active
       <table class="panel-table">
         <thead>
           <tr>
-            <?php if($tab==='problems'): ?>
+            <?php if($tab==='shifts'): ?>
+              <th>ID</th><th>Code</th><th>Nombre</th><th>Inicio</th><th>Fin</th><th>Orden</th><th>Activo</th><th>Creado</th>
+            <?php elseif($tab==='problems'): ?>
               <th>ID</th><th>Área</th><th>Code</th><th>Nombre</th><th>Orden</th><th>Activo</th><th>Creado</th>
             <?php elseif($tab==='priorities'): ?>
               <th>ID</th><th>Code</th><th>Nombre</th><th>SLA (hrs)</th><th>Orden</th><th>Activo</th><th>Creado</th>
@@ -148,9 +176,11 @@ function tabClass($current, $t){ return $current===$t ? 'chip-filter chip-active
             <?php endif; ?>
           </tr>
         </thead>
+
         <tbody>
         <?php if(!$rows): ?>
-          <tr><td colspan="7" class="panel-empty">Sin registros.</td></tr>
+          <tr><td colspan="<?= (int)$emptyColspan ?>" class="panel-empty">Sin registros.</td></tr>
+
         <?php else: foreach($rows as $r): ?>
           <tr class="catalog-row"
               data-id="<?= (int)$r['id'] ?>"
@@ -161,8 +191,20 @@ function tabClass($current, $t){ return $current===$t ? 'chip-filter chip-active
               data-active="<?= (int)($r['active'] ?? 1) ?>"
               data-area="<?= h($r['area_code'] ?? '') ?>"
               data-sla="<?= h($r['sla_hours'] ?? '') ?>"
+              data-start="<?= h($r['start_time'] ?? '') ?>"
+              data-end="<?= h($r['end_time'] ?? '') ?>"
           >
-            <?php if($tab==='problems'): ?>
+            <?php if($tab==='shifts'): ?>
+              <td>#<?= (int)$r['id'] ?></td>
+              <td><?= h($r['code']) ?></td>
+              <td><?= h($r['label']) ?></td>
+              <td><?= h(substr((string)$r['start_time'],0,5)) ?></td>
+              <td><?= h(substr((string)$r['end_time'],0,5)) ?></td>
+              <td><?= (int)$r['sort_order'] ?></td>
+              <td><?= ((int)$r['active']===1)?'Sí':'No' ?></td>
+              <td><?= h($r['created_at']) ?></td>
+
+            <?php elseif($tab==='problems'): ?>
               <td>#<?= (int)$r['id'] ?></td>
               <td><?= h($r['area_code']) ?></td>
               <td><?= h($r['code']) ?></td>
@@ -170,6 +212,7 @@ function tabClass($current, $t){ return $current===$t ? 'chip-filter chip-active
               <td><?= (int)$r['sort_order'] ?></td>
               <td><?= ((int)$r['active']===1)?'Sí':'No' ?></td>
               <td><?= h($r['created_at']) ?></td>
+
             <?php elseif($tab==='priorities'): ?>
               <td>#<?= (int)$r['id'] ?></td>
               <td><?= h($r['code']) ?></td>
@@ -178,6 +221,7 @@ function tabClass($current, $t){ return $current===$t ? 'chip-filter chip-active
               <td><?= (int)$r['sort_order'] ?></td>
               <td><?= ((int)$r['active']===1)?'Sí':'No' ?></td>
               <td><?= h($r['created_at']) ?></td>
+
             <?php else: ?>
               <td>#<?= (int)$r['id'] ?></td>
               <td><?= h($r['code']) ?></td>
@@ -207,6 +251,7 @@ function tabClass($current, $t){ return $current===$t ? 'chip-filter chip-active
         <input type="hidden" name="id" id="f_id" value="">
 
         <div class="modal-grid">
+
           <?php if($tab==='problems'): ?>
             <div class="form-group">
               <label>Área</label>
@@ -216,6 +261,17 @@ function tabClass($current, $t){ return $current===$t ? 'chip-filter chip-active
                   <option value="<?=h($ar['code'])?>"><?=h($ar['label'])?></option>
                 <?php endforeach; ?>
               </select>
+            </div>
+          <?php endif; ?>
+
+          <?php if($tab==='shifts'): ?>
+            <div class="form-group">
+              <label>Inicio</label>
+              <input type="time" name="start_time" id="f_start" required>
+            </div>
+            <div class="form-group">
+              <label>Fin</label>
+              <input type="time" name="end_time" id="f_end" required>
             </div>
           <?php endif; ?>
 
@@ -252,7 +308,7 @@ function tabClass($current, $t){ return $current===$t ? 'chip-filter chip-active
 
         <div class="modal-actions">
           <button type="button" class="btn-secondary" onclick="closeModal('modal-cat')">Cancelar</button>
-          <button type="submit" class="btn-login" style="width:auto;">Guardar</button>
+          <button type="submit" class="btn-primary" >Guardar</button>
         </div>
       </form>
     </div>
@@ -295,6 +351,11 @@ function openCreate(){
   const fSla = document.getElementById('f_sla');
   if (fSla) fSla.value = 0;
 
+  const fStart = document.getElementById('f_start');
+  const fEnd   = document.getElementById('f_end');
+  if (fStart) fStart.value = '08:00';
+  if (fEnd)   fEnd.value   = '17:30';
+
   openModal('modal-cat');
 }
 
@@ -316,6 +377,11 @@ function openEdit(){
   const fSla = document.getElementById('f_sla');
   if (fSla) fSla.value = selected.dataset.sla || 0;
 
+  const fStart = document.getElementById('f_start');
+  const fEnd   = document.getElementById('f_end');
+  if (fStart) fStart.value = (selected.dataset.start || '').slice(0,5);
+  if (fEnd)   fEnd.value   = (selected.dataset.end || '').slice(0,5);
+
   openModal('modal-cat');
 }
 
@@ -327,6 +393,6 @@ function toggleRow(){
   }
 }
 </script>
-<script src="/HelpDesk_EQF/assets/js/script.js?v=20251208a"></script>
 
+<script src="/HelpDesk_EQF/assets/js/script.js?v=20251208a"></script>
 <?php include __DIR__ . '/../../../template/footer.php'; ?>

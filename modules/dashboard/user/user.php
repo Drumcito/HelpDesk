@@ -262,8 +262,9 @@ foreach ($openTickets as $t) {
 
                     <h2>Encuestas pendientes</h2>
                     <p>
-                        Tienes <strong><?php echo $pendingCount; ?></strong> encuesta(s) pendiente(s).
-                        Debes responderlas antes de crear un nuevo ticket.
+Tienes <strong id="pendingFeedbackCount"><?php echo $pendingCount; ?></strong> encuesta(s) pendiente(s).
+Debes responderlas antes de crear un nuevo ticket.
+
                     </p>
                 </div>
             <?php endif; ?>
@@ -535,6 +536,8 @@ function closeTicketChat() {
 
     if (chatPollTimer) { clearInterval(chatPollTimer); chatPollTimer = null; }
     currentTicketId = null;
+    if (typeof pollUserSnapshot === 'function') pollUserSnapshot();
+
 }
 
 function appendChatMessage(msg) {
@@ -594,6 +597,7 @@ function appendChatMessage(msg) {
 
     bodyEl.appendChild(div);
     bodyEl.scrollTop = bodyEl.scrollHeight;
+
 }
 
 function fetchMessages() {
@@ -736,7 +740,10 @@ document.addEventListener('DOMContentLoaded', function () {
                         });
                     }
                 });
-                if (typeof pollUserSnapshot === 'function') pollUserSnapshot();
+                    if (typeof pollUserSnapshot === 'function') {
+                        pollUserSnapshot();               // inmediato
+                        setTimeout(pollUserSnapshot, 900); //  “segundo jalón” para agarrar cerrado+token
+                    }
             })
             .catch(err => console.error('Error consultando notificaciones de usuario:', err));
     }
@@ -747,8 +754,7 @@ document.addEventListener('DOMContentLoaded', function () {
 <?php if (!empty($autoFeedbackToken)): ?>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-  // Auto abrir encuesta pendiente
-  openFeedbackWizard(
+  openFeedbackIframe(
     "<?php echo htmlspecialchars((string)$autoFeedbackToken, ENT_QUOTES, 'UTF-8'); ?>",
     <?php echo (int)$autoFeedbackTicketId; ?>,
     "<?php echo htmlspecialchars((string)$autoFeedbackTitle, ENT_QUOTES, 'UTF-8'); ?>"
@@ -756,6 +762,9 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 <?php endif; ?>
+
+
+
 <script>
 /* ===========================
    LIVE REFRESH - USER
@@ -770,6 +779,14 @@ function escapeHtml(str){
     .replaceAll("'","&#039;");
 }
 
+function escapeAttr(str){
+  return String(str ?? '')
+    .replaceAll("\\", "\\\\")
+    .replaceAll("'", "\\'");
+}
+
+
+
 function buildTicketLi(t){
   const id = t.id;
   const problema = t.problema_label || t.problema_raw || '';
@@ -781,18 +798,19 @@ const attends = (t.analyst_full || '').trim() || 'Sin asignar';
   const badge = token ? `<span class="feedback-badge">encuesta pendiente</span>` : '';
 
   const actionBtn = token
-    ? `<button type="button"
-              class="btn-main-combined"
-              style="padding:6px 14px; font-size:0.75rem;"
-              onclick="openFeedbackIframe('${escapeHtml(token)}', ${id}, '${escapeHtml(problema)}')">
-          Encuesta pendiente
-       </button>`
-    : `<button type="button"
-              class="btn-main-combined"
-              style="padding:6px 14px; font-size:0.75rem;"
-              onclick="openTicketChat(${id}, '${escapeHtml(problema)}')">
-          Ver chat
-       </button>`;
+  ? `<button type="button"
+            class="btn-main-combined"
+            style="padding:6px 14px; font-size:0.75rem;"
+            onclick="openFeedbackIframe('${escapeAttr(token)}', ${id}, '${escapeAttr(problema)}')">
+        Encuesta pendiente
+     </button>`
+  : `<button type="button"
+            class="btn-main-combined"
+            style="padding:6px 14px; font-size:0.75rem;"
+            onclick="openTicketChat(${id}, '${escapeAttr(problema)}')">
+        Ver chat
+     </button>`;
+
 
   return `
     <li class="user-ticket-item" data-ticket-id="${id}">
@@ -814,8 +832,14 @@ const attends = (t.analyst_full || '').trim() || 'Sin asignar';
 }
 
 //seras atendido por:
-// ✅ memoria: para no repetir toast en cada polling
-const assignToastSeen = new Map(); // ticket_id => analyst_full ya mostrado
+//  memoria: para no repetir toast en cada polling
+const assignToastSeen = new Map(JSON.parse(sessionStorage.getItem('assignToastSeen') || '[]'));
+ // ticket_id => analyst_full ya mostrado
+
+
+ function persistAssignSeen(){
+  sessionStorage.setItem('assignToastSeen', JSON.stringify([...assignToastSeen.entries()]));
+}
 
 function showAssignToast(text){
   const toast = document.createElement('div');
@@ -824,18 +848,20 @@ function showAssignToast(text){
   // estilo inline (no dependemos de CSS)
   Object.assign(toast.style, {
     position: 'fixed',
-    top: '24px',
+    top: '50%',
     left: '50%',
-    transform: 'translateX(-50%)',
+    transform: 'translate(-50%, -50%)',
     padding: '14px 18px',
     borderRadius: '16px',
-    background: 'var(--eqf-combined, #6e1c5c)',
+    background: 'var(--eqf-green, #6e1c5c)',
     color: '#fff',
     fontWeight: '900',
     boxShadow: '0 10px 25px rgba(0,0,0,.25)',
     zIndex: 99999,
     opacity: '0',
-    transition: 'opacity .25s ease'
+    transition: 'opacity .25s ease',
+    maxWidth: 'min(92vw, 520px)',
+    textAlign: 'center'
   });
 
   document.body.appendChild(toast);
@@ -844,7 +870,7 @@ function showAssignToast(text){
   setTimeout(() => {
     toast.style.opacity = '0';
     setTimeout(() => toast.remove(), 250);
-  }, 3000);
+  }, 5000);
 }
 
 
@@ -896,7 +922,7 @@ function applyUserSnapshot(payload){
     if (card) card.remove();
   }
 
-  // ✅ Toast cuando se asigna analista (ya con tickets definido)
+  //  Toast cuando se asigna analista (ya con tickets definido)
   tickets.forEach(t => {
     const id = String(t.id);
     const analyst = String(t.analyst_full || '').trim();
@@ -905,9 +931,17 @@ function applyUserSnapshot(payload){
     if (!prev && analyst) {
       showAssignToast(`Te atenderá Analista: ${analyst}`);
       assignToastSeen.set(id, analyst);
+      changed = true;
+    } else if (analyst && prev !== analyst){
+//por si se reasgina el ticket a otro analista
+      assignToastSeen.set(id, analyst);
+      changed = true;
+
     }
-    if (analyst) assignToastSeen.set(id, analyst);
+
   });
+  if (changed) persistAssignSeen();
+
 
   // 2) Refrescar lista "Tus tickets"
   const list = document.querySelector('.user-tickets-list');
@@ -965,7 +999,7 @@ function pollUserSnapshot(){
 
 document.addEventListener('DOMContentLoaded', () => {
   pollUserSnapshot();
-  setInterval(pollUserSnapshot, 9000);
+  setInterval(pollUserSnapshot, 5000);
 });
 
 

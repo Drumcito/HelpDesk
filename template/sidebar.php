@@ -8,6 +8,14 @@ $userName  = trim(($_SESSION['user_name'] ?? '') . ' ' . ($_SESSION['user_last']
 $userEmail = $_SESSION['user_email'] ?? '';
 $userArea  = $_SESSION['user_area'] ?? '';
 
+$areaLower = strtolower(trim($userArea));
+$puedeInventario = (
+    in_array($rol, [2, 3], true)   // Admin o Analista
+    && $areaLower === 'ti'         // Área TI
+);
+
+
+
 /**
  * FOTO DE PERFIL SEGÚN ROL / ÁREA / CORREO
  */
@@ -189,6 +197,14 @@ onclick="toggleSidebar()" aria-label="Abrir/cerrar menú">
         <span class="user-menu-icon">📒</span>
         <span>Tareas</span>
     </button>
+                <?php if ($puedeInventario): ?>
+    <button type="button" class="user-menu-item"
+            onclick="window.location.href='/HelpDesk_EQF/inventory/index.html'">
+        <span class="user-menu-icon">📦</span>
+        <span>Inventario</span>
+    </button>
+    <?php endif; ?>
+
             <button type="button" class="user-menu-item" 
                 onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/shared/internal_notes.php'">
                 <span class="user-menu-icon">📝</span>
@@ -235,6 +251,15 @@ onclick="toggleSidebar()" aria-label="Abrir/cerrar menú">
                 <span>Historial</span>
             </button>
 
+            <?php if ($puedeInventario): ?>
+    <button type="button" class="user-menu-item"
+            onclick="window.location.href='/HelpDesk_EQF/inventory/index.html'">
+        <span class="user-menu-icon">📦</span>
+        <span>Inventario</span>
+    </button>
+<?php endif; ?>
+
+
         <?php elseif ($rol === 4): ?>
             <!-- ================= USUARIO ================= -->
             <button type="button" class="user-menu-item" onclick="openTicketModal()">
@@ -246,6 +271,12 @@ onclick="toggleSidebar()" aria-label="Abrir/cerrar menú">
                     onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/user/tickets.php'">
                 <span class="user-menu-icon">📄</span>
                 <span>Tickets</span>
+            </button>
+            
+            <button type="button" class="user-menu-item"
+                    onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/user/support_team.php'">
+                <span class="user-menu-icon">🫂</span>
+                <span>Soporte</span>
             </button>
 
             <button type="button" class="user-menu-item"

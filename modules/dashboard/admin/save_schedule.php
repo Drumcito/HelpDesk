@@ -3,80 +3,58 @@ session_start();
 require_once __DIR__ . '/../../../config/connectionBD.php';
 
 if (!isset($_SESSION['user_id']) || (int)($_SESSION['user_rol'] ?? 0) !== 2) {
-    header('Location: /HelpDesk_EQF/auth/login.php');
-    exit;
-}
-
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header('Location: /HelpDesk_EQF/modules/dashboard/admin/analysts_cards.php');
-    exit;
+  header('Location: /HelpDesk_EQF/auth/login.php'); exit;
 }
 
 $pdo = Database::getConnection();
 
-$adminArea = trim($_SESSION['user_area'] ?? '');
-$userId    = (int)($_POST['user_id'] ?? 0);
-$shift     = trim($_POST['shift'] ?? '8_1730');
-$sat       = trim($_POST['sat_pattern'] ?? '1y3');
+$userId      = (int)($_POST['user_id'] ?? 0);
+$shift       = trim($_POST['shift'] ?? '');
+$satPattern  = trim($_POST['sat_pattern'] ?? '');
+$lunchStart  = trim($_POST['lunch_start'] ?? '');
+$lunchEnd    = trim($_POST['lunch_end'] ?? '');
 
-$lunchStart = trim($_POST['lunch_start'] ?? '');
-$lunchEnd   = trim($_POST['lunch_end'] ?? '');
+$back = '/HelpDesk_EQF/modules/dashboard/admin/analysts_cards.php';
 
-$allowedShift = ['8_1730','9_1830'];
-$allowedSat   = ['1y3','2y4','all'];
-
-if ($userId <= 0 || !in_array($shift, $allowedShift, true) || !in_array($sat, $allowedSat, true)) {
-    header('Location: /HelpDesk_EQF/modules/dashboard/admin/analysts_cards.php');
-    exit;
-}
-
-// Normaliza comida
-$lsDb = ($lunchStart !== '') ? ($lunchStart . ':00') : null;
-$leDb = ($lunchEnd   !== '') ? ($lunchEnd   . ':00') : null;
-
-// si solo llenan uno, nullear ambos
-if (($lsDb && !$leDb) || (!$lsDb && $leDb)) {
-    $lsDb = null;
-    $leDb = null;
-}
-
-// si están invertidos, nullear ambos (o swap si prefieres)
-if ($lsDb && $leDb && $lsDb >= $leDb) {
-    $lsDb = null;
-    $leDb = null;
+if ($userId <= 0 || $shift==='' || $satPattern==='') {
+  header("Location: $back?error=1"); exit;
 }
 
 try {
-    // Verifica que sea analista del área del admin
-    $stmtCheck = $pdo->prepare("SELECT id FROM users WHERE id=:id AND rol=3 AND area=:area LIMIT 1");
-    $stmtCheck->execute([':id'=>$userId, ':area'=>$adminArea]);
-    if (!$stmtCheck->fetchColumn()) {
-        header('Location: /HelpDesk_EQF/modules/dashboard/admin/analysts_cards.php');
-        exit;
-    }
+  // valida shift contra catálogo
+  $st = $pdo->prepare("SELECT 1 FROM catalog_shifts WHERE code=? AND active=1 LIMIT 1");
+  $st->execute([$shift]);
+  if (!$st->fetchColumn()) { header("Location: $back?error=1"); exit; }
 
-    $stmtUp = $pdo->prepare("
-        INSERT INTO analyst_schedules (user_id, shift, sat_pattern, lunch_start, lunch_end)
-        VALUES (:uid, :shift, :sat, :ls, :le)
-        ON DUPLICATE KEY UPDATE
-            shift=VALUES(shift),
-            sat_pattern=VALUES(sat_pattern),
-            lunch_start=VALUES(lunch_start),
-            lunch_end=VALUES(lunch_end),
-            updated_at=NOW()
-    ");
-    $stmtUp->execute([
-        ':uid'   => $userId,
-        ':shift' => $shift,
-        ':sat'   => $sat,
-        ':ls'    => $lsDb,
-        ':le'    => $leDb
-    ]);
+  // valida sat_pattern contra catálogo
+  $st = $pdo->prepare("SELECT 1 FROM catalog_sat_patterns WHERE code=? AND active=1 LIMIT 1");
+  $st->execute([$satPattern]);
+  if (!$st->fetchColumn()) { header("Location: $back?error=1"); exit; }
 
-} catch (Throwable $e) {
-    // opcional: log
-    error_log('save_schedule error: ' . $e->getMessage());
+  // normaliza comida (puede ir vacío)
+  $lunchStartDb = ($lunchStart !== '') ? $lunchStart . ':00' : null;
+  $lunchEndDb   = ($lunchEnd   !== '') ? $lunchEnd   . ':00' : null;
+
+  // si uno viene y el otro no -> error
+  if (($lunchStartDb && !$lunchEndDb) || (!$lunchStartDb && $lunchEndDb)) {
+    header("Location: $back?error=1"); exit;
+  }
+
+  // upsert schedule
+  $sql = "
+    INSERT INTO analyst_schedules (user_id, shift, sat_pattern, lunch_start, lunch_end)
+    VALUES (?,?,?,?,?)
+    ON DUPLICATE KEY UPDATE
+      shift=VALUES(shift),
+      sat_pattern=VALUES(sat_pattern),
+      lunch_start=VALUES(lunch_start),
+      lunch_end=VALUES(lunch_end)
+  ";
+  $stmt = $pdo->prepare($sql);
+  $stmt->execute([$userId, $shift, $satPattern, $lunchStartDb, $lunchEndDb]);
+
+  header("Location: $back?updated=1"); exit;
+
+} catch(Throwable $e) {
+  header("Location: $back?error=1"); exit;
 }
-
-header('Location: /HelpDesk_EQF/modules/dashboard/admin/analysts_cards.php');
-exit;
