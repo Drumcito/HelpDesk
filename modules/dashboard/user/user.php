@@ -50,47 +50,40 @@ $profileImg = ($userArea === 'Sucursal')
     : '/HelpDesk_EQF/assets/img/pp/pp_corporativo.jpg';
 
 // ============================
-// AVISOS para el usuario (TI/MKT/SAP o ALL)
+// AVISOS para el usuario (Sucursal / Corporativo)
 // ============================
-$userArea = trim((string)($_SESSION['user_area'] ?? '')); // si tu session se llama diferente, ajusta aquí
-$allowedAreas = ['TI','MKT','SAP'];
-
-if (!in_array($userArea, $allowedAreas, true)) {
-    $userArea = ''; // si no es TI/MKT/SAP, solo mostrará ALL
-}
+$rawArea = trim((string)($_SESSION['user_area'] ?? ''));
+$audience = (stripos($rawArea, 'sucursal') !== false)
+    ? 'Sucursal'
+    : 'Corporativo';
 
 $announcements = [];
-try {
-    $now = (new DateTime('now'))->format('Y-m-d H:i:s');
 
+try {
     $sqlAnn = "
-      SELECT id, title, body, level, target_area, starts_at, ends_at, created_at
-      FROM announcements
-      WHERE is_active = 1
-        AND (target_area = 'ALL' " . ($userArea ? " OR target_area = ?" : "") . ")
-        AND (starts_at IS NULL OR starts_at <= ?)
-        AND (ends_at IS NULL OR ends_at >= ?)
-      ORDER BY
-        CASE level
-          WHEN 'CRITICAL' THEN 1
-          WHEN 'WARN' THEN 2
-          ELSE 3
-        END,
-        COALESCE(starts_at, created_at) DESC
-      LIMIT 6
+        SELECT id, title, body, level, target_area, starts_at, ends_at, created_at
+        FROM announcements
+        WHERE target_area = :aud
+          AND is_active = 1
+          AND (starts_at IS NULL OR starts_at <= NOW())
+          AND (ends_at   IS NULL OR ends_at   >= NOW())
+        ORDER BY created_at DESC
+        LIMIT 10
     ";
 
-    $params = [];
-    if ($userArea) $params[] = $userArea;
-    $params[] = $now;
-    $params[] = $now;
-
     $stmtAnn = $pdo->prepare($sqlAnn);
-    $stmtAnn->execute($params);
+    $stmtAnn->execute([
+        ':aud' => $audience
+    ]);
+
     $announcements = $stmtAnn->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
 } catch (Throwable $e) {
+    error_log('Announcements error: ' . $e->getMessage());
     $announcements = [];
 }
+
+
 
 function annClass(string $level): string {
     return match ($level) {
@@ -316,47 +309,62 @@ foreach ($openTickets as $t) {
         </header>
 
         <section class="user-main-content">
-            <div class="user-info-card">
-  <h2>Resumen</h2>
-  <p>
-    Desde aquí puedes crear tickets, consultar el historial de los que has levantado y acceder a documentos importantes para la operación de tu sucursal o área.
-  </p>
+  <div class="user-info-card">
+    <h2>Resumen</h2>
+    <p>
+      Desde aquí puedes crear tickets, consultar el historial de los que has levantado y acceder a documentos importantes para la operación de tu sucursal o área.
+    </p>
 
-  <?php if (!empty($announcements)): ?>
     <div class="user-announcements">
       <div class="user-announcements__head">
         <h3 class="user-announcements__title">
           Avisos
           <span class="user-announcements__badge">
-            <?php echo count($announcements); ?>
+            <?php echo isset($announcements) ? count($announcements) : 0; ?>
           </span>
         </h3>
+
+        <!-- Opcional: muestra audiencia detectada -->
+        <?php if (isset($audience)): ?>
+          <p class="user-announcements__hint">
+            Mostrando: <?php echo h($audience); ?>
+          </p>
+        <?php endif; ?>
       </div>
 
-      <div class="user-announcements__list">
-        <?php foreach ($announcements as $a): ?>
-          <div class="announcement <?php echo annClass($a['level']); ?>">
-            <div class="announcement__top">
-              <div>
-                <p class="announcement__h"><?php echo h($a['title']); ?></p>
-                <p class="announcement__meta">
-                  <?php echo h($a['target_area'] === 'ALL' ? 'General' : 'Área: '.$a['target_area']); ?>
-                </p>
+      <?php if (!empty($announcements)): ?>
+        <div class="user-announcements__list">
+          <?php foreach ($announcements as $a): ?>
+            <?php $lvl = strtoupper((string)($a['level'] ?? 'INFO')); ?>
+            <div class="announcement <?php echo annClass($lvl); ?>">
+              <div class="announcement__top">
+                <div>
+                  <p class="announcement__h"><?php echo h($a['title'] ?? ''); ?></p>
+                  <p class="announcement__meta">
+                    <?php echo h('Dirigido a: ' . ($a['target_area'] ?? '')); ?>
+                  </p>
+                </div>
+                <span class="announcement__pill">
+                  <?php echo annLabel($lvl); ?>
+                </span>
               </div>
-              <span class="announcement__pill">
-                <?php echo annLabel($a['level']); ?>
-              </span>
-            </div>
 
-            <div class="announcement__body">
-              <?php echo nl2br(h($a['body'])); ?>
+              <div class="announcement__body">
+                <?php echo nl2br(h($a['body'] ?? '')); ?>
+              </div>
             </div>
-          </div>
-        <?php endforeach; ?>
-      </div>
+          <?php endforeach; ?>
+        </div>
+      <?php else: ?>
+        <div class="user-announcements__empty">
+          No hay avisos por el momento.
+        </div>
+      <?php endif; ?>
+
     </div>
-  <?php endif; ?>
-</div>
+  </div>
+</section>
+
 
 
 
@@ -1166,6 +1174,15 @@ document.addEventListener('DOMContentLoaded', () => {
     window.history.replaceState({}, document.title, url.pathname + url.search);
   }
 });
+</script>
+
+<script>
+  window.HELPDESK_VAPID_PUBLIC_KEY = "<?php echo h($vapidPublicKey); ?>";
+</script>
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    registerHelpDeskPush();
+  });
 </script>
 
 </body>

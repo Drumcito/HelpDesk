@@ -294,7 +294,7 @@ include __DIR__ . '/../../../template/sidebar.php';
 
         <section class="button">
           <button type="button" class="btn-primary" onclick="openTaskModal () " style="width: 150px; height: 40px;">+ Crear tarea</button>
-            </section>
+        </section>
 <div class="user-modal-backdrop" id="taskModal" style="display:none;">
   <div class="user-modal">
     <header class="user-modal-header">
@@ -412,10 +412,88 @@ include __DIR__ . '/../../../template/sidebar.php';
 
         </section>
     </section>
-    <script src="/HelpDesk_EQF/assets/js/script.js?v=20251208a"></script>
+<script src="/HelpDesk_EQF/assets/js/script.js?v=<?php echo time(); ?>"></script>
 
 </main>
 <?php include __DIR__ . '/../../../template/footer.php'; ?>
+<?php if ((int)($_SESSION['user_rol'] ?? 0) === 2): ?>
+<div class="eqf-modal-backdrop" id="announceModal">
+  <div class="eqf-modal eqf-announce-modal">
+    <div class="eqf-modal-header">
+      <div>
+        <strong>Nuevo aviso</strong>
+        <div class="panel-muted">Se mostrará en “Resumen” del usuario y se enviará como notificación del navegador.</div>
+      </div>
+      <button class="eqf-modal-close" type="button" id="btnCloseAnnouncement">✕</button>
+    </div>
+
+    <div class="eqf-modal-body eqf-announce-body">
+      <div class="eqf-field">
+        <label>Título</label>
+        <input type="text" id="ann_title" maxlength="120" placeholder="Ej. Mantenimiento programado">
+      </div>
+
+      <div class="eqf-field eqf-announce-mt">
+        <label>Descripción</label>
+        <textarea id="ann_body" rows="4" maxlength="600" placeholder="Escribe el mensaje..."></textarea>
+      </div>
+
+      <div class="eqf-grid-2 eqf-announce-mt">
+        <div class="eqf-field">
+          <label>Categoría</label>
+          <select id="ann_level">
+            <option value="INFO">INFORMATIVO</option>
+            <option value="WARN">ADVERTENCIA</option>
+            <option value="CRITICAL">CRITICO</option>
+          </select>
+        </div>
+
+        <div class="eqf-field">
+          <label>Área</label>
+          <select id="ann_area">
+  <option value="ALL">ALL</option>
+  <option value="Sucursal">Sucursal</option>
+  <option value="Corporativo">Corporativo</option>
+</select>
+
+        </div>
+      </div>
+
+      <div class="eqf-grid-2 eqf-announce-mt">
+        <div class="eqf-field">
+          <label>Inicio (opcional)</label>
+          <input type="datetime-local" id="ann_starts">
+        </div>
+        <div class="eqf-field">
+          <label>Fin (opcional)</label>
+          <input type="datetime-local" id="ann_ends">
+        </div>
+      </div>
+    </div>
+
+    <div class="eqf-modal-footer">
+      <button class="eqf-btn eqf-btn-secondary" type="button" id="btnCancelAnnouncement">Cancelar</button>
+      <button class="eqf-btn eqf-btn-primary" type="button" id="btnSendAnnouncement">Enviar</button>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const btn = document.getElementById('btnOpenAnnouncement');
+  const modal = document.getElementById('announceModal');
+
+  console.log('BTN:', btn, 'MODAL:', modal);
+
+  if (btn && modal) {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      modal.classList.add('show');
+      console.log('Modal abierto ✅');
+    });
+  }
+});
+</script>
 
 </body>
 </html>
@@ -479,4 +557,96 @@ document.addEventListener('DOMContentLoaded', function () {
   setInterval(pollStaffNotifications, 10000);
 });
 </script>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const btn = document.getElementById('btnOpenAnnouncement');
+  const modal = document.getElementById('announceModal');
+
+  if (!btn || !modal) {
+    console.warn('No se encontró btnOpenAnnouncement o announceModal');
+    return;
+  }
+
+  btn.addEventListener('click', (e) => {
+    e.preventDefault();
+    modal.classList.add('show');
+  });
+
+  // click en backdrop para cerrar
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) modal.classList.remove('show');
+  });
+
+  document.getElementById('btnCloseAnnouncement')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    modal.classList.remove('show');
+  });
+
+  document.getElementById('btnCancelAnnouncement')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    modal.classList.remove('show');
+  });
+});
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const sendBtn = document.getElementById('btnSendAnnouncement');
+  if (!sendBtn) return;
+
+  sendBtn.addEventListener('click', async (e) => {
+    e.preventDefault();
+
+    const payload = {
+      title: (document.getElementById('ann_title')?.value || '').trim(),
+      body: (document.getElementById('ann_body')?.value || '').trim(),
+      level: document.getElementById('ann_level')?.value || 'INFO',
+      target_area: document.getElementById('ann_area')?.value || 'ALL',
+      starts_at: document.getElementById('ann_starts')?.value || null,
+      ends_at: document.getElementById('ann_ends')?.value || null
+    };
+
+    if (!payload.title || !payload.body) {
+      alert('Título y descripción son obligatorios.');
+      return;
+    }
+
+    try {
+      const res = await fetch('/HelpDesk_EQF/modules/dashboard/admin/ajax/create_announcement.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const raw = await res.text();
+      console.log('RESP RAW:', raw);
+
+      let data = {};
+      try { data = JSON.parse(raw); } catch {}
+
+      if (!res.ok || !data.ok) {
+        alert(data.msg || ('No se pudo enviar el aviso. HTTP ' + res.status));
+        return;
+      }
+
+      alert('Aviso enviado ✅');
+      document.getElementById('announceModal')?.classList.remove('show');
+
+      // opcional: limpiar campos
+      document.getElementById('ann_title').value = '';
+      document.getElementById('ann_body').value  = '';
+      document.getElementById('ann_level').value = 'INFO';
+      document.getElementById('ann_area').value  = 'ALL';
+      document.getElementById('ann_starts').value = '';
+      document.getElementById('ann_ends').value   = '';
+
+    } catch (err) {
+      console.error(err);
+      alert('Error de red / fetch. Revisa consola.');
+    }
+  });
+});
+</script>
+
 

@@ -179,6 +179,11 @@ onclick="toggleSidebar()" aria-label="Abrir/cerrar menú">
         <span class="user-menu-icon">⭐</span>
         <span>Admin</span>
     </button>
+            <button type="button" class="user-menu-item" id="btnOpenAnnouncement">
+  <span class="user-menu-icon">📣</span>
+  Enviar aviso
+</button>
+
 
     <button type="button" class="user-menu-item"
             onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/admin/tickets_area.php'">
@@ -227,6 +232,10 @@ onclick="toggleSidebar()" aria-label="Abrir/cerrar menú">
              <button type="button" class="user-menu-item" id="btnOpenCreateTicket">
                 <span class="user-menu-icon">➕</span>
                 <span>Crear ticket</span>
+            </button>
+            <button type="button" class="user-menu-item" onclick="btnOpenAnnouncement">
+                <span class="user-menu-icon">➕</span>
+                <span>ANUNCIO</span>
             </button>
             <button type="button" class="user-menu-item" 
                 onclick="window.location.href='/HelpDesk_EQF/modules/ticket/history.php'">

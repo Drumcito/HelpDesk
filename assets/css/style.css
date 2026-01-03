@@ -2725,3 +2725,18 @@ table.dataTable tbody tr:hover {
 .user-info-card .announcement{
   margin-bottom: 8px;
 }
+/* ==========================
+   MODAL ENVIAR AVISO (ADMIN)
+========================== */
+.eqf-announce-modal{
+  width: min(760px, 100%);
+}
+
+.eqf-announce-body{
+  display: flex;
+  flex-direction: column;
+}
+
+.eqf-announce-mt{
+  margin-top: 12px;
+}
