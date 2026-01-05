@@ -1,272 +1,250 @@
 <?php
 session_start();
+
 require_once __DIR__ . '/../../../config/connectionBD.php';
 include __DIR__ . '/../../../template/header.php';
 include __DIR__ . '/../../../template/sidebar.php';
 
-// Solo Analistas (rol = 3)
+/**
+ * ============================
+ *  AUTH / CONTEXTO
+ * ============================
+ */
 if (!isset($_SESSION['user_id']) || (int)($_SESSION['user_rol'] ?? 0) !== 3) {
     header('Location: /HelpDesk_EQF/auth/login.php');
     exit;
 }
 
-$pdo       = Database::getConnection();
-$userId    = (int)($_SESSION['user_id'] ?? 0);
-$userName  = trim(($_SESSION['user_name'] ?? '') . ' ' . ($_SESSION['user_last'] ?? ''));
-$userArea  = $_SESSION['user_area'] ?? '';
+$pdo      = Database::getConnection();
+$userId   = (int)($_SESSION['user_id'] ?? 0);
+$userName = trim(($_SESSION['user_name'] ?? '') . ' ' . ($_SESSION['user_last'] ?? ''));
+$userArea = (string)($_SESSION['user_area'] ?? '');
 
-
-// ============================
-// HELPERS (para anuncios)
-// ============================
+/**
+ * ============================
+ *  HELPERS
+ * ============================
+ */
 if (!function_exists('h')) {
-  function h($s): string {
-    return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
-  }
+    function h($s): string {
+        return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
+    }
 }
+
 if (!function_exists('annClass')) {
-  function annClass(string $level): string {
-    $level = strtoupper(trim($level));
-    return match ($level) {
-      'CRITICAL' => 'announcement--critical',
-      'WARN'     => 'announcement--warn',
-      default    => 'announcement--info',
-    };
-  }
+    function annClass(string $level): string {
+        $level = strtoupper(trim($level));
+        return match ($level) {
+            'CRITICAL' => 'announcement--critical',
+            'WARN'     => 'announcement--warn',
+            default    => 'announcement--info',
+        };
+    }
 }
+
 if (!function_exists('annLabel')) {
-  function annLabel(string $level): string {
-    $level = strtoupper(trim($level));
-    return match ($level) {
-      'CRITICAL' => 'Crítico',
-      'WARN'     => 'Aviso',
-      default    => 'Info',
+    function annLabel(string $level): string {
+        $level = strtoupper(trim($level));
+        return match ($level) {
+            'CRITICAL' => 'Crítico',
+            'WARN'     => 'Aviso',
+            default    => 'Info',
+        };
+    }
+}
+
+function prioridadLabel(string $p): string {
+    return match (strtolower($p)) {
+        'alta'                => 'Alta',
+        'media'               => 'Media',
+        'baja'                => 'Baja',
+        'critica', 'crítica'  => 'Crítica',
+        default               => ucfirst($p),
     };
-  }
 }
 
-// ============================
-// ANUNCIOS (cards + lista)
-// ============================
-$annCards = [];
-$annAdminList = [];
-
-try {
-  $stmt = $pdo->query("
-    SELECT id, title, body, level, target_area, starts_at, ends_at, created_at
-    FROM announcements
-    WHERE is_active = 1
-    ORDER BY created_at DESC
-    LIMIT 20
-  ");
-  $annCards = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-
-  $stmt2 = $pdo->query("
-    SELECT id, title, level, target_area, created_at
-    FROM announcements
-    WHERE is_active = 1
-    ORDER BY created_at DESC
-    LIMIT 20
-  ");
-  $annAdminList = $stmt2->fetchAll(PDO::FETCH_ASSOC) ?: [];
-
-} catch (Throwable $e) {
-  $annCards = [];
-  $annAdminList = [];
-}
-
-
-
-// -------- ALERTAS ----------
+/**
+ * ============================
+ *  ALERTAS UI
+ * ============================
+ */
 $alerts = [];
 if (isset($_GET['updated'])) {
     $alerts[] = [
         'type' => 'info',
         'icon' => 'capsulin_update.png',
-        'text' => 'TICKET ACTUALIZADO EXITOSAMENTE'
+        'text' => 'TICKET ACTUALIZADO EXITOSAMENTE',
     ];
 }
 
-/* Helper: label de prioridad */
-function prioridadLabel(string $p): string {
-    return match (strtolower($p)) {
-        'alta'     => 'Alta',
-        'media'    => 'Media',
-        'baja'     => 'Baja',
-        'critica', 'crítica' => 'Crítica',
-        default    => ucfirst($p),
-    };
+/**
+ * ============================
+ *  ANUNCIOS (cards + lista)
+ * ============================
+ */
+$annCards = [];
+$annAdminList = [];
+
+try {
+    // Cards completas
+    $stmt = $pdo->query("
+        SELECT id, title, body, level, target_area, starts_at, ends_at, created_at, created_by_area
+        FROM announcements
+        WHERE is_active = 1
+        ORDER BY created_at DESC
+        LIMIT 20
+    ");
+    $annCards = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    // Lista (por si luego la ocupas)
+    $stmt2 = $pdo->query("
+        SELECT id, title, level, target_area, created_at, created_by_area
+        FROM announcements
+        WHERE is_active = 1
+        ORDER BY created_at DESC
+        LIMIT 20
+    ");
+    $annAdminList = $stmt2->fetchAll(PDO::FETCH_ASSOC) ?: [];
+} catch (Throwable $e) {
+    $annCards = [];
+    $annAdminList = [];
 }
 
-/* KPIs del área */
+/**
+ * ============================
+ *  KPIs del área
+ * ============================
+ */
 $stmtKpi = $pdo->prepare("
-    SELECT 
-        SUM(estado = 'abierto')      AS abiertos,
-        SUM(estado = 'en_proceso')   AS en_proceso,
-        SUM(estado = 'cerrado')      AS cerrados,
-        COUNT(*)                     AS total
+    SELECT
+        SUM(estado = 'abierto')    AS abiertos,
+        SUM(estado = 'en_proceso') AS en_proceso,
+        SUM(estado = 'cerrado')    AS cerrados,
+        COUNT(*)                   AS total
     FROM tickets
     WHERE area = :area
 ");
 $stmtKpi->execute([':area' => $userArea]);
+
 $kpi = $stmtKpi->fetch() ?: [
-    'abiertos'    => 0,
-    'en_proceso'  => 0,
-    'cerrados'    => 0,
-    'total'       => 0,
+    'abiertos'   => 0,
+    'en_proceso' => 0,
+    'cerrados'   => 0,
+    'total'      => 0,
 ];
 
-/* ===========================
-   MIS SOLICITUDES A TI (Ticket para mí)
-   - user_id = yo
-   - area = 'TI'
-   - abierto/en_proceso
-   - cerrado + encuesta pendiente
-=========================== */
+/**
+ * ============================
+ *  MIS SOLICITUDES A TI
+ * ============================
+ */
 $stmtMyToTI = $pdo->prepare("
-  SELECT 
-    t.id,
-    t.fecha_envio,
-    t.estado,
-    t.asignado_a,
-    CONCAT(COALESCE(u.name,''),' ',COALESCE(u.last_name,'')) AS atendido_por,
-    f.token AS feedback_token
-  FROM tickets t
-  LEFT JOIN users u
-    ON u.id = t.asignado_a
-  LEFT JOIN ticket_feedback f
-    ON f.ticket_id = t.id
-   AND f.answered_at IS NULL
-  WHERE t.user_id = :uid
-    AND t.area = 'TI'
-    AND (
-          t.estado IN ('abierto','en_proceso')
-       OR (t.estado = 'cerrado' AND f.id IS NOT NULL)
-    )
-  ORDER BY t.fecha_envio DESC
-  LIMIT 10
+    SELECT
+        t.id,
+        t.fecha_envio,
+        t.estado,
+        t.asignado_a,
+        CONCAT(COALESCE(u.name,''),' ',COALESCE(u.last_name,'')) AS atendido_por,
+        f.token AS feedback_token
+    FROM tickets t
+    LEFT JOIN users u
+        ON u.id = t.asignado_a
+    LEFT JOIN ticket_feedback f
+        ON f.ticket_id = t.id
+       AND f.answered_at IS NULL
+    WHERE t.user_id = :uid
+      AND t.area = 'TI'
+      AND (
+            t.estado IN ('abierto','en_proceso')
+         OR (t.estado = 'cerrado' AND f.id IS NOT NULL)
+      )
+    ORDER BY t.fecha_envio DESC
+    LIMIT 10
 ");
 $stmtMyToTI->execute([':uid' => $userId]);
-$myToTI = $stmtMyToTI->fetchAll(PDO::FETCH_ASSOC);
+$myToTI = $stmtMyToTI->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-
-
-/* Tickets entrantes (abiertos, sin asignar) + label desde catálogo */
+/**
+ * ============================
+ *  TICKETS ENTRANTES (abiertos, sin asignar)
+ * ============================
+ *  Nota: aquí tu tabla t.problema a veces es id, a veces code (por tus joins).
+ *  Para NO romper, intentamos resolver label por ambos.
+ */
 $stmtIncoming = $pdo->prepare("
-    SELECT 
+    SELECT
         t.id, t.sap, t.nombre, t.email,
         t.problema AS problema_raw,
-        COALESCE(cp.label, t.problema) AS problema_label,
+        COALESCE(cp1.label, cp2.label, t.problema) AS problema_label,
         t.descripcion, t.fecha_envio, t.estado, t.prioridad
     FROM tickets t
-    LEFT JOIN catalog_problems cp
-           ON cp.id = t.problema
+    LEFT JOIN catalog_problems cp1 ON cp1.id = t.problema
+    LEFT JOIN catalog_problems cp2 ON cp2.code = t.problema
     WHERE t.area = :area
       AND t.estado = 'abierto'
       AND (t.asignado_a IS NULL OR t.asignado_a = 0)
     ORDER BY t.fecha_envio ASC
 ");
 $stmtIncoming->execute([':area' => $userArea]);
-$incomingTickets = $stmtIncoming->fetchAll(PDO::FETCH_ASSOC);
+$incomingTickets = $stmtIncoming->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-/* máximo id actual para iniciar el polling */
 $maxIncomingId = 0;
 foreach ($incomingTickets as $t) {
-    $tid = (int)$t['id'];
+    $tid = (int)($t['id'] ?? 0);
     if ($tid > $maxIncomingId) $maxIncomingId = $tid;
 }
 
-/* Mis tickets activos (abiertos y en proceso) + label desde catálogo */
+/**
+ * ============================
+ *  MIS TICKETS (asignados a mí)
+ * ============================
+ */
 $stmtMy = $pdo->prepare("
-    SELECT 
+    SELECT
         t.id, t.sap, t.nombre, t.email,
         t.problema AS problema_raw,
-        COALESCE(cp.label, t.problema) AS problema_label,
+        COALESCE(cp1.label, cp2.label, t.problema) AS problema_label,
         t.descripcion, t.fecha_envio, t.estado, t.prioridad
     FROM tickets t
-    LEFT JOIN catalog_problems cp
-           ON cp.code = t.problema
+    LEFT JOIN catalog_problems cp1 ON cp1.id = t.problema
+    LEFT JOIN catalog_problems cp2 ON cp2.code = t.problema
     WHERE t.area = :area
       AND t.asignado_a = :uid
       AND t.estado IN ('abierto','en_proceso')
     ORDER BY t.fecha_envio DESC
 ");
 $stmtMy->execute([':area' => $userArea, ':uid' => $userId]);
-$myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC);
+$myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
 ?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <title>Panel de Analista | HELP DESK EQF</title>
+
     <link rel="stylesheet" href="/HelpDesk_EQF/assets/css/style.css?v=<?php echo time(); ?>">
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
 
     <style>
-      .analyst-actions{
-        display:flex;
-        gap:8px;
-        justify-content:flex-end;
-        flex-wrap:wrap;
-      }
-      .btn-mini{
-        padding:6px 10px;
-        border-radius:12px;
-        font-weight:800;
-        border:1px solid var(--eqf-border,#e5e7eb);
-        background:#fff;
-        cursor:pointer;
-      }
-      .btn-mini.primary{
-        background: var(--eqf-combined,#6e1c5c);
-        color:#fff;
-        border-color: transparent;
-      }
-      .ticket-detail-grid{
-        display:grid;
-        grid-template-columns: 1fr;
-        gap:10px;
-        font-size:14px;
-      }
-      .ticket-detail-meta{
-        display:flex;
-        gap:10px;
-        flex-wrap:wrap;
-        opacity:.9;
-        font-size:13px;
-      }
-      .ticket-attachments{
-        display:flex;
-        flex-direction:column;
-        gap:8px;
-      }
-      .ticket-attachments a{
-        display:inline-block;
-        padding:8px 10px;
-        border:1px solid var(--eqf-border,#e5e7eb);
-        border-radius:12px;
-        text-decoration:none;
-      }
-      .kpi-live{
-        display:flex;
-        gap:10px;
-        flex-wrap:wrap;
-        margin-top:10px;
-      }
+      .analyst-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;}
+      .btn-mini{padding:6px 10px;border-radius:12px;font-weight:800;border:1px solid var(--eqf-border,#e5e7eb);background:#fff;cursor:pointer;}
+      .btn-mini.primary{background: var(--eqf-combined,#6e1c5c);color:#fff;border-color: transparent;}
+      .ticket-detail-grid{display:grid;grid-template-columns: 1fr;gap:10px;font-size:14px;}
+      .ticket-detail-meta{display:flex;gap:10px;flex-wrap:wrap;opacity:.9;font-size:13px;}
+      .ticket-attachments{display:flex;flex-direction:column;gap:8px;}
+      .ticket-attachments a{display:inline-block;padding:8px 10px;border:1px solid var(--eqf-border,#e5e7eb);border-radius:12px;text-decoration:none;}
     </style>
 </head>
+
 <body class="user-body">
 
 <?php if (!empty($alerts)): ?>
     <?php $alert = $alerts[0]; ?>
     <div id="eqf-alert-container">
-        <div class="eqf-alert eqf-alert-<?php echo htmlspecialchars($alert['type']); ?>">
-            <img class="eqf-alert-icon"
-                 src="/HelpDesk_EQF/assets/img/icons/<?php echo htmlspecialchars($alert['icon']); ?>"
-                 alt="alert icon">
-            <div class="eqf-alert-text">
-                <?php echo htmlspecialchars($alert['text']); ?>
-            </div>
+        <div class="eqf-alert eqf-alert-<?php echo h($alert['type']); ?>">
+            <img class="eqf-alert-icon" src="/HelpDesk_EQF/assets/img/icons/<?php echo h($alert['icon']); ?>" alt="alert icon">
+            <div class="eqf-alert-text"><?php echo h($alert['text']); ?></div>
         </div>
     </div>
 <?php endif; ?>
@@ -280,64 +258,137 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC);
                     <span>HelpDesk </span><span class="eqf-e">E</span><span class="eqf-q">Q</span><span class="eqf-f">F</span>
                 </p>
                 <p class="user-main-subtitle">
-                    Panel de Analista – <?php echo htmlspecialchars($userArea, ENT_QUOTES, 'UTF-8'); ?>
+                    Panel de Analista – <?php echo h($userArea); ?>
                 </p>
             </div>
         </header>
-<div class="user-info-card" style="margin-top:18px;">
-  <h2>Anuncios</h2>
-  <p style="margin-top:6px;">Vista tipo usuario (para validar contenido) y opción de desactivar.</p>
 
-  <div class="user-announcements">
-    <div class="user-announcements__head">
-      <h3 class="user-announcements__title">
-        Activos
-        <span class="user-announcements__badge"><?php echo count($annCards); ?></span>
-      </h3>
-    </div>
+        <!-- ANUNCIOS -->
+        <div class="user-info-card" style="margin-top:18px;" #039 id="annWrap">
+          <h2>Anuncios</h2>
 
-    <div class="user-announcements__list">
-      <?php if (empty($annCards)): ?>
-        <p style="margin:0; color:#6b7280;">No hay anuncios activos.</p>
-      <?php else: ?>
-        <?php foreach ($annCards as $a): ?>
-          <div class="announcement <?php echo annClass($a['level']); ?>">
-            <div class="announcement__top">
-              <div>
-                <p class="announcement__h"><?php echo h($a['title']); ?></p>
-                <p class="announcement__meta">
-                  <?php echo h('Dirigido a: ' . ($a['target_area'] ?? '')); ?>
-                  <?php if (!empty($a['starts_at'])): ?>
-                    <br><?php echo h('Hora de inicio: ' . $a['starts_at']); ?>
-                  <?php endif; ?>
-                  <?php if (!empty($a['ends_at'])): ?>
-                    <br><?php echo h('Hora estimada fin: ' . $a['ends_at']); ?>
-                  <?php endif; ?>
-                </p>
-              </div>
-
-              <div style="display:flex; gap:10px; align-items:center;">
-                <span class="announcement__pill"><?php echo annLabel($a['level']); ?></span>
-
-                <button type="button"
-                        class="btn-secondary"
-                        style="padding:8px 12px; border-radius:12px;"
-                        data-ann-disable
-                        data-id="<?php echo (int)$a['id']; ?>">
-                  Desactivar
-                </button>
-              </div>
+          <div class="user-announcements">
+            <div class="user-announcements__head">
+              <h3 class="user-announcements__title">
+                Activos
+                <span class="user-announcements__badge" id="annBadge"><?php echo (int)count($annCards); ?></span>
+              </h3>
             </div>
 
-            <div class="announcement__body">
-              <?php echo nl2br(h($a['body'])); ?>
+            <div class="user-announcements__list" id="annList">
+              <?php if (empty($annCards)): ?>
+                <p style="margin:0; color:#6b7280;">No hay anuncios activos.</p>
+              <?php else: ?>
+                <?php foreach ($annCards as $a): ?>
+                  <div class="announcement <?php echo annClass((string)($a['level'] ?? 'INFO')); ?>">
+                    <div class="announcement__top">
+                      <div>
+                        <p class="announcement__h"><?php echo h($a['title'] ?? ''); ?></p>
+                        <p class="announcement__meta">
+                          <?php echo h('Dirigido a: ' . ($a['target_area'] ?? '')); ?>
+                          <?php if (!empty($a['starts_at'])): ?>
+                            <br><?php echo h('Hora de inicio: ' . $a['starts_at']); ?>
+                          <?php endif; ?>
+                          <?php if (!empty($a['ends_at'])): ?>
+                            <br><?php echo h('Hora estimada fin: ' . $a['ends_at']); ?>
+                          <?php endif; ?>
+                        </p>
+                      </div>
+
+                      <div style="display:flex; gap:10px; align-items:center;">
+                        <span class="announcement__pill"><?php echo annLabel((string)($a['level'] ?? 'INFO')); ?></span>
+
+                        <?php
+                          $rol = (int)($_SESSION['user_rol'] ?? 0);
+                          $canDisable = (
+                            $rol === 2
+                            || (strcasecmp(trim((string)($a['created_by_area'] ?? '')), trim($userArea)) === 0)
+                          );
+                        ?>
+                        <?php if ($canDisable): ?>
+                          <button type="button"
+                                  class="btn-secondary"
+                                  data-ann-disable
+                                  data-id="<?php echo (int)($a['id'] ?? 0); ?>">
+                            Desactivar
+                          </button>
+                        <?php endif; ?>
+
+                      </div>
+                    </div>
+
+                    <div class="announcement__body">
+                      <?php echo nl2br(h($a['body'] ?? '')); ?>
+                    </div>
+                  </div>
+                <?php endforeach; ?>
+              <?php endif; ?>
             </div>
           </div>
-        <?php endforeach; ?>
-      <?php endif; ?>
-    </div>
-  </div>
-</div>
+        </div>
+
+        <!-- MODAL NUEVO AVISO -->
+        <?php if (in_array((int)($_SESSION['user_rol'] ?? 0), [2,3], true)): ?>
+        <div class="eqf-modal-backdrop" id="announceModal">
+          <div class="eqf-modal eqf-announce-modal">
+            <div class="eqf-modal-header">
+              <div>
+                <strong>Nuevo aviso</strong>
+                <div class="panel-muted">Se mostrará en “Resumen” del usuario.</div>
+              </div>
+              <button class="eqf-modal-close" type="button" data-close-announcement>✕</button>
+            </div>
+
+            <div class="eqf-modal-body eqf-announce-body">
+              <div class="eqf-field">
+                <label>Título</label>
+                <input type="text" id="ann_title" maxlength="120" placeholder="Ej. Mantenimiento programado">
+              </div>
+
+              <div class="eqf-field eqf-announce-mt">
+                <label>Descripción</label>
+                <textarea id="ann_body" rows="4" maxlength="600" placeholder="Escribe el mensaje..."></textarea>
+              </div>
+
+              <div class="eqf-grid-2 eqf-announce-mt">
+                <div class="eqf-field">
+                  <label>Categoría</label>
+                  <select id="ann_level">
+                    <option value="INFO">INFORMATIVO</option>
+                    <option value="WARN">ADVERTENCIA</option>
+                    <option value="CRITICAL">CRITICO</option>
+                  </select>
+                </div>
+
+                <div class="eqf-field">
+                  <label>Área</label>
+                  <select id="ann_area">
+                    <option value="ALL">ALL</option>
+                    <option value="Sucursal">Sucursal</option>
+                    <option value="Corporativo">Corporativo</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="eqf-grid-2 eqf-announce-mt">
+                <div class="eqf-field">
+                  <label>Inicio (opcional)</label>
+                  <input type="datetime-local" id="ann_starts">
+                </div>
+                <div class="eqf-field">
+                  <label>Fin (opcional)</label>
+                  <input type="datetime-local" id="ann_ends">
+                </div>
+              </div>
+            </div>
+
+            <div class="eqf-modal-footer">
+              <button class="eqf-btn eqf-btn-secondary" type="button" data-cancel-announcement>Cancelar</button>
+              <button class="eqf-btn eqf-btn-primary" type="button" id="btnSendAnnouncement">Enviar</button>
+            </div>
+          </div>
+        </div>
+        <?php endif; ?>
 
         <section class="user-main-content">
 
@@ -366,39 +417,34 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC);
                 </div>
             </div>
 
-<!-- MIS TICKETS PARA TI -->
-<div class="user-info-card" id="my-ti-requests">
-  <h3>TICKETS DE APOYO</h3>
+            <!-- MIS TICKETS PARA TI -->
+            <div class="user-info-card" id="my-ti-requests">
+              <h3>TICKETS DE APOYO</h3>
 
-  <?php if (empty($myToTI)): ?>
-    <p style="opacity:.8;">No tienes solicitudes activas a TI ni encuestas pendientes.</p>
-  <?php else: ?>
+              <?php if (empty($myToTI)): ?>
+                <p style="opacity:.8;">No tienes solicitudes activas a TI ni encuestas pendientes.</p>
+              <?php else: ?>
+                <div id="myTiListWrap">
+                  <p style="opacity:.8;">Cargando…</p>
+                </div>
+              <?php endif; ?>
+            </div>
 
-    <!-- contenedor para el polling (SOLO 1 VEZ) -->
-    <div id="myTiListWrap">
-      <p style="opacity:.8;">Cargando…</p>
-    </div>
+            <!-- MODAL ENCUESTA -->
+            <div class="modal-backdrop" id="feedback-modal" style="display:none;">
+              <div class="modal-card" style="max-width:900px; width:92vw; height:82vh;">
+                <div class="modal-header">
+                  <h3 id="feedbackTitle">Encuesta</h3>
+                  <button type="button" class="modal-close" onclick="closeFeedbackModal()">✕</button>
+                </div>
+                <div class="modal-body" style="padding:0; height:calc(82vh - 56px);">
+                  <iframe id="feedbackFrame"
+                          src=""
+                          style="width:100%; height:100%; border:0; border-bottom-left-radius:16px; border-bottom-right-radius:16px;"></iframe>
+                </div>
+              </div>
+            </div>
 
-    
-
-  <?php endif; ?>
-</div>
-
-
-<!-- MODAL ENCUESTA -->
-<div class="modal-backdrop" id="feedback-modal" style="display:none;">
-  <div class="modal-card" style="max-width:900px; width:92vw; height:82vh;">
-    <div class="modal-header">
-      <h3 id="feedbackTitle">Encuesta</h3>
-      <button type="button" class="modal-close" onclick="closeFeedbackModal()">✕</button>
-    </div>
-    <div class="modal-body" style="padding:0; height:calc(82vh - 56px);">
-      <iframe id="feedbackFrame"
-              src=""
-              style="width:100%; height:100%; border:0; border-bottom-left-radius:16px; border-bottom-right-radius:16px;"></iframe>
-    </div>
-  </div>
-</div>
             <!-- ENTRANTES -->
             <div id="incoming-section" class="user-info-card">
                 <h3>Tickets entrantes</h3>
@@ -419,15 +465,16 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC);
                         <?php foreach ($incomingTickets as $t): ?>
                             <tr data-ticket-id="<?php echo (int)$t['id']; ?>">
                                 <td><?php echo (int)$t['id']; ?></td>
-                                <td><?php echo htmlspecialchars($t['fecha_envio'], ENT_QUOTES, 'UTF-8'); ?></td>
-                                <td><?php echo htmlspecialchars($t['nombre'], ENT_QUOTES, 'UTF-8'); ?></td>
-                                <td><?php echo htmlspecialchars($t['problema_label'], ENT_QUOTES, 'UTF-8'); ?></td>
+                                <td><?php echo h($t['fecha_envio'] ?? ''); ?></td>
+                                <td><?php echo h($t['nombre'] ?? ''); ?></td>
+                                <td><?php echo h($t['problema_label'] ?? ''); ?></td>
                                 <td>
-                                    <span class="priority-pill priority-<?php echo htmlspecialchars(strtolower($t['prioridad'] ?? 'media'), ENT_QUOTES, 'UTF-8'); ?>">
-                                        <?php echo htmlspecialchars(prioridadLabel($t['prioridad'] ?? 'media'), ENT_QUOTES, 'UTF-8'); ?>
+                                    <?php $prio = strtolower((string)($t['prioridad'] ?? 'media')); ?>
+                                    <span class="priority-pill priority-<?php echo h($prio); ?>">
+                                        <?php echo h(prioridadLabel((string)($t['prioridad'] ?? 'media'))); ?>
                                     </span>
                                 </td>
-                                <td><?php echo htmlspecialchars($t['descripcion'], ENT_QUOTES, 'UTF-8'); ?></td>
+                                <td><?php echo h($t['descripcion'] ?? ''); ?></td>
                                 <td>
                                   <div class="analyst-actions">
                                     <button type="button"
@@ -469,23 +516,24 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC);
                         <?php foreach ($myTickets as $t): ?>
                             <tr data-ticket-id="<?php echo (int)$t['id']; ?>">
                                 <td>#<?php echo (int)$t['id']; ?></td>
-                                <td><?php echo htmlspecialchars($t['fecha_envio'], ENT_QUOTES, 'UTF-8'); ?></td>
-                                <td><?php echo htmlspecialchars($t['nombre'], ENT_QUOTES, 'UTF-8'); ?></td>
-                                <td><?php echo htmlspecialchars($t['problema_label'], ENT_QUOTES, 'UTF-8'); ?></td>
+                                <td><?php echo h($t['fecha_envio'] ?? ''); ?></td>
+                                <td><?php echo h($t['nombre'] ?? ''); ?></td>
+                                <td><?php echo h($t['problema_label'] ?? ''); ?></td>
                                 <td>
-                                    <span class="priority-pill priority-<?php echo htmlspecialchars(strtolower($t['prioridad'] ?? 'media'), ENT_QUOTES, 'UTF-8'); ?>">
-                                        <?php echo htmlspecialchars(prioridadLabel($t['prioridad'] ?? 'media'), ENT_QUOTES, 'UTF-8'); ?>
+                                    <?php $prio = strtolower((string)($t['prioridad'] ?? 'media')); ?>
+                                    <span class="priority-pill priority-<?php echo h($prio); ?>">
+                                        <?php echo h(prioridadLabel((string)($t['prioridad'] ?? 'media'))); ?>
                                     </span>
                                 </td>
                                 <td>
                                     <select
-                                        class="ticket-status-select status-<?php echo htmlspecialchars($t['estado'], ENT_QUOTES, 'UTF-8'); ?>"
+                                        class="ticket-status-select status-<?php echo h($t['estado'] ?? 'abierto'); ?>"
                                         data-ticket-id="<?php echo (int)$t['id']; ?>"
-                                        data-prev="<?php echo htmlspecialchars($t['estado'], ENT_QUOTES, 'UTF-8'); ?>"
+                                        data-prev="<?php echo h($t['estado'] ?? 'abierto'); ?>"
                                     >
-                                        <option value="abierto"    <?php if ($t['estado'] === 'abierto')    echo 'selected'; ?>>Abierto</option>
-                                        <option value="en_proceso" <?php if ($t['estado'] === 'en_proceso') echo 'selected'; ?>>En proceso</option>
-                                        <option value="cerrado"    <?php if ($t['estado'] === 'cerrado')    echo 'selected'; ?>>Cerrado</option>
+                                        <option value="abierto"    <?php echo (($t['estado'] ?? '') === 'abierto') ? 'selected' : ''; ?>>Abierto</option>
+                                        <option value="en_proceso" <?php echo (($t['estado'] ?? '') === 'en_proceso') ? 'selected' : ''; ?>>En proceso</option>
+                                        <option value="cerrado"    <?php echo (($t['estado'] ?? '') === 'cerrado') ? 'selected' : ''; ?>>Cerrado</option>
                                     </select>
                                 </td>
                                 <td>
@@ -494,14 +542,14 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC);
                                             onclick="openTicketDetail(<?php echo (int)$t['id']; ?>)">
                                       Ver
                                     </button>
-                                    <button type="button" class="btn-mini primary"
-  data-chat-btn
-  data-ticket-id="<?php echo (int)$t['id']; ?>"
-  onclick="openTicketChat(<?php echo (int)$t['id']; ?>,'<?php echo htmlspecialchars($t['nombre'],ENT_QUOTES,'UTF-8'); ?>')"
->
-  Chat <span class="chat-badge" style="display:none;"></span>
-</button>
 
+                                    <button type="button"
+                                            class="btn-mini primary"
+                                            data-chat-btn
+                                            data-ticket-id="<?php echo (int)$t['id']; ?>"
+                                            onclick="openTicketChat(<?php echo (int)$t['id']; ?>,'<?php echo h($t['nombre'] ?? ''); ?>')">
+                                      Chat <span class="chat-badge" style="display:none;"></span>
+                                    </button>
                                   </div>
                                 </td>
                             </tr>
@@ -526,48 +574,14 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC);
         <div style="opacity:.8;">Cargando...</div>
       </div>
       <div class="modal-actions" style="margin-top:14px; display:flex; gap:10px; justify-content:flex-end;">
+        <button type="button" class="btn-secondary" id="ticketDetailChatBtn" style="display:none;">Abrir chat</button>
         <button type="button" class="btn-main-combined" onclick="closeTicketDetail()">Cerrar</button>
       </div>
     </div>
   </div>
 </div>
-<div class="user-info-card" style="margin-top:18px;">
-  <h2>Anuncios activos</h2>
-  <p style="margin-top:6px;">Aquí puedes desactivar anuncios publicados.</p>
 
-  <?php if (empty($annAdminList)): ?>
-    <p style="color:#6b7280; margin:0;">No hay anuncios activos.</p>
-  <?php else: ?>
-    <div style="display:flex; flex-direction:column; gap:10px; margin-top:12px;">
-      <?php foreach ($annAdminList as $a): ?>
-        <div class="announcement announcement--info"
-             style="display:flex; align-items:center; justify-content:space-between; padding:12px 14px;">
-          <div style="min-width:0;">
-            <strong style="display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-              <?php echo htmlspecialchars($a['title'] ?? '', ENT_QUOTES, 'UTF-8'); ?>
-            </strong>
-            <small style="color:#6b7280;">
-              <?php echo htmlspecialchars(($a['target_area'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>
-              · <?php echo htmlspecialchars(($a['created_at'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>
-            </small>
-          </div>
-
-          <button type="button"
-                  class="btn-secondary"
-                  style="padding:8px 12px; border-radius:12px;"
-                  data-ann-disable
-                  data-id="<?php echo (int)$a['id']; ?>">
-            Desactivar
-          </button>
-        </div>
-      <?php endforeach; ?>
-    </div>
-  <?php endif; ?>
-</div>
-
-
-
-<!-- MODAL CHAT (tu modal existente) -->
+<!-- MODAL CHAT -->
 <div class="modal-backdrop" id="ticket-chat-modal">
     <div class="modal-card ticket-chat-modal-card">
         <div class="modal-header">
@@ -595,7 +609,6 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC);
     </div>
 </div>
 
-
 <!-- MODAL CREAR TICKET (Analista) -->
 <div class="eqf-modal-backdrop" id="createTicketBackdrop" aria-hidden="true">
   <div class="eqf-modal" role="dialog" aria-modal="true" aria-labelledby="createTicketTitle">
@@ -608,7 +621,6 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC);
     <form id="formCreateTicket">
       <div class="eqf-modal-body">
 
-        <!-- CORREO + CHECK -->
         <div class="eqf-grid-2" style="align-items:end;">
           <div class="eqf-field" style="position:relative;">
             <label for="ct_email">Correo del usuario</label>
@@ -639,7 +651,6 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC);
           </div>
         </div>
 
-        <!-- DATOS AUTORELLENOS -->
         <div class="eqf-grid-2">
           <div class="eqf-field">
             <label>#SAP</label>
@@ -662,7 +673,6 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC);
           </div>
         </div>
 
-        <!-- ÁREA DESTINO (solo lectura: la define el sistema) -->
         <div class="eqf-field">
           <label>Área destino</label>
           <input type="text" id="ct_area_destino" disabled value="">
@@ -670,7 +680,6 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC);
 
         <hr class="eqf-hr">
 
-        <!-- FECHAS -->
         <div class="eqf-grid-2">
           <div class="eqf-field">
             <label for="ct_inicio">Inicio (fecha y hora)</label>
@@ -682,7 +691,6 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC);
           </div>
         </div>
 
-        <!-- DESCRIPCION -->
         <div class="eqf-field">
           <label for="ct_descripcion">Descripción</label>
           <textarea
@@ -706,17 +714,19 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC);
   </div>
 </div>
 
-
 <?php include __DIR__ . '/../../../template/footer.php'; ?>
 
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
 
 <script>
-// ===============================
-//  Variables globales
-// ===============================
+/**
+ * ===============================
+ *  GLOBALS + UTILS
+ * ===============================
+ */
 const CURRENT_USER_ID = <?php echo (int)($_SESSION['user_id'] ?? 0); ?>;
+
 let currentTicketId = null;
 let lastMessageId   = 0;
 let chatPollTimer   = null;
@@ -741,28 +751,51 @@ function escapeHtml(str){
     .replaceAll("'","&#039;");
 }
 
-// ===============================
-//  DETALLE TICKET (nuevo)
-// ===============================
+/**
+ * every(): scheduler “inteligente” (pausa en pestaña oculta)
+ */
+function every(ms, fn){
+  let t = null;
+
+  const start = () => { if (!t) t = setInterval(fn, ms); };
+  const stop  = () => { if (t) { clearInterval(t); t = null; } };
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) stop();
+    else { try { fn(); } catch(e){} start(); }
+  });
+
+  try { fn(); } catch(e){}
+  start();
+  return { start, stop };
+}
+</script>
+
+<script>
+/**
+ * ===============================
+ *  DETALLE TICKET
+ * ===============================
+ */
 let detailTicketId = null;
 let detailTicketUserName = '';
 
 function openTicketDetail(ticketId){
   detailTicketId = ticketId;
 
-  const modal = document.getElementById('ticket-detail-modal');
+  const modal   = document.getElementById('ticket-detail-modal');
   const content = document.getElementById('ticketDetailContent');
-  const title = document.getElementById('ticketDetailTitle');
+  const title   = document.getElementById('ticketDetailTitle');
   const chatBtn = document.getElementById('ticketDetailChatBtn');
 
-  if (title) title.textContent = 'Detalle del ticket #' + ticketId;
+  if (title)   title.textContent = 'Detalle del ticket #' + ticketId;
   if (content) content.innerHTML = '<div style="opacity:.8;">Cargando...</div>';
   if (chatBtn) chatBtn.style.display = 'none';
 
   if (typeof openModal === 'function') openModal('ticket-detail-modal');
   else modal.classList.add('show');
 
-  fetch('/HelpDesk_EQF/modules/ticket/ticket_view.php?ticket_id=' + encodeURIComponent(ticketId))
+  fetch('/HelpDesk_EQF/modules/ticket/ticket_view.php?ticket_id=' + encodeURIComponent(ticketId), {cache:'no-store'})
     .then(r => r.json())
     .then(data => {
       if (!data.ok) {
@@ -800,7 +833,6 @@ function openTicketDetail(ticketId){
 
       content.innerHTML = meta + prob + desc + attHtml;
 
-      // Mostrar botón "Abrir chat"
       if (chatBtn){
         chatBtn.style.display = 'inline-block';
         chatBtn.onclick = () => {
@@ -819,130 +851,133 @@ function closeTicketDetail(){
   const modal = document.getElementById('ticket-detail-modal');
   if (typeof closeModal === 'function') closeModal('ticket-detail-modal');
   else modal.classList.remove('show');
+
   detailTicketId = null;
   detailTicketUserName = '';
 }
+</script>
 
-// ===============================
-//  CHAT (tu lógica base, la dejo intacta)
-// ===============================
+<script>
+/**
+ * ===============================
+ *  CHAT
+ * ===============================
+ */
 function openTicketChat(ticketId, tituloExtra) {
-    currentTicketId = ticketId;
-    lastMessageId   = 0;
+  currentTicketId = ticketId;
+  lastMessageId   = 0;
 
-    const titleEl = document.getElementById('ticketChatTitle');
-    if (titleEl) titleEl.textContent = 'Chat del ticket #' + ticketId + (tituloExtra ? ' – ' + tituloExtra : '');
+  const titleEl = document.getElementById('ticketChatTitle');
+  if (titleEl) titleEl.textContent = 'Chat del ticket #' + ticketId + (tituloExtra ? ' – ' + tituloExtra : '');
 
-    const bodyEl = document.getElementById('ticketChatBody');
-    if (bodyEl) bodyEl.innerHTML = '';
+  const bodyEl = document.getElementById('ticketChatBody');
+  if (bodyEl) bodyEl.innerHTML = '';
 
-    const modal = document.getElementById('ticket-chat-modal');
-    if (typeof openModal === 'function') openModal('ticket-chat-modal');
-    else modal.classList.add('show');
+  const modal = document.getElementById('ticket-chat-modal');
+  if (typeof openModal === 'function') openModal('ticket-chat-modal');
+  else modal.classList.add('show');
 
-    fetch('/HelpDesk_EQF/modules/ticket/get_transfer_context.php?ticket_id=' + encodeURIComponent(ticketId))
-      .then(r => r.json())
-      .then(data => { if (data && data.ok) renderTransferBlock(data); })
-      .catch(err => console.error('Error transfer context:', err));
+  fetch('/HelpDesk_EQF/modules/ticket/get_transfer_context.php?ticket_id=' + encodeURIComponent(ticketId), {cache:'no-store'})
+    .then(r => r.json())
+    .then(data => { if (data && data.ok) renderTransferBlock(data); })
+    .catch(err => console.error('Error transfer context:', err));
 
-    fetchMessages(true);
+  fetchMessages(true);
 
-    if (chatPollTimer) clearInterval(chatPollTimer);
-    chatPollTimer = setInterval(() => fetchMessages(false), 5000);
+  if (chatPollTimer) clearInterval(chatPollTimer);
+  chatPollTimer = setInterval(() => fetchMessages(false), 5000);
 
-fetch('/HelpDesk_EQF/modules/ticket/mark_read.php', {
-  method:'POST',
-  headers:{'Content-Type':'application/x-www-form-urlencoded'},
-  body:'ticket_id=' + encodeURIComponent(ticketId)
-}).then(()=> {
-  // quita badge local inmediato (sin esperar al polling)
-  const btn = document.querySelector(`[data-chat-btn][data-ticket-id="${ticketId}"] .chat-badge`);
-  if (btn){ btn.style.display='none'; btn.textContent=''; }
-}).catch(()=>{});
-
-
+  // marcar leído y quitar badge local inmediato
+  fetch('/HelpDesk_EQF/modules/ticket/mark_read.php', {
+    method:'POST',
+    headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:'ticket_id=' + encodeURIComponent(ticketId)
+  }).then(()=> {
+    const badge = document.querySelector(`[data-chat-btn][data-ticket-id="${ticketId}"] .chat-badge`);
+    if (badge){ badge.style.display='none'; badge.textContent=''; }
+  }).catch(()=>{});
 }
 
 function closeTicketChat() {
-    const modal = document.getElementById('ticket-chat-modal');
-    if (typeof closeModal === 'function') closeModal('ticket-chat-modal');
-    else modal.classList.remove('show');
+  const modal = document.getElementById('ticket-chat-modal');
+  if (typeof closeModal === 'function') closeModal('ticket-chat-modal');
+  else modal.classList.remove('show');
 
-    if (chatPollTimer) { clearInterval(chatPollTimer); chatPollTimer = null; }
+  if (chatPollTimer) { clearInterval(chatPollTimer); chatPollTimer = null; }
 
-    const old = document.getElementById('transfer-block');
-    if (old) old.remove();
+  const old = document.getElementById('transfer-block');
+  if (old) old.remove();
 
-    currentTicketId = null;
+  currentTicketId = null;
 }
 
 function appendChatMessage(msg) {
-    const bodyEl = document.getElementById('ticketChatBody');
-    if (!bodyEl) return;
+  const bodyEl = document.getElementById('ticketChatBody');
+  if (!bodyEl) return;
 
-    const div = document.createElement('div');
-    div.className = 'ticket-chat-message';
+  const div = document.createElement('div');
+  div.className = 'ticket-chat-message';
 
-    if (String(msg.is_internal) === '1') {
-      const badge = document.createElement('span');
-      badge.textContent = 'NOTA ';
-      badge.style.fontSize = '12px';
-      badge.style.opacity = '.8';
-      badge.style.display = 'block';
-      badge.style.marginBottom = '4px';
-      div.appendChild(badge);
+  if (String(msg.is_internal) === '1') {
+    const badge = document.createElement('span');
+    badge.textContent = 'NOTA ';
+    badge.style.fontSize = '12px';
+    badge.style.opacity = '.8';
+    badge.style.display = 'block';
+    badge.style.marginBottom = '4px';
+    div.appendChild(badge);
+  }
+
+  const senderId = parseInt(msg.sender_id, 10);
+  const isMine   = (senderId === CURRENT_USER_ID);
+  div.classList.add(isMine ? 'mine' : 'other');
+
+  if (msg.mensaje) {
+    const textSpan = document.createElement('span');
+    textSpan.textContent = msg.mensaje;
+    div.appendChild(textSpan);
+  }
+
+  if (msg.file_url) {
+    const fileWrapper = document.createElement('div');
+    fileWrapper.style.marginTop = '6px';
+
+    const url  = msg.file_url;
+    const name = msg.file_name || 'Archivo adjunto';
+    const type = msg.file_type || '';
+
+    if (type && type.startsWith('image/')) {
+      const imgLink = document.createElement('a');
+      imgLink.href   = url;
+      imgLink.target = '_blank';
+      imgLink.rel    = 'noopener';
+
+      const img = document.createElement('img');
+      img.src = url;
+      img.alt = name;
+      img.className = 'ticket-chat-image';
+
+      imgLink.appendChild(img);
+      fileWrapper.appendChild(imgLink);
+    } else {
+      const link = document.createElement('a');
+      link.href   = url;
+      link.target = '_blank';
+      link.rel    = 'noopener';
+      link.textContent = '📎 ' + name;
+      fileWrapper.appendChild(link);
     }
 
-    const senderId = parseInt(msg.sender_id, 10);
-    const isMine   = (senderId === CURRENT_USER_ID);
-    div.classList.add(isMine ? 'mine' : 'other');
+    div.appendChild(fileWrapper);
+  }
 
-    if (msg.mensaje) {
-        const textSpan = document.createElement('span');
-        textSpan.textContent = msg.mensaje;
-        div.appendChild(textSpan);
-    }
+  const meta = document.createElement('span');
+  meta.className = 'ticket-chat-meta';
+  meta.textContent = ((msg.sender_role ? msg.sender_role + ' · ' : '') + (msg.created_at || ''));
+  div.appendChild(meta);
 
-    if (msg.file_url) {
-        const fileWrapper = document.createElement('div');
-        fileWrapper.style.marginTop = '6px';
-
-        const url  = msg.file_url;
-        const name = msg.file_name || 'Archivo adjunto';
-        const type = msg.file_type || '';
-
-        if (type && type.startsWith('image/')) {
-            const imgLink = document.createElement('a');
-            imgLink.href   = url;
-            imgLink.target = '_blank';
-            imgLink.rel    = 'noopener';
-
-            const img = document.createElement('img');
-            img.src = url;
-            img.alt = name;
-            img.className = 'ticket-chat-image';
-
-            imgLink.appendChild(img);
-            fileWrapper.appendChild(imgLink);
-        } else {
-            const link = document.createElement('a');
-            link.href   = url;
-            link.target = '_blank';
-            link.rel    = 'noopener';
-            link.textContent = '📎 ' + name;
-            fileWrapper.appendChild(link);
-        }
-
-        div.appendChild(fileWrapper);
-    }
-
-    const meta = document.createElement('span');
-    meta.className = 'ticket-chat-meta';
-    meta.textContent = ((msg.sender_role ? msg.sender_role + ' · ' : '') + (msg.created_at || ''));
-    div.appendChild(meta);
-
-    bodyEl.appendChild(div);
-    bodyEl.scrollTop = bodyEl.scrollHeight;
+  bodyEl.appendChild(div);
+  bodyEl.scrollTop = bodyEl.scrollHeight;
 }
 
 function renderTransferBlock(payload){
@@ -1012,365 +1047,204 @@ function renderTransferBlock(payload){
   bodyEl.prepend(wrap);
 }
 
-function fetchMessages() {
-    if (!currentTicketId) return;
+function fetchMessages(isInitial=false) {
+  if (!currentTicketId) return;
 
-    const url = '/HelpDesk_EQF/modules/ticket/get_messages.php'
-              + '?ticket_id=' + encodeURIComponent(currentTicketId)
-              + '&last_id=' + encodeURIComponent(lastMessageId);
+  const url = '/HelpDesk_EQF/modules/ticket/get_messages.php'
+    + '?ticket_id=' + encodeURIComponent(currentTicketId)
+    + '&last_id=' + encodeURIComponent(lastMessageId);
 
-    fetch(url)
-        .then(r => r.json())
-        .then(data => {
-            if (!data.ok || !Array.isArray(data.messages)) return;
-
-            data.messages.forEach(m => {
-                appendChatMessage(m);
-                if (m.id > lastMessageId) lastMessageId = m.id;
-            });
-        })
-        .catch(err => console.error('Error obteniendo mensajes:', err));
+  fetch(url, {cache:'no-store'})
+    .then(r => r.json())
+    .then(data => {
+      if (!data.ok || !Array.isArray(data.messages)) return;
+      data.messages.forEach(m => {
+        appendChatMessage(m);
+        if (m.id > lastMessageId) lastMessageId = m.id;
+      });
+    })
+    .catch(err => console.error('Error obteniendo mensajes:', err));
 }
 
 function sendTicketMessage(ev) {
-    ev.preventDefault();
-    if (!currentTicketId) return;
+  ev.preventDefault();
+  if (!currentTicketId) return;
 
-    const input     = document.getElementById('ticketChatInput');
-    const fileInput = document.getElementById('ticketChatFile');
-    if (!input) return;
+  const input     = document.getElementById('ticketChatInput');
+  const fileInput = document.getElementById('ticketChatFile');
+  if (!input) return;
 
-    const texto = input.value.trim();
-    const file  = fileInput && fileInput.files.length > 0 ? fileInput.files[0] : null;
-    if (!texto && !file) return;
+  const texto = input.value.trim();
+  const file  = (fileInput && fileInput.files.length > 0) ? fileInput.files[0] : null;
+  if (!texto && !file) return;
 
-    input.disabled = true;
-    if (fileInput) fileInput.disabled = true;
+  input.disabled = true;
+  if (fileInput) fileInput.disabled = true;
 
-    const formData = new FormData();
-    const internalCb = document.getElementById('ticketChatInternal');
-    const isInternal = internalCb && internalCb.checked ? 1 : 0;
+  const formData = new FormData();
+  const internalCb = document.getElementById('ticketChatInternal');
+  const isInternal = (internalCb && internalCb.checked) ? 1 : 0;
 
-    formData.append('interno', isInternal);
-    formData.append('ticket_id', currentTicketId);
-    formData.append('mensaje', texto);
-    if (file) formData.append('adjunto', file);
+  formData.append('interno', isInternal);
+  formData.append('ticket_id', currentTicketId);
+  formData.append('mensaje', texto);
+  if (file) formData.append('adjunto', file);
 
-    fetch('/HelpDesk_EQF/modules/ticket/send_messages.php', { method: 'POST', body: formData })
+  fetch('/HelpDesk_EQF/modules/ticket/send_messages.php', { method: 'POST', body: formData })
     .then(response => {
-        input.disabled = false;
-        if (fileInput) {
-            fileInput.disabled = false;
-            fileInput.value = '';
-            if (internalCb) internalCb.checked = false;
-        }
-        if (!response.ok) { alert('No se pudo enviar el mensaje'); return; }
-        input.value = '';
-        input.focus();
-        fetchMessages(false);
+      input.disabled = false;
+      if (fileInput) {
+        fileInput.disabled = false;
+        fileInput.value = '';
+        if (internalCb) internalCb.checked = false;
+      }
+      if (!response.ok) { alert('No se pudo enviar el mensaje'); return; }
+      input.value = '';
+      input.focus();
+      fetchMessages(false);
     })
     .catch(err => {
-        console.error(err);
-        input.disabled = false;
-        if (fileInput) fileInput.disabled = false;
-        alert('Error al enviar el mensaje');
+      console.error(err);
+      input.disabled = false;
+      if (fileInput) fileInput.disabled = false;
+      alert('Error al enviar el mensaje');
     });
 }
+</script>
 
-// ===============================
-//  DataTables + asignación + estado + polling
-// ===============================
-document.addEventListener('DOMContentLoaded', function () {
+<script>
+/**
+ * ===============================
+ *  DATA TABLES + ASIGNACIÓN + ESTADO + POLLING
+ * ===============================
+ */
+let incomingDT = null;
+let myDT = null;
 
-    function initOrGetTable(selector, options) {
-        if (!window.jQuery || !$.fn.dataTable || !$(selector).length) return null;
-        if ($.fn.dataTable.isDataTable(selector)) return $(selector).DataTable();
-        return $(selector).DataTable(options || {});
-    }
+function initOrGetTable(selector, options) {
+  if (!window.jQuery || !$.fn.dataTable || !$(selector).length) return null;
+  if ($.fn.dataTable.isDataTable(selector)) return $(selector).DataTable();
+  return $(selector).DataTable(options || {});
+}
 
-    const incomingDT = initOrGetTable('#incomingTable', { pageLength: 5, order: [[1, 'asc']] });
-    const myDT       = initOrGetTable('#myTicketsTable', { pageLength: 5, order: [[1, 'desc']] });
+function bumpKpi(deltaAbiertos, deltaEnProceso){
+  const a = document.getElementById('kpiAbiertos');
+  const p = document.getElementById('kpiEnProceso');
+  if (a) a.textContent = Math.max(0, (parseInt(a.textContent || '0',10) + deltaAbiertos));
+  if (p) p.textContent = Math.max(0, (parseInt(p.textContent || '0',10) + deltaEnProceso));
+}
 
-    function bumpKpi(deltaAbiertos, deltaEnProceso){
-      const a = document.getElementById('kpiAbiertos');
-      const p = document.getElementById('kpiEnProceso');
-      if (a) a.textContent = Math.max(0, (parseInt(a.textContent || '0',10) + deltaAbiertos));
-      if (p) p.textContent = Math.max(0, (parseInt(p.textContent || '0',10) + deltaEnProceso));
-    }
+function renderPriorityPill(priorityRaw) {
+  const p = (priorityRaw || 'media').toLowerCase();
+  let label = 'Media';
+  if (p === 'alta') label = 'Alta';
+  else if (p === 'baja') label = 'Baja';
+  else if (p === 'critica' || p === 'crítica') label = 'Crítica';
+  return `<span class="priority-pill priority-${escapeHtml(p)}">${escapeHtml(label)}</span>`;
+}
 
-    // ---- CAMBIO ESTATUS ----
-    document.addEventListener('change', function (e) {
-        const select = e.target.closest('.ticket-status-select');
-        if (!select) return;
+function addIncomingTicketRow(ticket) {
+  if (!ticket || !ticket.id) return;
 
-        const ticketId    = select.dataset.ticketId;
-        const nuevoEstado = select.value;
-        const prevEstado  = select.dataset.prev || 'abierto';
-        const rowEl       = select.closest('tr');
+  if (document.querySelector(`#incomingTable tr[data-ticket-id="${ticket.id}"]`)) return;
 
-        fetch('/HelpDesk_EQF/modules/ticket/update_status.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: 'ticket_id=' + encodeURIComponent(ticketId) + '&estado=' + encodeURIComponent(nuevoEstado)
-        })
-        .then(r => r.json())
-        .then(data => {
-            if (!data.ok) {
-                alert(data.msg || 'Error al actualizar el estatus.');
-                select.value = prevEstado;
-                return;
-            }
+  const prioridadHtml = renderPriorityPill(ticket.prioridad || 'media');
 
-            select.dataset.prev = nuevoEstado;
-            select.className = 'ticket-status-select status-' + nuevoEstado;
+  const actions = `
+    <div class="analyst-actions">
+      <button type="button" class="btn-mini" onclick="openTicketDetail(${ticket.id})">Ver</button>
+      <button type="button" class="btn-mini primary btn-assign-ticket" data-ticket-id="${ticket.id}">Asignar</button>
+    </div>
+  `;
 
-            // si se cierra/resuelve, lo removemos de mis tickets
-            if (nuevoEstado === 'resuelto' || nuevoEstado === 'cerrado') {
-                if (rowEl) {
-                    if (myDT) myDT.row($(rowEl)).remove().draw(false);
-                    else rowEl.remove();
-                }
-            }
-        })
-        .catch(err => {
-            console.error(err);
-            alert('Error interno al actualizar el estatus.');
-            select.value = prevEstado;
-        });
+  const rowData = [
+    ticket.id,
+    escapeHtml(ticket.fecha || ''),
+    escapeHtml(ticket.usuario || ''),
+    escapeHtml(ticket.problema || ''),
+    prioridadHtml,
+    escapeHtml(ticket.descripcion || ''),
+    actions
+  ];
+
+  if (incomingDT) {
+    incomingDT.row.add(rowData).draw(false);
+  } else {
+    const tbody = document.querySelector('#incomingTable tbody');
+    if (!tbody) return;
+
+    const tr = document.createElement('tr');
+    tr.setAttribute('data-ticket-id', ticket.id);
+    tr.innerHTML = `
+      <td>${rowData[0]}</td>
+      <td>${rowData[1]}</td>
+      <td>${rowData[2]}</td>
+      <td>${rowData[3]}</td>
+      <td>${rowData[4]}</td>
+      <td>${rowData[5]}</td>
+      <td>${rowData[6]}</td>
+    `;
+    tbody.prepend(tr);
+  }
+
+  bumpKpi(+1, 0);
+}
+
+let lastTicketId = <?php echo (int)$maxIncomingId; ?>;
+
+function showDesktopNotification(ticket) {
+  if (!('Notification' in window)) return;
+  if (Notification.permission !== 'granted') return;
+
+  new Notification('Nuevo ticket entrante (#' + ticket.id + ')', {
+    body: ticket.problema || '',
+    icon: '/HelpDesk_EQF/assets/img/icon_helpdesk.png'
+  });
+}
+
+function pollNewTickets() {
+  fetch('/HelpDesk_EQF/modules/ticket/check_new.php?last_id=' + lastTicketId, {cache:'no-store'})
+    .then(r => r.json())
+    .then(data => {
+      if (!data || !data.new) return;
+
+      lastTicketId = data.id;
+
+      showTicketToast('Nuevo ticket #' + data.id + ' – ' + (data.problema || ''));
+      showDesktopNotification(data);
+
+      addIncomingTicketRow(data);
+    })
+    .catch(err => console.error('Error comprobando nuevos tickets:', err));
+}
+
+function cleanupIncomingTaken() {
+  const rows = document.querySelectorAll('#incomingTable tbody tr[data-ticket-id]');
+  if (!rows.length) return;
+
+  const ids = [];
+  rows.forEach(r => ids.push(r.getAttribute('data-ticket-id')));
+
+  fetch('/HelpDesk_EQF/modules/ticket/incoming_snapshot.php', {
+    method: 'POST',
+    headers: {'Content-Type':'application/x-www-form-urlencoded'},
+    body: 'ids=' + encodeURIComponent(ids.join(','))
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (!data.ok) return;
+    const still = new Set((data.available_ids || []).map(x => String(x)));
+
+    rows.forEach(r => {
+      const id = r.getAttribute('data-ticket-id');
+      if (!still.has(String(id))) {
+        if (incomingDT) incomingDT.row($(r)).remove().draw(false);
+        else r.remove();
+      }
     });
-
-    // ---- ASIGNAR (mueve a "Mis tickets" en vivo) ----
-    document.addEventListener('click', function (e) {
-        const btn = e.target.closest('.btn-assign-ticket');
-        if (!btn) return;
-
-        const rowEl = btn.closest('tr');
-        const ticketId = btn.dataset.ticketId || (rowEl && rowEl.getAttribute('data-ticket-id'));
-        if (!ticketId || !rowEl) return;
-
-        btn.disabled = true;
-        const original = btn.textContent;
-        btn.textContent = 'Asignando...';
-
-        fetch('/HelpDesk_EQF/modules/ticket/assign.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: 'ticket_id=' + encodeURIComponent(ticketId)
-        })
-        .then(r => r.json())
-        .then(data => {
-            if (!data.ok) {
-                alert(data.msg || 'No se pudo asignar.');
-                btn.disabled = false;
-                btn.textContent = original;
-                return;
-            }
-
-            // Quitar de incoming
-            if (incomingDT) incomingDT.row($(rowEl)).remove().draw(false);
-            else rowEl.remove();
-
-            // Construir fila para Mis tickets (con payload del assign)
-            const t = data.ticket || {};
-            const id = t.id || ticketId;
-            const fecha = t.fecha_envio || '';
-            const usuario = t.usuario || '';
-            const problema = (t.problema_label || t.problema_raw || '');
-            const prioridadRaw = (t.prioridad || 'media').toLowerCase();
-
-            const priorityHtml = `<span class="priority-pill priority-${escapeHtml(prioridadRaw)}">${escapeHtml(prioridadRaw.charAt(0).toUpperCase()+prioridadRaw.slice(1))}</span>`;
-
-            const statusSelect = `
-              <select class="ticket-status-select status-en_proceso"
-                      data-ticket-id="${id}"
-                      data-prev="en_proceso">
-                <option value="abierto">Abierto</option>
-                <option value="en_proceso" selected>En proceso</option>
-                <option value="cerrado">Cerrado</option>
-              </select>
-            `;
-
-            const actions = `
-              <div class="analyst-actions">
-                <button type="button" class="btn-mini" onclick="openTicketDetail(${id})">Ver</button>
-                <button type="button" class="btn-mini primary" onclick="openTicketChat(${id}, '${escapeHtml(usuario)}')">Chat</button>
-              </div>
-            `;
-
-            const rowData = [
-              `#${id}`,
-              escapeHtml(fecha),
-              escapeHtml(usuario),
-              escapeHtml(problema),
-              priorityHtml,
-              statusSelect,
-              actions
-            ];
-
-            if (myDT) {
-              myDT.row.add(rowData).draw(false);
-            } else {
-              const tbody = document.querySelector('#myTicketsTable tbody');
-              if (tbody) {
-                const tr = document.createElement('tr');
-                tr.setAttribute('data-ticket-id', id);
-                tr.innerHTML = `
-                  <td>#${escapeHtml(id)}</td>
-                  <td>${escapeHtml(fecha)}</td>
-                  <td>${escapeHtml(usuario)}</td>
-                  <td>${escapeHtml(problema)}</td>
-                  <td>${priorityHtml}</td>
-                  <td>${statusSelect}</td>
-                  <td>${actions}</td>
-                `;
-                tbody.prepend(tr);
-              }
-            }
-
-            // KPI: baja abiertos, sube en proceso
-            bumpKpi(-1, +1);
-
-            showTicketToast('Ticket #' + id + ' asignado a ti.');
-        })
-        .catch(err => {
-            console.error(err);
-            alert('Error al asignar el ticket.');
-        })
-        .finally(() => {
-            btn.disabled = false;
-            btn.textContent = original;
-        });
-    });
-
-    // ---- POLLING NUEVOS TICKETS ----
-    let lastTicketId = <?php echo (int)$maxIncomingId; ?>;
-
-    if ('Notification' in window && Notification.permission === 'default') {
-        Notification.requestPermission();
-    }
-
-    function showDesktopNotification(ticket) {
-        if (!('Notification' in window)) return;
-        if (Notification.permission !== 'granted') return;
-
-        new Notification('Nuevo ticket entrante (#' + ticket.id + ')', {
-            body: ticket.problema || '',
-            icon: '/HelpDesk_EQF/assets/img/icon_helpdesk.png'
-        });
-    }
-
-    function renderPriorityPill(priorityRaw) {
-        const p = (priorityRaw || 'media').toLowerCase();
-        let label = 'Media';
-        if (p === 'alta') label = 'Alta';
-        else if (p === 'baja') label = 'Baja';
-        else if (p === 'critica' || p === 'crítica') label = 'Crítica';
-        return `<span class="priority-pill priority-${escapeHtml(p)}">${escapeHtml(label)}</span>`;
-    }
-
-    function addIncomingTicketRow(ticket) {
-        if (!ticket || !ticket.id) return;
-
-        // evita duplicados
-        if (document.querySelector(`#incomingTable tr[data-ticket-id="${ticket.id}"]`)) return;
-
-        const prioridadHtml = renderPriorityPill(ticket.prioridad || 'media');
-
-        const actions = `
-          <div class="analyst-actions">
-            <button type="button" class="btn-mini" onclick="openTicketDetail(${ticket.id})">Ver</button>
-            <button type="button" class="btn-mini primary btn-assign-ticket" data-ticket-id="${ticket.id}">Asignar</button>
-          </div>
-        `;
-
-        const rowData = [
-            ticket.id,
-            escapeHtml(ticket.fecha || ''),
-            escapeHtml(ticket.usuario || ''),
-            escapeHtml(ticket.problema || ''),
-            prioridadHtml,
-            escapeHtml(ticket.descripcion || ''),
-            actions
-        ];
-
-        if (incomingDT) {
-            incomingDT.row.add(rowData).draw(false);
-        } else {
-            const tbody = document.querySelector('#incomingTable tbody');
-            if (!tbody) return;
-
-            const tr = document.createElement('tr');
-            tr.setAttribute('data-ticket-id', ticket.id);
-            tr.innerHTML = `
-                <td>${rowData[0]}</td>
-                <td>${rowData[1]}</td>
-                <td>${rowData[2]}</td>
-                <td>${rowData[3]}</td>
-                <td>${rowData[4]}</td>
-                <td>${rowData[5]}</td>
-                <td>${rowData[6]}</td>
-            `;
-            tbody.prepend(tr);
-        }
-
-        // KPI: sube abiertos
-        bumpKpi(+1, 0);
-    }
-
-    function pollNewTickets() {
-        fetch('/HelpDesk_EQF/modules/ticket/check_new.php?last_id=' + lastTicketId)
-            .then(r => r.json())
-            .then(data => {
-                if (!data || !data.new) return;
-
-                lastTicketId = data.id;
-
-                showTicketToast('Nuevo ticket #' + data.id + ' – ' + (data.problema || ''));
-                showDesktopNotification(data);
-
-                addIncomingTicketRow(data);
-            })
-            .catch(err => console.error('Error comprobando nuevos tickets:', err));
-    }
-
-    // ---- POLLING LIMPIEZA (quita tickets ya tomados por otro) ----
-    // Esto evita que se queden en tu tabla como "fantasma".
-    function cleanupIncomingTaken() {
-      const rows = document.querySelectorAll('#incomingTable tbody tr[data-ticket-id]');
-      if (!rows.length) return;
-
-      const ids = [];
-      rows.forEach(r => ids.push(r.getAttribute('data-ticket-id')));
-
-      // endpoint rápido: revisa cuáles siguen disponibles
-      fetch('/HelpDesk_EQF/modules/ticket/incoming_snapshot.php', {
-        method: 'POST',
-        headers: {'Content-Type':'application/x-www-form-urlencoded'},
-        body: 'ids=' + encodeURIComponent(ids.join(','))
-      })
-      .then(r => r.json())
-      .then(data => {
-        if (!data.ok) return;
-        const still = new Set((data.available_ids || []).map(x => String(x)));
-
-        rows.forEach(r => {
-          const id = r.getAttribute('data-ticket-id');
-          if (!still.has(String(id))) {
-            // ya lo tomó alguien → quítalo
-            if (incomingDT) incomingDT.row($(r)).remove().draw(false);
-            else r.remove();
-          }
-        });
-      })
-      .catch(()=>{});
-    }
-
-    pollNewTickets();
-    setInterval(pollNewTickets, 10000);
-
-    // cada 15s limpiamos entrantes
-    setInterval(cleanupIncomingTaken, 10000);
-});
+  })
+  .catch(()=>{});
+}
 
 function applyUnreadBadges(items){
   const map = new Map();
@@ -1385,14 +1259,13 @@ function applyUnreadBadges(items){
 
     if (count > 0){
       badge.style.display = 'inline-flex';
-      badge.textContent = count > 9 ? '9+' : String(count);
+      badge.textContent = (count > 9) ? '9+' : String(count);
     } else {
       badge.style.display = 'none';
       badge.textContent = '';
     }
   });
 }
-
 
 function pollStaffUnread(){
   fetch('/HelpDesk_EQF/modules/ticket/staff_unread.php', {cache:'no-store'})
@@ -1403,9 +1276,166 @@ function pollStaffUnread(){
     })
     .catch(()=>{});
 }
-setInterval(pollStaffUnread, 7000);
-pollStaffUnread();
 
+// Eventos (status change / assign) delegados
+document.addEventListener('change', function (e) {
+  const select = e.target.closest('.ticket-status-select');
+  if (!select) return;
+
+  const ticketId    = select.dataset.ticketId;
+  const nuevoEstado = select.value;
+  const prevEstado  = select.dataset.prev || 'abierto';
+  const rowEl       = select.closest('tr');
+
+  fetch('/HelpDesk_EQF/modules/ticket/update_status.php', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'ticket_id=' + encodeURIComponent(ticketId) + '&estado=' + encodeURIComponent(nuevoEstado)
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (!data.ok) {
+      alert(data.msg || 'Error al actualizar el estatus.');
+      select.value = prevEstado;
+      return;
+    }
+
+    select.dataset.prev = nuevoEstado;
+    select.className = 'ticket-status-select status-' + nuevoEstado;
+
+    if (nuevoEstado === 'resuelto' || nuevoEstado === 'cerrado') {
+      if (rowEl) {
+        if (myDT) myDT.row($(rowEl)).remove().draw(false);
+        else rowEl.remove();
+      }
+    }
+  })
+  .catch(err => {
+    console.error(err);
+    alert('Error interno al actualizar el estatus.');
+    select.value = prevEstado;
+  });
+});
+
+document.addEventListener('click', function (e) {
+  const btn = e.target.closest('.btn-assign-ticket');
+  if (!btn) return;
+
+  const rowEl = btn.closest('tr');
+  const ticketId = btn.dataset.ticketId || (rowEl && rowEl.getAttribute('data-ticket-id'));
+  if (!ticketId || !rowEl) return;
+
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.textContent = 'Asignando...';
+
+  fetch('/HelpDesk_EQF/modules/ticket/assign.php', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'ticket_id=' + encodeURIComponent(ticketId)
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (!data.ok) {
+      alert(data.msg || 'No se pudo asignar.');
+      btn.disabled = false;
+      btn.textContent = original;
+      return;
+    }
+
+    // quitar de incoming
+    if (incomingDT) incomingDT.row($(rowEl)).remove().draw(false);
+    else rowEl.remove();
+
+    const t = data.ticket || {};
+    const id = t.id || ticketId;
+    const fecha = t.fecha_envio || '';
+    const usuario = t.usuario || '';
+    const problema = (t.problema_label || t.problema_raw || '');
+
+    const prioridadRaw = (t.prioridad || 'media').toLowerCase();
+    const priorityHtml = renderPriorityPill(prioridadRaw);
+
+    const statusSelect = `
+      <select class="ticket-status-select status-en_proceso"
+              data-ticket-id="${escapeHtml(id)}"
+              data-prev="en_proceso">
+        <option value="abierto">Abierto</option>
+        <option value="en_proceso" selected>En proceso</option>
+        <option value="cerrado">Cerrado</option>
+      </select>
+    `;
+
+    const actions = `
+      <div class="analyst-actions">
+        <button type="button" class="btn-mini" onclick="openTicketDetail(${escapeHtml(id)})">Ver</button>
+        <button type="button"
+                class="btn-mini primary"
+                data-chat-btn
+                data-ticket-id="${escapeHtml(id)}"
+                onclick="openTicketChat(${escapeHtml(id)}, '${escapeHtml(usuario)}')">
+          Chat <span class="chat-badge" style="display:none;"></span>
+        </button>
+      </div>
+    `;
+
+    const rowData = [
+      `#${escapeHtml(id)}`,
+      escapeHtml(fecha),
+      escapeHtml(usuario),
+      escapeHtml(problema),
+      priorityHtml,
+      statusSelect,
+      actions
+    ];
+
+    if (myDT) {
+      myDT.row.add(rowData).draw(false);
+    } else {
+      const tbody = document.querySelector('#myTicketsTable tbody');
+      if (tbody) {
+        const tr = document.createElement('tr');
+        tr.setAttribute('data-ticket-id', id);
+        tr.innerHTML = `
+          <td>#${escapeHtml(id)}</td>
+          <td>${escapeHtml(fecha)}</td>
+          <td>${escapeHtml(usuario)}</td>
+          <td>${escapeHtml(problema)}</td>
+          <td>${priorityHtml}</td>
+          <td>${statusSelect}</td>
+          <td>${actions}</td>
+        `;
+        tbody.prepend(tr);
+      }
+    }
+
+    bumpKpi(-1, +1);
+    showTicketToast('Ticket #' + id + ' asignado a ti.');
+  })
+  .catch(err => {
+    console.error(err);
+    alert('Error al asignar el ticket.');
+  })
+  .finally(() => {
+    btn.disabled = false;
+    btn.textContent = original;
+  });
+});
+
+// Init principal
+document.addEventListener('DOMContentLoaded', function () {
+  incomingDT = initOrGetTable('#incomingTable', { pageLength: 5, order: [[1, 'asc']] });
+  myDT       = initOrGetTable('#myTicketsTable', { pageLength: 5, order: [[1, 'desc']] });
+
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+
+  // Polls (ya sin duplicidad)
+  every(7000, pollStaffUnread);
+  every(10000, pollNewTickets);
+  every(10000, cleanupIncomingTaken);
+});
 </script>
 
 <script>
@@ -1419,12 +1449,15 @@ window.CURRENT_USER = {
 };
 </script>
 
-
 <script>
+/**
+ * ===============================
+ *  MODAL CREAR TICKET (tu lógica)
+ * ===============================
+ */
 (() => {
   'use strict';
 
-  // Abrir modal desde sidebar 
   document.addEventListener('click', (e) => {
     const btn = e.target.closest('#btnOpenCreateTicket');
     if (!btn) return;
@@ -1436,7 +1469,6 @@ window.CURRENT_USER = {
     backdrop.classList.add('show');
     backdrop.setAttribute('aria-hidden', 'false');
 
-    // reset rápido al abrir
     const emailInput = document.getElementById('ct_email');
     if (emailInput) {
       emailInput.disabled = false;
@@ -1449,7 +1481,6 @@ window.CURRENT_USER = {
     const msg = document.getElementById('ct_msg');
     if (msg) { msg.style.display = 'none'; msg.textContent = ''; }
 
-    // área destino informativa (por regla: mi área)
     const areaDestino = document.getElementById('ct_area_destino');
     const me = (window.CURRENT_USER || {});
     if (areaDestino) areaDestino.value = me.area || '';
@@ -1473,13 +1504,13 @@ window.CURRENT_USER = {
     const area        = document.getElementById('ct_area');
     const emailLocked = document.getElementById('ct_email_locked');
 
-    const areaDestino = document.getElementById('ct_area_destino'); // input disabled (info)
+    const areaDestino = document.getElementById('ct_area_destino');
     const ticketMi    = document.getElementById('ct_ticket_mi');
 
     const dtInicio    = document.getElementById('ct_inicio');
     const dtFin       = document.getElementById('ct_fin');
 
-    const txtDesc      = document.getElementById('ct_descripcion');
+    const txtDesc     = document.getElementById('ct_descripcion');
 
     if (!backdrop || !form || !msg || !btnSubmit || !emailInput || !datalist || !areaDestino || !txtDesc) {
       console.error('Modal crear ticket: faltan elementos del DOM (IDs).');
@@ -1511,6 +1542,7 @@ window.CURRENT_USER = {
     function showOk(on){
       if (!emailOk) return;
       emailOk.classList.toggle('show', !!on);
+      emailOk.style.display = on ? 'inline' : 'none';
     }
 
     function closeModal(){
@@ -1562,10 +1594,6 @@ window.CURRENT_USER = {
       if (e.key === 'Escape' && backdrop.classList.contains('show')) closeModal();
     });
 
-    // Ticket para mí:
-    // - Oculta inicio/fin (como pediste en chat anterior para ticket-mi)
-    // - Deshabilita búsqueda
-    // - Área destino visible: TI
     function applyTicketMiMode(on){
       hideMsg();
       datalist.innerHTML = '';
@@ -1607,14 +1635,12 @@ window.CURRENT_USER = {
 
         emailInput.disabled = false;
 
-        // área destino vuelve a mi área
         const me = (window.CURRENT_USER || {});
         areaDestino.value = me.area || '';
 
         clearUser();
         emailInput.focus();
 
-        // default inicio
         if (dtInicio && !dtInicio.value) dtInicio.value = toDateTimeLocal(new Date());
       }
     }
@@ -1732,7 +1758,6 @@ window.CURRENT_USER = {
       }
     });
 
-    // Guardar
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       hideMsg();
@@ -1790,7 +1815,13 @@ window.CURRENT_USER = {
   });
 })();
 </script>
+
 <script>
+/**
+ * ===============================
+ *  MY TI SNAPSHOT (poll)
+ * ===============================
+ */
 (() => {
   'use strict';
 
@@ -1860,18 +1891,13 @@ window.CURRENT_USER = {
   let lastSignature = '';
 
   async function pollMyTI(){
-    window.refreshMyTI = pollMyTI;
-
     try {
       const r = await fetch('/HelpDesk_EQF/modules/ticket/my_ti_snapshot.php', { cache:'no-store' });
       const j = await r.json();
       if (!r.ok || !j || !j.ok) return;
 
       const items = j.items || [];
-
-      const sig = JSON.stringify(items.map(x => [
-        x.id, x.estado, x.asignado_a, x.atendido_por, x.feedback_token
-      ]));
+      const sig = JSON.stringify(items.map(x => [x.id, x.estado, x.asignado_a, x.atendido_por, x.feedback_token]));
 
       if (sig === lastSignature) return;
       lastSignature = sig;
@@ -1880,16 +1906,16 @@ window.CURRENT_USER = {
     } catch (_) {}
   }
 
-  pollMyTI();
-  setInterval(pollMyTI, 4000); // 4s para que se note "tiempo real"
+  every(4000, pollMyTI);
 })();
 </script>
 
-
-<!----------------------------
-    FEEDBACK
-    ------------------------->
 <script>
+/**
+ * ===============================
+ *  FEEDBACK MODAL
+ * ===============================
+ */
 function openFeedbackIframe(token, ticketId, title){
   const modal = document.getElementById('feedback-modal');
   const frame = document.getElementById('feedbackFrame');
@@ -1899,10 +1925,8 @@ function openFeedbackIframe(token, ticketId, title){
 
   if (t) t.textContent = title || ('Encuesta ticket #' + ticketId);
 
-  // Ajusta esta ruta si tu encuesta vive en otro lado:
   frame.src = '/HelpDesk_EQF/modules/feedback/feedback.php?token=' + encodeURIComponent(token);
 
-  // mostrar modal
   modal.style.display = 'flex';
   modal.classList.add('show');
 }
@@ -1918,60 +1942,225 @@ function closeFeedbackModal(){
   }
 }
 
-// cerrar con click fuera + ESC
 document.addEventListener('click', (e) => {
   const modal = document.getElementById('feedback-modal');
   if (!modal || modal.style.display === 'none') return;
-
   if (e.target === modal) closeFeedbackModal();
 });
 
 document.addEventListener('keydown', (e) => {
   const modal = document.getElementById('feedback-modal');
   if (!modal || modal.style.display === 'none') return;
-
   if (e.key === 'Escape') closeFeedbackModal();
 });
 </script>
 
 <script src="/HelpDesk_EQF/assets/js/script.js?v=20251208a"></script>
+
 <script>
+
+// MODAL AVISO
+document.addEventListener('click', (e) => {
+  const openBtn = e.target.closest('[data-open-announcement]');
+  const modal = document.getElementById('announceModal');
+
+  if (openBtn) {
+    e.preventDefault();
+    if (!modal) return console.warn('No existe #announceModal en esta vista');
+    modal.classList.add('show');
+    return;
+  }
+
+  const closeBtn = e.target.closest('[data-close-announcement],[data-cancel-announcement]');
+  if (closeBtn) {
+    e.preventDefault();
+    if (!modal) return;
+    modal.classList.remove('show');
+    return;
+  }
+
+  if (modal && e.target === modal) {
+    modal.classList.remove('show');
+  }
+});
+
 document.addEventListener('click', async (e) => {
-  const btn = e.target.closest('[data-ann-disable]');
-  if (!btn) return;
+  const sendBtn = e.target.closest('#btnSendAnnouncement');
+  if (!sendBtn) return;
 
-  const id = parseInt(btn.dataset.id || '0', 10);
-  if (!id) return;
+  e.preventDefault();
 
-  if (!confirm('¿Desactivar este anuncio?')) return;
+  const payload = {
+    title: (document.getElementById('ann_title')?.value || '').trim(),
+    body: (document.getElementById('ann_body')?.value || '').trim(),
+    level: document.getElementById('ann_level')?.value || 'INFO',
+    target_area: document.getElementById('ann_area')?.value || 'ALL',
+    starts_at: document.getElementById('ann_starts')?.value || null,
+    ends_at: document.getElementById('ann_ends')?.value || null
+  };
 
-  btn.disabled = true;
+  if (!payload.title || !payload.body) {
+    alert('Título y descripción son obligatorios.');
+    return;
+  }
 
   try {
-    const r = await fetch('/HelpDesk_EQF/modules/dashboard/admin/ajax/toggle_announcement.php', {
+    const res = await fetch('/HelpDesk_EQF/modules/dashboard/admin/ajax/create_announcement.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id })
+      body: JSON.stringify(payload)
     });
 
-    const data = await r.json().catch(()=>({}));
-    if (!r.ok || !data.ok) {
-      alert(data.msg || 'No se pudo desactivar.');
-      btn.disabled = false;
+    const raw = await res.text();
+    let data = {};
+    try { data = JSON.parse(raw); } catch {}
+
+    if (!res.ok || !data.ok) {
+      alert(data.msg || ('No se pudo enviar el aviso. HTTP ' + res.status));
       return;
     }
 
-    // quita de la UI sin recargar
-    const row = btn.closest('.announcement');
-    if (row) row.remove();
-
+    alert('Aviso enviado ✅');
+    document.getElementById('announceModal')?.classList.remove('show');
   } catch (err) {
     console.error(err);
-    alert('Error al desactivar.');
-    btn.disabled = false;
+    alert('Error de red / fetch. Revisa consola.');
   }
 });
 </script>
+
+<script>
+(function(){
+  const list  = document.getElementById('annList');
+  const badge = document.getElementById('annBadge');
+  if (!list || !badge) return;
+
+  function esc(s){
+    return String(s ?? '')
+      .replaceAll('&','&amp;')
+      .replaceAll('<','&lt;')
+      .replaceAll('>','&gt;')
+      .replaceAll('"','&quot;')
+      .replaceAll("'","&#039;");
+  }
+
+  function annClass(level){
+    level = String(level || 'INFO').toUpperCase().trim();
+    if (level === 'CRITICAL') return 'announcement--critical';
+    if (level === 'WARN') return 'announcement--warn';
+    return 'announcement--info';
+  }
+  function annLabel(level){
+    level = String(level || 'INFO').toUpperCase().trim();
+    if (level === 'CRITICAL') return 'Crítico';
+    if (level === 'WARN') return 'Aviso';
+    return 'Info';
+  }
+
+  function render(items){
+    badge.textContent = String((items || []).length);
+
+    if (!items || !items.length){
+      list.innerHTML = `<p style="margin:0; color:#6b7280;">No hay anuncios activos.</p>`;
+      return;
+    }
+
+    list.innerHTML = items.map(a => {
+      const id = parseInt(a.id,10) || 0;
+
+      const btnDisable = (String(a.can_disable) === '1')
+        ? `<button type="button" class="btn-secondary" data-ann-disable data-id="${id}">Desactivar</button>`
+        : ``;
+
+      return `
+        <div class="announcement ${annClass(a.level)}" data-ann-id="${id}">
+          <div class="announcement__top">
+            <div>
+              <p class="announcement__h">${esc(a.title || '')}</p>
+              <p class="announcement__meta">
+                ${esc('Dirigido a: ' + (a.target_area || ''))}
+                ${a.starts_at ? '<br>' + esc('Hora de inicio: ' + a.starts_at) : ''}
+                ${a.ends_at ? '<br>' + esc('Hora estimada fin: ' + a.ends_at) : ''}
+              </p>
+            </div>
+
+            <div style="display:flex; gap:10px; align-items:center;">
+              <span class="announcement__pill">${annLabel(a.level)}</span>
+              ${btnDisable}
+            </div>
+          </div>
+
+          <div class="announcement__body">
+            ${esc(a.body || '').replaceAll('\n','<br>')}
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // Click handler (delegado) para desactivar
+  document.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-ann-disable]');
+    if (!btn) return;
+
+    const id = parseInt(btn.dataset.id || '0', 10);
+    if (!id) return;
+    if (!confirm('¿Desactivar este anuncio?')) return;
+
+    btn.disabled = true;
+
+    try {
+      const r = await fetch('/HelpDesk_EQF/modules/dashboard/admin/ajax/toggle_announcement.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      });
+
+      const data = await r.json().catch(()=>({}));
+      if (!r.ok || !data.ok) {
+        alert(data.msg || 'No se pudo desactivar.');
+        btn.disabled = false;
+        return;
+      }
+
+      // quita el anuncio de la UI
+      const card = btn.closest('.announcement');
+      if (card) card.remove();
+
+      // actualiza badge a ojo (sin esperar polling)
+      badge.textContent = String(Math.max(0, parseInt(badge.textContent||'0',10)-1));
+
+    } catch(err){
+      console.error(err);
+      alert('Error al desactivar.');
+      btn.disabled = false;
+    }
+  });
+
+  let lastSig = '';
+
+  async function poll(){
+    try{
+      const r = await fetch('/HelpDesk_EQF/modules/dashboard/common/ajax/announcements_snapshot.php', {cache:'no-store'});
+      const j = await r.json();
+      if (!r.ok || !j || !j.ok) return;
+
+      if (j.signature && j.signature === lastSig) return;
+      lastSig = j.signature || '';
+
+      render(j.items || []);
+    }catch(e){}
+  }
+
+  poll();
+  setInterval(poll, 4000);
+
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) poll();
+  });
+})();
+</script>
+
 
 </body>
 </html>

@@ -307,7 +307,7 @@ foreach ($openTickets as $t) {
       Desde aquí puedes crear tickets, consultar el historial de los que has levantado y acceder a documentos importantes para la operación de tu sucursal o área.
     </p>
 
-    <div class="user-announcements" id="annBox">
+    <div class="user-announcements" id="annWrap">
       <div class="user-announcements__head">
         <h3 class="user-announcements__title">
           Avisos
@@ -1276,6 +1276,139 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('DOMContentLoaded', () => {
     poll();
     setInterval(poll, 6000);
+  });
+})();
+</script>
+
+
+<script>
+(function(){
+  const list  = document.getElementById('annList');
+  const badge = document.getElementById('annBadge');
+  if (!list || !badge) return;
+
+  function esc(s){
+    return String(s ?? '')
+      .replaceAll('&','&amp;')
+      .replaceAll('<','&lt;')
+      .replaceAll('>','&gt;')
+      .replaceAll('"','&quot;')
+      .replaceAll("'","&#039;");
+  }
+
+  function annClass(level){
+    level = String(level || 'INFO').toUpperCase().trim();
+    if (level === 'CRITICAL') return 'announcement--critical';
+    if (level === 'WARN') return 'announcement--warn';
+    return 'announcement--info';
+  }
+  function annLabel(level){
+    level = String(level || 'INFO').toUpperCase().trim();
+    if (level === 'CRITICAL') return 'Crítico';
+    if (level === 'WARN') return 'Aviso';
+    return 'Info';
+  }
+
+  function render(items){
+    badge.textContent = String((items || []).length);
+
+    if (!items || !items.length){
+      list.innerHTML = `<p style="margin:0; color:#6b7280;">No hay anuncios activos.</p>`;
+      return;
+    }
+
+    list.innerHTML = items.map(a => {
+      const id = parseInt(a.id,10) || 0;
+
+      const btnDisable = (String(a.can_disable) === '1')
+        ? `<button type="button" class="btn-secondary" data-ann-disable data-id="${id}">Desactivar</button>`
+        : ``;
+
+      return `
+        <div class="announcement ${annClass(a.level)}" data-ann-id="${id}">
+          <div class="announcement__top">
+            <div>
+              <p class="announcement__h">${esc(a.title || '')}</p>
+              <p class="announcement__meta">
+                ${esc('Dirigido a: ' + (a.target_area || ''))}
+                ${a.starts_at ? '<br>' + esc('Hora de inicio: ' + a.starts_at) : ''}
+                ${a.ends_at ? '<br>' + esc('Hora estimada fin: ' + a.ends_at) : ''}
+              </p>
+            </div>
+
+            <div style="display:flex; gap:10px; align-items:center;">
+              <span class="announcement__pill">${annLabel(a.level)}</span>
+              ${btnDisable}
+            </div>
+          </div>
+
+          <div class="announcement__body">
+            ${esc(a.body || '').replaceAll('\n','<br>')}
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // Click handler (delegado) para desactivar
+  document.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-ann-disable]');
+    if (!btn) return;
+
+    const id = parseInt(btn.dataset.id || '0', 10);
+    if (!id) return;
+    if (!confirm('¿Desactivar este anuncio?')) return;
+
+    btn.disabled = true;
+
+    try {
+      const r = await fetch('/HelpDesk_EQF/modules/dashboard/admin/ajax/toggle_announcement.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      });
+
+      const data = await r.json().catch(()=>({}));
+      if (!r.ok || !data.ok) {
+        alert(data.msg || 'No se pudo desactivar.');
+        btn.disabled = false;
+        return;
+      }
+
+      // quita el anuncio de la UI
+      const card = btn.closest('.announcement');
+      if (card) card.remove();
+
+      // actualiza badge a ojo (sin esperar polling)
+      badge.textContent = String(Math.max(0, parseInt(badge.textContent||'0',10)-1));
+
+    } catch(err){
+      console.error(err);
+      alert('Error al desactivar.');
+      btn.disabled = false;
+    }
+  });
+
+  let lastSig = '';
+
+  async function poll(){
+    try{
+      const r = await fetch('/HelpDesk_EQF/modules/dashboard/common/ajax/announcements_snapshot.php', {cache:'no-store'});
+      const j = await r.json();
+      if (!r.ok || !j || !j.ok) return;
+
+      if (j.signature && j.signature === lastSig) return;
+      lastSig = j.signature || '';
+
+      render(j.items || []);
+    }catch(e){}
+  }
+
+  poll();
+  setInterval(poll, 4000);
+
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) poll();
   });
 })();
 </script>

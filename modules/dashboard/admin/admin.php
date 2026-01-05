@@ -4,19 +4,35 @@ require_once __DIR__ . '/../../../config/connectionBD.php';
 
 $pdo = Database::getConnection();
 
+$annCards = [];
 $annAdminList = [];
+
 try {
+  // Cards (vista tipo usuario)
   $stmt = $pdo->query("
-    SELECT id, title, level, target_area, created_at
+    SELECT id, title, body, level, target_area, starts_at, ends_at, created_at, created_by_area
     FROM announcements
     WHERE is_active = 1
     ORDER BY created_at DESC
     LIMIT 20
   ");
-  $annAdminList = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+  $annCards = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+  // Lista admin (compacta)
+  $stmt2 = $pdo->query("
+    SELECT id, title, level, target_area, created_at, created_by_area
+    FROM announcements
+    WHERE is_active = 1
+    ORDER BY created_at DESC
+    LIMIT 20
+  ");
+  $annAdminList = $stmt2->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
 } catch (Throwable $e) {
+  $annCards = [];
   $annAdminList = [];
 }
+
 
 
 if (!isset($_SESSION['user_id']) || (int)($_SESSION['user_rol'] ?? 0) !== 2) {
@@ -295,19 +311,17 @@ include __DIR__ . '/../../../template/sidebar.php';
                 </p>
             </div>
         </header>
-<div class="user-info-card" style="margin-top:18px;">
+<div class="user-info-card" style="margin-top:18px;" id="annWrap">
   <h2>Anuncios</h2>
-  <p style="margin-top:6px;">Vista tipo usuario (para validar contenido) y opción de desactivar.</p>
-
   <div class="user-announcements">
     <div class="user-announcements__head">
       <h3 class="user-announcements__title">
         Activos
-<span class="user-announcements__badge"><?php echo count($annCards ?? []); ?></span>
+<span class="user-announcements__badge" id="annBadge"><?php echo count($annCards ?? []); ?></span>
       </h3>
     </div>
 
-    <div class="user-announcements__list">
+    <div class="user-announcements__list" id="annList">
       <?php if (empty($annCards)): ?>
         <p style="margin:0; color:#6b7280;">No hay anuncios activos.</p>
       <?php else: ?>
@@ -329,14 +343,17 @@ include __DIR__ . '/../../../template/sidebar.php';
 
               <div style="display:flex; gap:10px; align-items:center;">
                 <span class="announcement__pill"><?php echo annLabel($a['level']); ?></span>
+<?php $canDisable = (strcasecmp(trim($a['created_by_area'] ?? ''), trim($areaAdmin ?? '')) === 0); ?>
 
-                <button type="button"
-                        class="btn-secondary"
-                        style="padding:8px 12px; border-radius:12px;"
-                        data-ann-disable
-                        data-id="<?php echo (int)$a['id']; ?>">
-                  Desactivar
-                </button>
+<?php if ($canDisable): ?>
+  <button type="button"
+          class="btn-secondary"
+                    data-ann-disable
+          data-id="<?php echo (int)$a['id']; ?>">
+    Desactivar
+  </button>
+<?php endif; ?>
+
               </div>
             </div>
 
@@ -358,40 +375,6 @@ include __DIR__ . '/../../../template/sidebar.php';
             <?php if ($mensajeError): ?>
                 <div class="alert alert-danger"><?php echo htmlspecialchars($mensajeError, ENT_QUOTES, 'UTF-8'); ?></div>
             <?php endif; ?>
-<div class="user-info-card" style="margin-top:18px;">
-  <h2>Anuncios activos</h2>
-  <p style="margin-top:6px;">Aquí puedes desactivar anuncios publicados.</p>
-
-  <?php if (empty($annAdminList)): ?>
-    <p style="color:#6b7280; margin:0;">No hay anuncios activos.</p>
-  <?php else: ?>
-    <div style="display:flex; flex-direction:column; gap:10px; margin-top:12px;">
-      <?php foreach ($annAdminList as $a): ?>
-        <div class="announcement announcement--info"
-             style="display:flex; align-items:center; justify-content:space-between; padding:12px 14px;">
-          <div style="min-width:0;">
-            <strong style="display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-              <?php echo htmlspecialchars($a['title'] ?? '', ENT_QUOTES, 'UTF-8'); ?>
-            </strong>
-            <small style="color:#6b7280;">
-              <?php echo htmlspecialchars(($a['target_area'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>
-              · <?php echo htmlspecialchars(($a['created_at'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>
-            </small>
-          </div>
-
-          <button type="button"
-                  class="btn-secondary"
-                  style="padding:8px 12px; border-radius:12px;"
-                  data-ann-disable
-                  data-id="<?php echo (int)$a['id']; ?>">
-            Desactivar
-          </button>
-        </div>
-      <?php endforeach; ?>
-    </div>
-  <?php endif; ?>
-</div>
-
             <!-- KPIs: cards clicables (atajos) -->
             <section class="admin-kpi-grid">
                 <a class="admin-kpi-card" href="/HelpDesk_EQF/modules/dashboard/admin/tickets_area.php" style="text-decoration:none;">
@@ -627,45 +610,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 </script>
-<script>
-document.addEventListener('click', async (e) => {
-  const btn = e.target.closest('[data-ann-disable]');
-  if (!btn) return;
-
-  const id = parseInt(btn.dataset.id || '0', 10);
-  if (!id) return;
-
-  if (!confirm('¿Desactivar este anuncio?')) return;
-
-  btn.disabled = true;
-
-  try {
-    const r = await fetch('/HelpDesk_EQF/modules/dashboard/admin/ajax/toggle_announcement.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id })
-    });
-
-    const data = await r.json().catch(()=>({}));
-    if (!r.ok || !data.ok) {
-      alert(data.msg || 'No se pudo desactivar.');
-      btn.disabled = false;
-      return;
-    }
-
-    // quita de la UI sin recargar
-    const row = btn.closest('.announcement');
-    if (row) row.remove();
-
-  } catch (err) {
-    console.error(err);
-    alert('Error al desactivar.');
-    btn.disabled = false;
-  }
-});
-</script>
-
-
 
 </body>
 </html>
@@ -819,6 +763,187 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 });
+
+// MODAL DE AVISO
+document.addEventListener('click', (e) => {
+  const openBtn = e.target.closest('[data-open-announcement]');
+  const modal = document.getElementById('announceModal');
+
+  if (openBtn) {
+    e.preventDefault();
+    if (!modal) return console.warn('No existe #announceModal en esta vista');
+    modal.classList.add('show');
+    return;
+  }
+
+  // cerrar por X o Cancel
+  const closeBtn = e.target.closest('[data-close-announcement],[data-cancel-announcement]');
+  if (closeBtn) {
+    e.preventDefault();
+    if (!modal) return;
+    modal.classList.remove('show');
+    return;
+  }
+
+  // cerrar clic fuera
+  if (modal && e.target === modal) {
+    modal.classList.remove('show');
+  }
+});
+
+function every(ms, fn){
+  let t = null;
+
+  const start = () => { if (!t) t = setInterval(fn, ms); };
+  const stop  = () => { if (t) { clearInterval(t); t = null; } };
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) stop();
+    else { fn(); start(); }
+  });
+
+  fn(); start();
+  return { start, stop };
+}
+
+
+
 </script>
+
+
+
+<script>
+(function(){
+  const list  = document.getElementById('annList');
+  const badge = document.getElementById('annBadge');
+  if (!list || !badge) return;
+
+  function esc(s){
+    return String(s ?? '')
+      .replaceAll('&','&amp;')
+      .replaceAll('<','&lt;')
+      .replaceAll('>','&gt;')
+      .replaceAll('"','&quot;')
+      .replaceAll("'","&#039;");
+  }
+
+  function annClass(level){
+    level = String(level || 'INFO').toUpperCase().trim();
+    if (level === 'CRITICAL') return 'announcement--critical';
+    if (level === 'WARN') return 'announcement--warn';
+    return 'announcement--info';
+  }
+  function annLabel(level){
+    level = String(level || 'INFO').toUpperCase().trim();
+    if (level === 'CRITICAL') return 'Crítico';
+    if (level === 'WARN') return 'Aviso';
+    return 'Info';
+  }
+
+  function render(items){
+    badge.textContent = String((items || []).length);
+
+    if (!items || !items.length){
+      list.innerHTML = `<p style="margin:0; color:#6b7280;">No hay anuncios activos.</p>`;
+      return;
+    }
+
+    list.innerHTML = items.map(a => {
+      const id = parseInt(a.id,10) || 0;
+
+      const btnDisable = (String(a.can_disable) === '1')
+        ? `<button type="button" class="btn-secondary" data-ann-disable data-id="${id}">Desactivar</button>`
+        : ``;
+
+      return `
+        <div class="announcement ${annClass(a.level)}" data-ann-id="${id}">
+          <div class="announcement__top">
+            <div>
+              <p class="announcement__h">${esc(a.title || '')}</p>
+              <p class="announcement__meta">
+                ${esc('Dirigido a: ' + (a.target_area || ''))}
+                ${a.starts_at ? '<br>' + esc('Hora de inicio: ' + a.starts_at) : ''}
+                ${a.ends_at ? '<br>' + esc('Hora estimada fin: ' + a.ends_at) : ''}
+              </p>
+            </div>
+
+            <div style="display:flex; gap:10px; align-items:center;">
+              <span class="announcement__pill">${annLabel(a.level)}</span>
+              ${btnDisable}
+            </div>
+          </div>
+
+          <div class="announcement__body">
+            ${esc(a.body || '').replaceAll('\n','<br>')}
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // Click handler (delegado) para desactivar
+  document.addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-ann-disable]');
+    if (!btn) return;
+
+    const id = parseInt(btn.dataset.id || '0', 10);
+    if (!id) return;
+    if (!confirm('¿Desactivar este anuncio?')) return;
+
+    btn.disabled = true;
+
+    try {
+      const r = await fetch('/HelpDesk_EQF/modules/dashboard/admin/ajax/toggle_announcement.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      });
+
+      const data = await r.json().catch(()=>({}));
+      if (!r.ok || !data.ok) {
+        alert(data.msg || 'No se pudo desactivar.');
+        btn.disabled = false;
+        return;
+      }
+
+      // quita el anuncio de la UI
+      const card = btn.closest('.announcement');
+      if (card) card.remove();
+
+      // actualiza badge a ojo (sin esperar polling)
+      badge.textContent = String(Math.max(0, parseInt(badge.textContent||'0',10)-1));
+
+    } catch(err){
+      console.error(err);
+      alert('Error al desactivar.');
+      btn.disabled = false;
+    }
+  });
+
+  let lastSig = '';
+
+  async function poll(){
+    try{
+      const r = await fetch('/HelpDesk_EQF/modules/dashboard/common/ajax/announcements_snapshot.php', {cache:'no-store'});
+      const j = await r.json();
+      if (!r.ok || !j || !j.ok) return;
+
+      if (j.signature && j.signature === lastSig) return;
+      lastSig = j.signature || '';
+
+      render(j.items || []);
+    }catch(e){}
+  }
+
+  poll();
+  setInterval(poll, 4000);
+
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) poll();
+  });
+})();
+</script>
+
+
 
 

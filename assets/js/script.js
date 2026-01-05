@@ -736,3 +736,30 @@ function urlBase64ToUint8Array(base64String) {
   for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
   return outputArray;
 }
+
+// MODAL DE AVISO
+document.addEventListener('click', (e) => {
+  const openBtn = e.target.closest('[data-open-announcement]');
+  const modal = document.getElementById('announceModal');
+
+  if (openBtn) {
+    e.preventDefault();
+    if (!modal) return console.warn('No existe #announceModal en esta vista');
+    modal.classList.add('show');
+    return;
+  }
+
+  // cerrar por X o Cancel
+  const closeBtn = e.target.closest('[data-close-announcement],[data-cancel-announcement]');
+  if (closeBtn) {
+    e.preventDefault();
+    if (!modal) return;
+    modal.classList.remove('show');
+    return;
+  }
+
+  // cerrar clic fuera
+  if (modal && e.target === modal) {
+    modal.classList.remove('show');
+  }
+});
