@@ -24,13 +24,17 @@ $allowedLevel = ['INFO','WARN','CRITICAL'];
 if (!in_array($level, $allowedLevel, true)) $level = 'INFO';
 
 // target_area (solo Sucursal / Corporativo)
-$area = trim((string)($in['target_area'] ?? ''));
 $allowedAreas = ['Sucursal','Corporativo'];
+
+// si viene vacío por bug del front, por defecto "Sucursal"
+$area = trim((string)($in['target_area'] ?? 'Sucursal'));
+
 if (!in_array($area, $allowedAreas, true)) {
     http_response_code(400);
     echo json_encode(['ok' => false, 'msg' => 'Área inválida. Usa Sucursal o Corporativo.']);
     exit;
 }
+
 
 if ($title === '' || $body === '') {
     http_response_code(400);
@@ -42,8 +46,9 @@ if ($title === '' || $body === '') {
 $starts_at = $in['starts_at'] ?? null;
 $ends_at   = $in['ends_at'] ?? null;
 
-$starts_at = $starts_at ? (str_replace('T', ' ', $starts_at) . ':00') : null;
-$ends_at   = $ends_at ? (str_replace('T', ' ', $ends_at) . ':00') : null;
+// normaliza fechas vacías
+$starts_at = is_string($starts_at) && trim($starts_at) !== '' ? $starts_at : null;
+$ends_at   = is_string($ends_at)   && trim($ends_at)   !== '' ? $ends_at   : null;
 
 try {
     $stmt = $pdo->prepare("

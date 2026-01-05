@@ -61,29 +61,21 @@ $announcements = [];
 
 try {
     $sqlAnn = "
-        SELECT id, title, body, level, target_area, starts_at, ends_at, created_at
-        FROM announcements
-        WHERE target_area = :aud
-          AND is_active = 1
-          AND (starts_at IS NULL OR starts_at <= NOW())
-          AND (ends_at   IS NULL OR ends_at   >= NOW())
-        ORDER BY created_at DESC
-        LIMIT 10
-    ";
-
-    $stmtAnn = $pdo->prepare($sqlAnn);
-    $stmtAnn->execute([
-        ':aud' => $audience
-    ]);
-
-    $announcements = $stmtAnn->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    SELECT id, title, body, level, target_area, starts_at, ends_at, created_at
+    FROM announcements
+    WHERE target_area = :aud
+      AND is_active = 1
+    ORDER BY created_at DESC
+    LIMIT 10
+";
+$stmtAnn = $pdo->prepare($sqlAnn);
+$stmtAnn->execute([':aud' => $audience]);
+$announcements = $stmtAnn->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
 } catch (Throwable $e) {
     error_log('Announcements error: ' . $e->getMessage());
     $announcements = [];
 }
-
-
 
 function annClass(string $level): string {
     return match ($level) {
@@ -315,11 +307,11 @@ foreach ($openTickets as $t) {
       Desde aquí puedes crear tickets, consultar el historial de los que has levantado y acceder a documentos importantes para la operación de tu sucursal o área.
     </p>
 
-    <div class="user-announcements">
+    <div class="user-announcements" id="annBox">
       <div class="user-announcements__head">
         <h3 class="user-announcements__title">
           Avisos
-          <span class="user-announcements__badge">
+          <span class="user-announcements__badge" id="annBadge">
             <?php echo isset($announcements) ? count($announcements) : 0; ?>
           </span>
         </h3>
@@ -333,7 +325,7 @@ foreach ($openTickets as $t) {
       </div>
 
       <?php if (!empty($announcements)): ?>
-        <div class="user-announcements__list">
+        <div class="user-announcements__list" id="annList">
           <?php foreach ($announcements as $a): ?>
             <?php $lvl = strtoupper((string)($a['level'] ?? 'INFO')); ?>
             <div class="announcement <?php echo annClass($lvl); ?>">
@@ -341,8 +333,17 @@ foreach ($openTickets as $t) {
                 <div>
                   <p class="announcement__h"><?php echo h($a['title'] ?? ''); ?></p>
                   <p class="announcement__meta">
-                    <?php echo h('Dirigido a: ' . ($a['target_area'] ?? '')); ?>
-                  </p>
+  <?php echo h('Dirigido a: ' . ($a['target_area'] ?? '')); ?>
+  <?php if (!empty($a['starts_at'])): ?>
+    <br>
+    <?php echo h('Hora de inicio: ' . date('d/m/Y H:i', strtotime($a['starts_at']))); ?>
+  <?php endif; ?>
+  <?php if (!empty($a['ends_at'])): ?>
+    <br>
+    <?php echo h('Hora estimada fin: ' . date('d/m/Y H:i', strtotime($a['ends_at']))); ?>
+  <?php endif; ?>
+</p>
+
                 </div>
                 <span class="announcement__pill">
                   <?php echo annLabel($lvl); ?>
@@ -1184,6 +1185,101 @@ document.addEventListener('DOMContentLoaded', () => {
     registerHelpDeskPush();
   });
 </script>
+
+<script>
+(function(){
+  function esc(s){
+    return String(s ?? '')
+      .replaceAll('&','&amp;')
+      .replaceAll('<','&lt;')
+      .replaceAll('>','&gt;')
+      .replaceAll('"','&quot;')
+      .replaceAll("'","&#039;");
+  }
+
+  function fmt(dt){
+    if(!dt) return '';
+    const d = new Date(dt.replace(' ', 'T'));
+    if (isNaN(d.getTime())) return dt;
+    const dd = String(d.getDate()).padStart(2,'0');
+    const mm = String(d.getMonth()+1).padStart(2,'0');
+    const yy = d.getFullYear();
+    const hh = String(d.getHours()).padStart(2,'0');
+    const mi = String(d.getMinutes()).padStart(2,'0');
+    return `${dd}/${mm}/${yy} ${hh}:${mi}`;
+  }
+
+  function levelClass(lvl){
+    lvl = String(lvl||'INFO').toUpperCase();
+    if (lvl === 'CRITICAL') return 'announcement--critical';
+    if (lvl === 'WARN') return 'announcement--warn';
+    return 'announcement--info';
+  }
+
+  function levelLabel(lvl){
+    lvl = String(lvl||'INFO').toUpperCase();
+    if (lvl === 'CRITICAL') return 'Crítico';
+    if (lvl === 'WARN') return 'Aviso';
+    return 'Info';
+  }
+
+  function render(items){
+    const list = document.getElementById('annList');
+    const badge = document.getElementById('annBadge');
+    if (!list || !badge) return;
+
+    badge.textContent = items.length;
+
+    if (!items.length){
+      list.innerHTML = `<p style="margin:0; color:#6b7280;">No hay avisos por el momento.</p>`;
+      return;
+    }
+
+    list.innerHTML = items.map(a => {
+      const starts = a.starts_at ? `<br>Hora de inicio: ${esc(fmt(a.starts_at))}` : '';
+      const ends   = a.ends_at   ? `<br>Hora estimada fin: ${esc(fmt(a.ends_at))}` : '';
+      return `
+        <div class="announcement ${levelClass(a.level)}">
+          <div class="announcement__top">
+            <div>
+              <p class="announcement__h">${esc(a.title)}</p>
+              <p class="announcement__meta">
+                Dirigido a: ${esc(a.target_area || '')}
+                ${starts}
+                ${ends}
+              </p>
+            </div>
+            <span class="announcement__pill">${esc(levelLabel(a.level))}</span>
+          </div>
+          <div class="announcement__body">${esc(a.body).replaceAll('\\n','<br>')}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  let lastHash = '';
+  async function poll(){
+    try{
+      const r = await fetch('/HelpDesk_EQF/modules/dashboard/user/ajax/announcements_poll.php?_=' + Date.now(), {cache:'no-store'});
+      const data = await r.json();
+      if (!data.ok) return;
+
+      const items = Array.isArray(data.items) ? data.items : [];
+      const hash = JSON.stringify(items.map(x => [x.id, x.updated_at || x.created_at]));
+      if (hash !== lastHash){
+        lastHash = hash;
+        render(items);
+      }
+    }catch(e){}
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    poll();
+    setInterval(poll, 6000);
+  });
+})();
+</script>
+
 
 </body>
 </html>

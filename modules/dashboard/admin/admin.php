@@ -4,6 +4,21 @@ require_once __DIR__ . '/../../../config/connectionBD.php';
 
 $pdo = Database::getConnection();
 
+$annAdminList = [];
+try {
+  $stmt = $pdo->query("
+    SELECT id, title, level, target_area, created_at
+    FROM announcements
+    WHERE is_active = 1
+    ORDER BY created_at DESC
+    LIMIT 20
+  ");
+  $annAdminList = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+} catch (Throwable $e) {
+  $annAdminList = [];
+}
+
+
 if (!isset($_SESSION['user_id']) || (int)($_SESSION['user_rol'] ?? 0) !== 2) {
     header('Location: /HelpDesk_EQF/auth/login.php');
     exit;
@@ -18,6 +33,35 @@ $mensajeExito = $_SESSION['flash_ok'] ?? '';
 $mensajeError = $_SESSION['flash_err'] ?? '';
 unset($_SESSION['flash_ok'], $_SESSION['flash_err']);
 
+
+// ============================
+// HELPERS (para anuncios)
+// ============================
+if (!function_exists('h')) {
+  function h($s): string {
+    return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
+  }
+}
+if (!function_exists('annClass')) {
+  function annClass(string $level): string {
+    $level = strtoupper(trim($level));
+    return match ($level) {
+      'CRITICAL' => 'announcement--critical',
+      'WARN'     => 'announcement--warn',
+      default    => 'announcement--info',
+    };
+  }
+}
+if (!function_exists('annLabel')) {
+  function annLabel(string $level): string {
+    $level = strtoupper(trim($level));
+    return match ($level) {
+      'CRITICAL' => 'Crítico',
+      'WARN'     => 'Aviso',
+      default    => 'Info',
+    };
+  }
+}
 
 // =============================
 // 1) Crear tarea (prioridad ALTA) para analista
@@ -84,6 +128,8 @@ header('Location: /HelpDesk_EQF/modules/dashboard/admin/admin.php');
 exit;
     }
 }
+
+
 
 // =============================
 // 2) Analistas del área (select tareas)
@@ -249,6 +295,60 @@ include __DIR__ . '/../../../template/sidebar.php';
                 </p>
             </div>
         </header>
+<div class="user-info-card" style="margin-top:18px;">
+  <h2>Anuncios</h2>
+  <p style="margin-top:6px;">Vista tipo usuario (para validar contenido) y opción de desactivar.</p>
+
+  <div class="user-announcements">
+    <div class="user-announcements__head">
+      <h3 class="user-announcements__title">
+        Activos
+<span class="user-announcements__badge"><?php echo count($annCards ?? []); ?></span>
+      </h3>
+    </div>
+
+    <div class="user-announcements__list">
+      <?php if (empty($annCards)): ?>
+        <p style="margin:0; color:#6b7280;">No hay anuncios activos.</p>
+      <?php else: ?>
+        <?php foreach ($annCards as $a): ?>
+          <div class="announcement <?php echo annClass($a['level']); ?>">
+            <div class="announcement__top">
+              <div>
+                <p class="announcement__h"><?php echo h($a['title']); ?></p>
+                <p class="announcement__meta">
+                  <?php echo h('Dirigido a: ' . ($a['target_area'] ?? '')); ?>
+                  <?php if (!empty($a['starts_at'])): ?>
+                    <br><?php echo h('Hora de inicio: ' . $a['starts_at']); ?>
+                  <?php endif; ?>
+                  <?php if (!empty($a['ends_at'])): ?>
+                    <br><?php echo h('Hora estimada fin: ' . $a['ends_at']); ?>
+                  <?php endif; ?>
+                </p>
+              </div>
+
+              <div style="display:flex; gap:10px; align-items:center;">
+                <span class="announcement__pill"><?php echo annLabel($a['level']); ?></span>
+
+                <button type="button"
+                        class="btn-secondary"
+                        style="padding:8px 12px; border-radius:12px;"
+                        data-ann-disable
+                        data-id="<?php echo (int)$a['id']; ?>">
+                  Desactivar
+                </button>
+              </div>
+            </div>
+
+            <div class="announcement__body">
+              <?php echo nl2br(h($a['body'])); ?>
+            </div>
+          </div>
+        <?php endforeach; ?>
+      <?php endif; ?>
+    </div>
+  </div>
+</div>
 
         <section class="user-main-content">
 
@@ -258,6 +358,39 @@ include __DIR__ . '/../../../template/sidebar.php';
             <?php if ($mensajeError): ?>
                 <div class="alert alert-danger"><?php echo htmlspecialchars($mensajeError, ENT_QUOTES, 'UTF-8'); ?></div>
             <?php endif; ?>
+<div class="user-info-card" style="margin-top:18px;">
+  <h2>Anuncios activos</h2>
+  <p style="margin-top:6px;">Aquí puedes desactivar anuncios publicados.</p>
+
+  <?php if (empty($annAdminList)): ?>
+    <p style="color:#6b7280; margin:0;">No hay anuncios activos.</p>
+  <?php else: ?>
+    <div style="display:flex; flex-direction:column; gap:10px; margin-top:12px;">
+      <?php foreach ($annAdminList as $a): ?>
+        <div class="announcement announcement--info"
+             style="display:flex; align-items:center; justify-content:space-between; padding:12px 14px;">
+          <div style="min-width:0;">
+            <strong style="display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+              <?php echo htmlspecialchars($a['title'] ?? '', ENT_QUOTES, 'UTF-8'); ?>
+            </strong>
+            <small style="color:#6b7280;">
+              <?php echo htmlspecialchars(($a['target_area'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>
+              · <?php echo htmlspecialchars(($a['created_at'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>
+            </small>
+          </div>
+
+          <button type="button"
+                  class="btn-secondary"
+                  style="padding:8px 12px; border-radius:12px;"
+                  data-ann-disable
+                  data-id="<?php echo (int)$a['id']; ?>">
+            Desactivar
+          </button>
+        </div>
+      <?php endforeach; ?>
+    </div>
+  <?php endif; ?>
+</div>
 
             <!-- KPIs: cards clicables (atajos) -->
             <section class="admin-kpi-grid">
@@ -494,6 +627,45 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 </script>
+<script>
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-ann-disable]');
+  if (!btn) return;
+
+  const id = parseInt(btn.dataset.id || '0', 10);
+  if (!id) return;
+
+  if (!confirm('¿Desactivar este anuncio?')) return;
+
+  btn.disabled = true;
+
+  try {
+    const r = await fetch('/HelpDesk_EQF/modules/dashboard/admin/ajax/toggle_announcement.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id })
+    });
+
+    const data = await r.json().catch(()=>({}));
+    if (!r.ok || !data.ok) {
+      alert(data.msg || 'No se pudo desactivar.');
+      btn.disabled = false;
+      return;
+    }
+
+    // quita de la UI sin recargar
+    const row = btn.closest('.announcement');
+    if (row) row.remove();
+
+  } catch (err) {
+    console.error(err);
+    alert('Error al desactivar.');
+    btn.disabled = false;
+  }
+});
+</script>
+
+
 
 </body>
 </html>
