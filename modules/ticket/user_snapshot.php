@@ -27,35 +27,36 @@ try {
     // - abiertos/en_proceso
     // - cerrados con encuesta pendiente (token)
     $stmt = $pdo->prepare("
-        SELECT 
-            t.id,
-            t.estado,
-            t.fecha_envio,
-            t.problema AS problema_raw,
-            COALESCE(cp.label, t.problema) AS problema_label,
-            f.token AS feedback_token,
+    SELECT 
+        t.id,
+        t.estado,
+        t.fecha_envio,
+        t.problema AS problema_raw,
+        COALESCE(cp1.label, cp2.label, t.problema) AS problema_label,
+        f.token AS feedback_token,
 
-            t.asignado_a AS analyst_id,
-            u.name AS analyst_name,
-            u.last_name AS analyst_last
+        t.asignado_a AS analyst_id,
+        u.name AS analyst_name,
+        u.last_name AS analyst_last
 
-        FROM tickets t
-        LEFT JOIN catalog_problems cp
-               ON cp.code = t.problema
-        LEFT JOIN ticket_feedback f
-               ON f.ticket_id = t.id
-              AND f.answered_at IS NULL
-        LEFT JOIN users u
-               ON u.id = t.asignado_a
+    FROM tickets t
+    LEFT JOIN catalog_problems cp1 ON cp1.id = t.problema
+    LEFT JOIN catalog_problems cp2 ON cp2.code = t.problema
+    LEFT JOIN ticket_feedback f
+           ON f.ticket_id = t.id
+          AND f.answered_at IS NULL
+    LEFT JOIN users u
+           ON u.id = t.asignado_a
 
-        WHERE t.user_id = :uid
-          AND (
-                t.estado IN ('abierto','en_proceso')
-             OR (t.estado = 'cerrado' AND f.id IS NOT NULL)
-          )
-        ORDER BY t.fecha_envio DESC
-        LIMIT 10
-    ");
+    WHERE t.user_id = :uid
+      AND (
+            t.estado IN ('abierto','en_proceso','soporte')
+         OR (t.estado = 'cerrado' AND f.id IS NOT NULL)
+      )
+    ORDER BY t.fecha_envio DESC
+    LIMIT 10
+");
+
     $stmt->execute([':uid' => $userId]);
     $tickets = $stmt->fetchAll(PDO::FETCH_ASSOC);
 

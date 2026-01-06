@@ -81,9 +81,21 @@ try {
         exit;
     }
 
-    $oldStatus     = (string)$ticket['estado'];
-    $assignedTo    = (int)($ticket['asignado_a'] ?? 0);
-    $ticketUserId  = (int)$ticket['user_id'];
+$oldStatus = trim((string)($ticket['estado'] ?? ''));
+
+if ($oldStatus === '') {
+    $pdo->rollBack();
+    http_response_code(409);
+    echo json_encode([
+        'ok' => false,
+        'msg' => 'El ticket tiene un estado inválido en BD (vacío).'
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+$assignedTo   = (int)($ticket['asignado_a'] ?? 0);
+$ticketUserId = (int)($ticket['user_id'] ?? 0);
+
 
     /* ===========================
        PERMISOS ANALISTA
@@ -206,12 +218,54 @@ try {
 
     $pdo->commit();
 
-    echo json_encode([
-        'ok'           => true,
-        'estado'       => $newStatus,
-        'estado_label' => $statusRow['label']
-    ]);
-    exit;
+$released = (
+    $newStatus === 'abierto'
+    && in_array($oldStatus, ['en_proceso','soporte'], true)
+) ? 1 : 0;
+
+$incomingTicket = null;
+
+if ($released === 1) {
+    // Re-consulta para poder devolver los datos a la UI (tabla entrantes)
+    $q = $pdo->prepare("
+        SELECT
+            t.id,
+            t.fecha_envio,
+            t.nombre,
+            t.descripcion,
+            t.prioridad,
+            COALESCE(cp1.label, cp2.label, t.problema) AS problema_label
+        FROM tickets t
+        LEFT JOIN catalog_problems cp1 ON cp1.id = t.problema
+        LEFT JOIN catalog_problems cp2 ON cp2.code = t.problema
+        WHERE t.id = ?
+        LIMIT 1
+    ");
+    $q->execute([$ticketId]);
+    $row = $q->fetch(PDO::FETCH_ASSOC);
+
+    if ($row) {
+        $incomingTicket = [
+            'id'          => (int)$row['id'],
+            'fecha'       => (string)$row['fecha_envio'],
+            'usuario'     => (string)$row['nombre'],
+            'problema'    => (string)$row['problema_label'],
+            'prioridad'   => (string)$row['prioridad'],
+            'descripcion' => (string)$row['descripcion'],
+        ];
+    }
+}
+
+echo json_encode([
+    'ok'            => true,
+    'estado'        => $newStatus,
+    'estado_label'  => $statusRow['label'],
+    'released'      => $released,
+    'incoming_ticket' => $incomingTicket
+], JSON_UNESCAPED_UNICODE);
+exit;
+
+
 
 } catch (Throwable $e) {
     if ($pdo->inTransaction()) $pdo->rollBack();

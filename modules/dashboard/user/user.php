@@ -130,7 +130,7 @@ $stmtOpen = $pdo->prepare("
         
     WHERE t.user_id = :uid
       AND (
-            t.estado IN ('abierto','en_proceso')
+            t.estado IN ('abierto','en_proceso', 'soporte')
          OR (t.estado = 'cerrado' AND f.id IS NOT NULL)
       )
     ORDER BY t.fecha_envio DESC
@@ -1034,35 +1034,35 @@ function applyUserSnapshot(payload){
     if (card) card.remove();
   }
 
-  //  Toast cuando se asigna analista (ya con tickets definido)
+  let changed = false;
+
+  // Toast cuando se asigna analista (ya con tickets definido)
   tickets.forEach(t => {
     const id = String(t.id);
     const analyst = String(t.analyst_full || '').trim();
     const prev = assignToastSeen.get(id) || '';
 
     if (!prev && analyst) {
-      showAssignToast(`Te atenderá Analista: ${analyst}`);
+      showAssignToast(`Te atenderá: ${analyst}`);
       assignToastSeen.set(id, analyst);
       changed = true;
     } else if (analyst && prev !== analyst){
-//por si se reasgina el ticket a otro analista
       assignToastSeen.set(id, analyst);
       changed = true;
-
+    } else if (!analyst && prev) {
+      assignToastSeen.delete(id);
+      changed = true;
     }
-
   });
-  if (changed) persistAssignSeen();
 
+  if (changed) persistAssignSeen();
 
   // 2) Refrescar lista "Tus tickets"
   const list = document.querySelector('.user-tickets-list');
   const placeholder = document.getElementById('tickets-section');
 
-  // si no hay lista y sí hay tickets, creamos la UL
   let ul = list;
   if (!ul && tickets.length){
-    // elimina el mensaje "No tienes tickets..." si existe
     const p = placeholder ? placeholder.querySelector('p') : null;
     if (p) p.remove();
 
@@ -1071,7 +1071,6 @@ function applyUserSnapshot(payload){
     if (placeholder) placeholder.appendChild(ul);
   }
 
-  // si no hay tickets, limpia UL y muestra mensaje
   if (!tickets.length){
     if (ul) ul.remove();
     if (placeholder && !placeholder.querySelector('p')){
@@ -1084,19 +1083,9 @@ function applyUserSnapshot(payload){
 
   if (!ul) return;
 
-  // set de ids nuevos
-  const newIds = new Set(tickets.map(t => String(t.id)));
-
-  // quitar los que ya no deben mostrarse
-  ul.querySelectorAll('li[data-ticket-id]').forEach(li => {
-    const id = li.getAttribute('data-ticket-id');
-    if (!newIds.has(String(id))) li.remove();
-  });
-
-  // upsert en orden (top = más reciente)
-  // simple: re-render completo para mantener orden correcto
   ul.innerHTML = tickets.map(buildTicketLi).join('');
 }
+
 
 function pollUserSnapshot(){
   fetch('/HelpDesk_EQF/modules/ticket/user_snapshot.php?_=' + Date.now(), {

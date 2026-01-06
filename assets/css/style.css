@@ -1563,7 +1563,7 @@ footer {
 
 /* Colores por estado */
 .ticket-status-select.status-abierto {
-    background: var(--eqf-blue); 
+    background: var(--eqf-green); 
 }
 
 .ticket-status-select.status-en_proceso {
@@ -1571,8 +1571,8 @@ footer {
     color: #1f2937;      
 }
 
-.ticket-status-select.status-resuelto {
-    background: var(--eqf-green); 
+.ticket-status-select.status-soporte {
+    background: var(--eqf-blue); 
 }
 
 .ticket-status-select.status-cerrado {

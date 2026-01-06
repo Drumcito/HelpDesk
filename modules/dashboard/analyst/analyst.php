@@ -71,13 +71,14 @@ function prioridadLabel(string $p): string {
 $statusCatalog = [];
 try {
     $stmtStatus = $pdo->prepare("
-        SELECT code, nombre
-        FROM catalog_status
-        WHERE activo = 1
-        ORDER BY orden ASC, id ASC
-    ");
-    $stmtStatus->execute();
-    $statusCatalog = $stmtStatus->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    SELECT code, label
+    FROM catalog_status
+    WHERE active = 1
+    ORDER BY sort_order ASC, id ASC
+");
+$stmtStatus->execute();
+$statusCatalog = $stmtStatus->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
 } catch (Throwable $e) {
     $statusCatalog = [];
 }
@@ -138,12 +139,14 @@ try {
  */
 $stmtKpi = $pdo->prepare("
     SELECT
-        SUM(estado = 'abierto')    AS abiertos,
-        SUM(estado = 'en_proceso') AS en_proceso,
-        SUM(estado = 'cerrado')    AS cerrados,
-        COUNT(*)                   AS total
-    FROM tickets
-    WHERE area = :area
+  SUM(estado = 'abierto')    AS abiertos,
+  SUM(estado = 'en_proceso') AS en_proceso,
+  SUM(estado = 'soporte')    AS en_espera_externo,
+  SUM(estado = 'cerrado')    AS cerrados,
+  COUNT(*)                   AS total
+FROM tickets
+WHERE area = :area
+
 ");
 $stmtKpi->execute([':area' => $userArea]);
 
@@ -176,7 +179,7 @@ $stmtMyToTI = $pdo->prepare("
     WHERE t.user_id = :uid
       AND t.area = 'TI'
       AND (
-            t.estado IN ('abierto','en_proceso')
+            t.estado IN ('abierto','en_proceso','soporte')
          OR (t.estado = 'cerrado' AND f.id IS NOT NULL)
       )
     ORDER BY t.fecha_envio DESC
@@ -558,7 +561,7 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC) ?: [];
         <?php foreach ($statusCatalog as $s): ?>
             <?php
               $code = (string)($s['code'] ?? '');
-              $name = (string)($s['nombre'] ?? $code);
+              $name = (string)($s['label'] ?? $code);
               if ($code === '') continue;
             ?>
             <option value="<?php echo h($code); ?>" <?php echo ($code === $estado) ? 'selected' : ''; ?>>
@@ -569,6 +572,7 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC) ?: [];
         <!-- fallback por si el catálogo falla -->
         <option value="abierto" <?php echo ($estado==='abierto')?'selected':''; ?>>Abierto</option>
         <option value="en_proceso" <?php echo ($estado==='en_proceso')?'selected':''; ?>>En proceso</option>
+        <option value="soporte" <?php echo ($estado==='soporte')?'selected':''; ?>>Soporte ViSo</option>
         <option value="cerrado" <?php echo ($estado==='cerrado')?'selected':''; ?>>Cerrado</option>
     <?php endif; ?>
 </select>
@@ -814,7 +818,7 @@ function buildStatusSelect(ticketId, currentCode){
 
   const opts = STATUS_CATALOG.map(s => {
     const code = String(s.code || '');
-    const name = String(s.nombre || code);
+    const name = String(s.label || code);
     if (!code) return '';
     const sel = (code === estado) ? 'selected' : '';
     return `<option value="${escapeHtml(code)}" ${sel}>${escapeHtml(name)}</option>`;
@@ -1224,11 +1228,11 @@ function renderPriorityPill(priorityRaw) {
 function addIncomingTicketRow(ticket) {
   if (!ticket || !ticket.id) return;
 
-  if (document.querySelector(`#incomingTable tr[data-ticket-id="${ticket.id}"]`)) return;
+  if (document.querySelector(`#incomingTable tbody tr[data-ticket-id="${ticket.id}"]`)) return;
 
   const prioridadHtml = renderPriorityPill(ticket.prioridad || 'media');
 
-  const actions = `
+    const actions = `
     <div class="analyst-actions">
       <button type="button" class="btn-mini" onclick="openTicketDetail(${ticket.id})">Ver</button>
       <button type="button" class="btn-mini primary btn-assign-ticket" data-ticket-id="${ticket.id}">Asignar</button>
@@ -1246,7 +1250,8 @@ function addIncomingTicketRow(ticket) {
   ];
 
   if (incomingDT) {
-    incomingDT.row.add(rowData).draw(false);
+    const node = incomingDT.row.add(rowData).draw(false).node();
+    if (node) node.setAttribute('data-ticket-id', String(ticket.id));
   } else {
     const tbody = document.querySelector('#incomingTable tbody');
     if (!tbody) return;
@@ -1380,13 +1385,33 @@ document.addEventListener('change', function (e) {
 
     select.dataset.prev = nuevoEstado;
     select.className = 'ticket-status-select status-' + nuevoEstado;
-
+// si el ticket se cierra, se elimina de "MIS TICKETS"
 if (nuevoEstado === 'cerrado' ) {
       if (rowEl) {
         if (myDT) myDT.row($(rowEl)).remove().draw(false);
         else rowEl.remove();
       }
+      return;
     }
+if (data.released === 1){
+  // Quitar de "Mis tickets"
+  if (rowEl) {
+    if (myDT) myDT.row($(rowEl)).remove().draw(false);
+    else rowEl.remove();
+  }
+
+  // Agregar a "Tickets entrantes" inmediatamente
+  if (data.incoming_ticket) {
+    addIncomingTicketRow(data.incoming_ticket);
+  }
+
+  // KPIs: en_proceso--, abiertos++
+  bumpKpi(+1, -1);
+
+  showTicketToast('Ticket #' + ticketId + ' liberado y enviado a entrantes.');
+  return;
+}
+
   })
   .catch(err => {
     console.error(err);
