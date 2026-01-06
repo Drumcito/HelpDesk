@@ -5,147 +5,203 @@ require_once __DIR__ . '/../../config/audit.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
-// Solo POST
+/* ===========================
+   VALIDACIONES BÁSICAS
+=========================== */
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
-    echo json_encode(['ok' => false, 'msg' => 'Método no permitido'], JSON_UNESCAPED_UNICODE);
+    echo json_encode(['ok' => false, 'msg' => 'Método no permitido']);
     exit;
 }
 
-// Debe haber sesión
 if (!isset($_SESSION['user_id'])) {
     http_response_code(403);
-    echo json_encode(['ok' => false, 'msg' => 'No autenticado'], JSON_UNESCAPED_UNICODE);
+    echo json_encode(['ok' => false, 'msg' => 'No autenticado']);
     exit;
 }
 
-$userId = (int)($_SESSION['user_id'] ?? 0);
+$userId = (int)$_SESSION['user_id'];
 $rol    = (int)($_SESSION['user_rol'] ?? 0);
 
-// Solo SA, Admin o Analista pueden cambiar estado
+// SA (1), Admin (2), Analista (3)
 if (!in_array($rol, [1, 2, 3], true)) {
     http_response_code(403);
-    echo json_encode(['ok' => false, 'msg' => 'Sin permisos para modificar tickets'], JSON_UNESCAPED_UNICODE);
+    echo json_encode(['ok' => false, 'msg' => 'Sin permisos']);
     exit;
 }
 
-$ticketId = isset($_POST['ticket_id']) ? (int)$_POST['ticket_id'] : 0;
-$estado   = trim((string)($_POST['estado'] ?? ''));
+$ticketId  = (int)($_POST['ticket_id'] ?? 0);
+$newStatus = trim((string)($_POST['estado'] ?? ''));
 
-// Estados permitidos
-$allowedStatus = ['abierto', 'en_proceso', 'resuelto', 'cerrado'];
-
-if ($ticketId <= 0 || !in_array($estado, $allowedStatus, true)) {
+if ($ticketId <= 0 || $newStatus === '') {
     http_response_code(400);
-    echo json_encode(['ok' => false, 'msg' => 'Datos inválidos'], JSON_UNESCAPED_UNICODE);
+    echo json_encode(['ok' => false, 'msg' => 'Datos inválidos']);
     exit;
 }
 
 $pdo = Database::getConnection();
 
 try {
+    /* ===========================
+       VALIDAR ESTADO (CATÁLOGO)
+    =========================== */
+    $st = $pdo->prepare("
+        SELECT code, label
+        FROM catalog_status
+        WHERE active = 1 AND code = ?
+        LIMIT 1
+    ");
+    $st->execute([$newStatus]);
+    $statusRow = $st->fetch(PDO::FETCH_ASSOC);
+
+    if (!$statusRow) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'msg' => 'Estado no permitido']);
+        exit;
+    }
+
     $pdo->beginTransaction();
 
-    // 1) Traer ticket + estado actual (con bloqueo)
+    /* ===========================
+       OBTENER TICKET (LOCK)
+    =========================== */
     $stmt = $pdo->prepare("
-        SELECT id, estado, asignado_a, user_id, area
+        SELECT id, estado, asignado_a, user_id
         FROM tickets
-        WHERE id = :id
-        LIMIT 1
+        WHERE id = ?
         FOR UPDATE
     ");
-    $stmt->execute([':id' => $ticketId]);
+    $stmt->execute([$ticketId]);
     $ticket = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$ticket) {
         $pdo->rollBack();
         http_response_code(404);
-        echo json_encode(['ok' => false, 'msg' => 'Ticket no encontrado'], JSON_UNESCAPED_UNICODE);
+        echo json_encode(['ok' => false, 'msg' => 'Ticket no encontrado']);
         exit;
     }
 
-    $oldStatus = (string)$ticket['estado'];
-    $newStatus = $estado;
+    $oldStatus     = (string)$ticket['estado'];
+    $assignedTo    = (int)($ticket['asignado_a'] ?? 0);
+    $ticketUserId  = (int)$ticket['user_id'];
 
-    // 2) Reglas de permisos: el analista solo puede tocar sus tickets
-    if ($rol === 3 && (int)$ticket['asignado_a'] !== $userId) {
+    /* ===========================
+       PERMISOS ANALISTA
+    =========================== */
+    if ($rol === 3 && $assignedTo !== $userId) {
         $pdo->rollBack();
         http_response_code(403);
-        echo json_encode(['ok' => false, 'msg' => 'No puedes modificar este ticket'], JSON_UNESCAPED_UNICODE);
+        echo json_encode(['ok' => false, 'msg' => 'No puedes modificar este ticket']);
         exit;
     }
 
-    // 3) Actualizar estado (y fecha_resolucion si aplica)
-    if (in_array($newStatus, ['resuelto', 'cerrado'], true)) {
-        $sqlUpdate = "
-            UPDATE tickets
-            SET estado = :estado,
-                fecha_resolucion = NOW()
-            WHERE id = :id
-        ";
-    } else {
-        $sqlUpdate = "
-            UPDATE tickets
-            SET estado = :estado,
-                fecha_resolucion = NULL
-            WHERE id = :id
-        ";
+    /* ===========================
+       TRANSICIONES PERMITIDAS
+    =========================== */
+    $allowedTransitions = [
+        'abierto'    => ['en_proceso'],
+        'en_proceso' => ['soporte', 'cerrado', 'abierto'],
+        'soporte'    => ['en_proceso', 'cerrado', 'abierto'],
+        'cerrado'    => [],
+    ];
+
+    if (
+        !isset($allowedTransitions[$oldStatus]) ||
+        !in_array($newStatus, $allowedTransitions[$oldStatus], true)
+    ) {
+        $pdo->rollBack();
+        http_response_code(400);
+        echo json_encode([
+            'ok' => false,
+            'msg' => "Transición no permitida: {$oldStatus} → {$newStatus}"
+        ]);
+        exit;
     }
 
-    $stmtUp = $pdo->prepare($sqlUpdate);
-    $stmtUp->execute([
-        ':estado' => $newStatus,
-        ':id'     => $ticketId
-    ]);
+    /* ===========================
+       UPDATE DEL TICKET
+    =========================== */
+    if ($newStatus === 'cerrado') {
+        $sql = "
+            UPDATE tickets
+            SET estado = 'cerrado',
+                fecha_resolucion = NOW()
+            WHERE id = ?
+        ";
+        $params = [$ticketId];
+    }
+    elseif ($newStatus === 'abierto' && in_array($oldStatus, ['en_proceso', 'soporte'], true)) {
+        // Reabrir y liberar
+        $sql = "
+            UPDATE tickets
+            SET estado = 'abierto',
+                asignado_a = NULL,
+                fecha_asignacion = NULL,
+                fecha_resolucion = NULL
+            WHERE id = ?
+        ";
+        $params = [$ticketId];
+    }
+    else {
+        // en_proceso / soporte
+        $sql = "
+            UPDATE tickets
+            SET estado = ?,
+                fecha_resolucion = NULL
+            WHERE id = ?
+        ";
+        $params = [$newStatus, $ticketId];
+    }
 
-    // 4) Audit (NO romper si falla)
+    $upd = $pdo->prepare($sql);
+    $upd->execute($params);
+
+    /* ===========================
+       AUDITORÍA (NO BLOQUEA)
+    =========================== */
     try {
         audit_log($pdo, 'TICKET_STATUS_CHANGE', 'tickets', $ticketId, [
             'from' => $oldStatus,
             'to'   => $newStatus
         ]);
-    } catch (Throwable $eAudit) {
-        error_log('Audit error: ' . $eAudit->getMessage());
+    } catch (Throwable $e) {
+        error_log('Audit error: ' . $e->getMessage());
     }
 
-    // 5) Si se cerró → crear encuesta (ticket_feedback) SIN duplicar
+    /* ===========================
+       CREAR ENCUESTA (SI CIERRA)
+    =========================== */
     if ($newStatus === 'cerrado') {
-        $token = bin2hex(random_bytes(32)); // 64 chars
-
-        $stmtFb = $pdo->prepare("
-            INSERT INTO ticket_feedback (ticket_id, user_id, token, q1_attention, q2_resolved, q3_time)
-            VALUES (:ticket_id, :user_id, :token, 0, 0, 0)
-            ON DUPLICATE KEY UPDATE token = token
+        $check = $pdo->prepare("
+            SELECT id FROM ticket_feedback WHERE ticket_id = ? LIMIT 1
         ");
-        $stmtFb->execute([
-            ':ticket_id' => $ticketId,
-            ':user_id'   => (int)$ticket['user_id'],
-            ':token'     => $token
-        ]);
+        $check->execute([$ticketId]);
+
+        if (!$check->fetch()) {
+            $token = bin2hex(random_bytes(32));
+
+            $fb = $pdo->prepare("
+                INSERT INTO ticket_feedback
+                (ticket_id, user_id, token, q1_attention, q2_resolved, q3_time)
+                VALUES (?, ?, ?, 0, 0, 0)
+            ");
+            $fb->execute([$ticketId, $ticketUserId, $token]);
+        }
     }
 
-    // 6) Label bonito
-    $estadoLabel = match ($newStatus) {
-        'abierto'     => 'Abierto',
-        'en_proceso'  => 'En proceso',
-        'cerrado'     => 'Cerrado',
-        default       => $newStatus
-    };
-
-    // 7) Notificación al usuario (sin romper si falla)
+    /* ===========================
+       NOTIFICACIÓN USUARIO
+    =========================== */
     try {
-        $stmtNotif = $pdo->prepare("
-            INSERT INTO ticket_notifications (ticket_id, user_id, mensaje, created_at, is_read)
-            VALUES (:ticket_id, :user_id, :mensaje, NOW(), 0)
+        $msg = "El estatus de tu ticket #{$ticketId} cambió a: {$statusRow['label']}";
+        $n = $pdo->prepare("
+            INSERT INTO ticket_notifications
+            (ticket_id, user_id, mensaje, created_at, is_read)
+            VALUES (?, ?, ?, NOW(), 0)
         ");
-        $mensajeNotif = "El estatus de tu ticket #{$ticketId} cambió a: {$estadoLabel}";
-        $stmtNotif->execute([
-            ':ticket_id' => $ticketId,
-            ':user_id'   => (int)$ticket['user_id'],
-            ':mensaje'   => $mensajeNotif
-        ]);
-    } catch (Throwable $eNotif) {
-        error_log('Error insertando notificación de estado: ' . $eNotif->getMessage());
+        $n->execute([$ticketId, $ticketUserId, $msg]);
+    } catch (Throwable $e) {
+        error_log('Notif error: ' . $e->getMessage());
     }
 
     $pdo->commit();
@@ -153,14 +209,14 @@ try {
     echo json_encode([
         'ok'           => true,
         'estado'       => $newStatus,
-        'estado_label' => $estadoLabel
-    ], JSON_UNESCAPED_UNICODE);
+        'estado_label' => $statusRow['label']
+    ]);
     exit;
 
 } catch (Throwable $e) {
     if ($pdo->inTransaction()) $pdo->rollBack();
-    error_log('Error en update_status.php: ' . $e->getMessage());
+    error_log('update_status.php: ' . $e->getMessage());
     http_response_code(500);
-    echo json_encode(['ok' => false, 'msg' => 'Error interno al actualizar el estatus.'], JSON_UNESCAPED_UNICODE);
+    echo json_encode(['ok' => false, 'msg' => 'Error interno al actualizar el estatus']);
     exit;
 }

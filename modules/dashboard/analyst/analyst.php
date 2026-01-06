@@ -65,6 +65,27 @@ function prioridadLabel(string $p): string {
 
 /**
  * ============================
+ *  CATÁLOGO ESTATUS (SA)
+ * ============================
+ */
+$statusCatalog = [];
+try {
+    $stmtStatus = $pdo->prepare("
+        SELECT code, nombre
+        FROM catalog_status
+        WHERE activo = 1
+        ORDER BY orden ASC, id ASC
+    ");
+    $stmtStatus->execute();
+    $statusCatalog = $stmtStatus->fetchAll(PDO::FETCH_ASSOC) ?: [];
+} catch (Throwable $e) {
+    $statusCatalog = [];
+}
+
+
+
+/**
+ * ============================
  *  ALERTAS UI
  * ============================
  */
@@ -210,7 +231,7 @@ $stmtMy = $pdo->prepare("
     LEFT JOIN catalog_problems cp2 ON cp2.code = t.problema
     WHERE t.area = :area
       AND t.asignado_a = :uid
-      AND t.estado IN ('abierto','en_proceso')
+      AND t.estado IN ('abierto','en_proceso','soporte')
     ORDER BY t.fecha_envio DESC
 ");
 $stmtMy->execute([':area' => $userArea, ':uid' => $userId]);
@@ -526,15 +547,33 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC) ?: [];
                                     </span>
                                 </td>
                                 <td>
-                                    <select
-                                        class="ticket-status-select status-<?php echo h($t['estado'] ?? 'abierto'); ?>"
-                                        data-ticket-id="<?php echo (int)$t['id']; ?>"
-                                        data-prev="<?php echo h($t['estado'] ?? 'abierto'); ?>"
-                                    >
-                                        <option value="abierto"    <?php echo (($t['estado'] ?? '') === 'abierto') ? 'selected' : ''; ?>>Abierto</option>
-                                        <option value="en_proceso" <?php echo (($t['estado'] ?? '') === 'en_proceso') ? 'selected' : ''; ?>>En proceso</option>
-                                        <option value="cerrado"    <?php echo (($t['estado'] ?? '') === 'cerrado') ? 'selected' : ''; ?>>Cerrado</option>
-                                    </select>
+                                    <?php $estado = (string)($t['estado'] ?? 'abierto'); ?>
+
+<select
+    class="ticket-status-select status-<?php echo h($estado); ?>"
+    data-ticket-id="<?php echo (int)$t['id']; ?>"
+    data-prev="<?php echo h($estado); ?>"
+>
+    <?php if (!empty($statusCatalog)): ?>
+        <?php foreach ($statusCatalog as $s): ?>
+            <?php
+              $code = (string)($s['code'] ?? '');
+              $name = (string)($s['nombre'] ?? $code);
+              if ($code === '') continue;
+            ?>
+            <option value="<?php echo h($code); ?>" <?php echo ($code === $estado) ? 'selected' : ''; ?>>
+              <?php echo h($name); ?>
+            </option>
+        <?php endforeach; ?>
+    <?php else: ?>
+        <!-- fallback por si el catálogo falla -->
+        <option value="abierto" <?php echo ($estado==='abierto')?'selected':''; ?>>Abierto</option>
+        <option value="en_proceso" <?php echo ($estado==='en_proceso')?'selected':''; ?>>En proceso</option>
+        <option value="cerrado" <?php echo ($estado==='cerrado')?'selected':''; ?>>Cerrado</option>
+    <?php endif; ?>
+</select>
+
+                                
                                 </td>
                                 <td>
                                   <div class="analyst-actions">
@@ -727,6 +766,8 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC) ?: [];
  */
 const CURRENT_USER_ID = <?php echo (int)($_SESSION['user_id'] ?? 0); ?>;
 
+const STATUS_CATALOG = <?php echo json_encode($statusCatalog, JSON_UNESCAPED_UNICODE); ?>;
+
 let currentTicketId = null;
 let lastMessageId   = 0;
 let chatPollTimer   = null;
@@ -742,6 +783,9 @@ function showTicketToast(text) {
   }, 3000);
 }
 
+
+
+
 function escapeHtml(str){
   return String(str ?? '')
     .replaceAll('&','&amp;')
@@ -749,6 +793,40 @@ function escapeHtml(str){
     .replaceAll('>','&gt;')
     .replaceAll('"','&quot;')
     .replaceAll("'","&#039;");
+}
+
+
+function buildStatusSelect(ticketId, currentCode){
+  const estado = String(currentCode || 'abierto');
+
+  if (!Array.isArray(STATUS_CATALOG) || !STATUS_CATALOG.length){
+    // fallback
+    return `
+      <select class="ticket-status-select status-${escapeHtml(estado)}"
+              data-ticket-id="${escapeHtml(ticketId)}"
+              data-prev="${escapeHtml(estado)}">
+        <option value="abierto" ${estado==='abierto'?'selected':''}>Abierto</option>
+        <option value="en_proceso" ${estado==='en_proceso'?'selected':''}>En proceso</option>
+        <option value="cerrado" ${estado==='cerrado'?'selected':''}>Cerrado</option>
+      </select>
+    `;
+  }
+
+  const opts = STATUS_CATALOG.map(s => {
+    const code = String(s.code || '');
+    const name = String(s.nombre || code);
+    if (!code) return '';
+    const sel = (code === estado) ? 'selected' : '';
+    return `<option value="${escapeHtml(code)}" ${sel}>${escapeHtml(name)}</option>`;
+  }).join('');
+
+  return `
+    <select class="ticket-status-select status-${escapeHtml(estado)}"
+            data-ticket-id="${escapeHtml(ticketId)}"
+            data-prev="${escapeHtml(estado)}">
+      ${opts}
+    </select>
+  `;
 }
 
 /**
@@ -1303,7 +1381,7 @@ document.addEventListener('change', function (e) {
     select.dataset.prev = nuevoEstado;
     select.className = 'ticket-status-select status-' + nuevoEstado;
 
-    if (nuevoEstado === 'resuelto' || nuevoEstado === 'cerrado') {
+if (nuevoEstado === 'cerrado' ) {
       if (rowEl) {
         if (myDT) myDT.row($(rowEl)).remove().draw(false);
         else rowEl.remove();
@@ -1356,15 +1434,8 @@ document.addEventListener('click', function (e) {
     const prioridadRaw = (t.prioridad || 'media').toLowerCase();
     const priorityHtml = renderPriorityPill(prioridadRaw);
 
-    const statusSelect = `
-      <select class="ticket-status-select status-en_proceso"
-              data-ticket-id="${escapeHtml(id)}"
-              data-prev="en_proceso">
-        <option value="abierto">Abierto</option>
-        <option value="en_proceso" selected>En proceso</option>
-        <option value="cerrado">Cerrado</option>
-      </select>
-    `;
+    const statusSelect = buildStatusSelect(id, 'en_proceso');
+
 
     const actions = `
       <div class="analyst-actions">
