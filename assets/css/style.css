@@ -2791,3 +2791,138 @@ table.dataTable tbody tr:hover {
   line-height: 1.1;
 }
 
+
+/* ===========================
+   TICKETS EN CARDS (ANALYST)
+=========================== */
+
+.tickets-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:14px;
+  flex-wrap:wrap;
+  margin-bottom: 10px;
+}
+
+.tickets-controls{
+  display:flex;
+  gap:12px;
+  align-items:center;
+  flex-wrap:wrap;
+}
+
+.tickets-search input{
+  border-radius: 10px;
+  border: 1px solid var(--eqf-border);
+  padding: 7px 10px;
+  outline: none;
+  background:#fff;
+}
+
+.tickets-search input:focus{
+  border-color: var(--eqf-blue);
+  box-shadow: 0 0 0 2px rgba(20,55,138,0.12);
+}
+
+.tickets-grid{
+  display:grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+@media (max-width: 980px){
+  .tickets-grid{ grid-template-columns: 1fr; }
+}
+
+.ticket-card{
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(0,0,0,0.06);
+  border-radius: var(--radius-xl);
+  padding: 14px 16px;
+  box-shadow: 0 12px 24px rgba(15,23,42,0.08);
+  display:flex;
+  flex-direction:column;
+  gap: 12px;
+}
+
+.ticket-card__top{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap: 10px;
+}
+
+.ticket-id{
+  font-weight: 900;
+  color:#111827;
+}
+
+.ticket-date{
+  font-size: 12px;
+  color:#6b7280;
+}
+
+.ticket-card__body{
+  display:flex;
+  flex-direction:column;
+  gap: 8px;
+}
+
+.ticket-row{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap: 10px;
+}
+
+.ticket-label{
+  font-size: 12px;
+  font-weight: 800;
+  color:#6b7280;
+  min-width: 74px;
+}
+
+.ticket-value{
+  font-size: 13px;
+  font-weight: 700;
+  color:#111827;
+  text-align:right;
+  overflow:hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 70%;
+}
+
+.ticket-desc{
+  margin-top: 4px;
+  font-size: 13px;
+  color:#374151;
+  background: rgba(20,55,138,0.05);
+  border: 1px dashed rgba(20,55,138,0.18);
+  padding: 10px 12px;
+  border-radius: 16px;
+
+  overflow:hidden;
+  display:-webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.ticket-card__actions{
+  display:flex;
+  gap: 10px;
+  justify-content:flex-end;
+  flex-wrap:wrap;
+  margin-top:auto;
+}
+
+.tickets-empty{
+  grid-column: 1 / -1;
+  border: 1px dashed rgba(0,0,0,0.18);
+  border-radius: 18px;
+  padding: 16px 18px;
+  color:#6b7280;
+  background: rgba(255,255,255,0.96);
+  box-shadow: 0 12px 24px rgba(15,23,42,0.06);
+}

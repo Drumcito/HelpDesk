@@ -248,7 +248,6 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC) ?: [];
     <title>Panel de Analista | HELP DESK EQF</title>
 
     <link rel="stylesheet" href="/HelpDesk_EQF/assets/css/style.css?v=<?php echo time(); ?>">
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
 
     <style>
       .analyst-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;}
@@ -441,18 +440,21 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC) ?: [];
                 </div>
             </div>
 
-            <!-- MIS TICKETS PARA TI -->
-            <div class="user-info-card" id="my-ti-requests">
-              <h3>TICKETS DE APOYO</h3>
+<?php if (strtoupper($userArea) !== 'TI'): ?>
+    <!-- MIS TICKETS PARA TI -->
+    <div class="user-info-card" id="my-ti-requests">
+      <h3>TICKETS DE APOYO</h3>
 
-              <?php if (empty($myToTI)): ?>
-                <p style="opacity:.8;">No tienes solicitudes activas a TI ni encuestas pendientes.</p>
-              <?php else: ?>
-                <div id="myTiListWrap">
-                  <p style="opacity:.8;">Cargando…</p>
-                </div>
-              <?php endif; ?>
-            </div>
+      <?php if (empty($myToTI)): ?>
+        <p style="opacity:.8;">No tienes solicitudes activas a TI ni encuestas pendientes.</p>
+      <?php else: ?>
+        <div id="myTiListWrap">
+          <p style="opacity:.8;">Cargando…</p>
+        </div>
+      <?php endif; ?>
+    </div>
+<?php endif; ?>
+
 
             <!-- MODAL ENCUESTA -->
             <div class="modal-backdrop" id="feedback-modal" style="display:none;">
@@ -469,137 +471,171 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC) ?: [];
               </div>
             </div>
 
-            <!-- ENTRANTES -->
-            <div id="incoming-section" class="user-info-card">
-                <h3>Tickets entrantes</h3>
+            <!-- ENTRANTES (CARDS) -->
+<div id="incoming-section" class="user-info-card">
+  <div class="tickets-head">
+    <h3>Tickets entrantes</h3>
 
-                <table id="incomingTable" class="data-table display">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Fecha</th>
-                            <th>Usuario</th>
-                            <th>Problema</th>
-                            <th>Prioridad</th>
-                            <th>Descripción</th>
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($incomingTickets as $t): ?>
-                            <tr data-ticket-id="<?php echo (int)$t['id']; ?>">
-                                <td><?php echo (int)$t['id']; ?></td>
-                                <td><?php echo h($t['fecha_envio'] ?? ''); ?></td>
-                                <td><?php echo h($t['nombre'] ?? ''); ?></td>
-                                <td><?php echo h($t['problema_label'] ?? ''); ?></td>
-                                <td>
-                                    <?php $prio = strtolower((string)($t['prioridad'] ?? 'media')); ?>
-                                    <span class="priority-pill priority-<?php echo h($prio); ?>">
-                                        <?php echo h(prioridadLabel((string)($t['prioridad'] ?? 'media'))); ?>
-                                    </span>
-                                </td>
-                                <td><?php echo h($t['descripcion'] ?? ''); ?></td>
-                                <td>
-                                  <div class="analyst-actions">
-                                    <button type="button"
-                                            class="btn-mini"
-                                            onclick="openTicketDetail(<?php echo (int)$t['id']; ?>)">
-                                      Previsualizar
-                                    </button>
+    <div class="tickets-controls">
+      <label class="tickets-search">
+        Search:
+        <input id="incomingSearch" type="search" placeholder="">
+      </label>
+    </div>
+  </div>
 
-                                    <button type="button"
-                                            class="btn-mini primary btn-assign-ticket"
-                                            data-ticket-id="<?php echo (int)$t['id']; ?>">
-                                      Asignar
-                                    </button>
-                                  </div>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- MIS TICKETS -->
-            <div id="mytickets-section" class="user-info-card">
-                <h3>Mis tickets</h3>
-
-                <table id="myTicketsTable" class="data-table display analyst-tickets-table">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Fecha</th>
-                            <th>Usuario</th>
-                            <th>Problema</th>
-                            <th>Prioridad</th>
-                            <th>Estatus</th>
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($myTickets as $t): ?>
-                            <tr data-ticket-id="<?php echo (int)$t['id']; ?>">
-                                <td>#<?php echo (int)$t['id']; ?></td>
-                                <td><?php echo h($t['fecha_envio'] ?? ''); ?></td>
-                                <td><?php echo h($t['nombre'] ?? ''); ?></td>
-                                <td><?php echo h($t['problema_label'] ?? ''); ?></td>
-                                <td>
-                                    <?php $prio = strtolower((string)($t['prioridad'] ?? 'media')); ?>
-                                    <span class="priority-pill priority-<?php echo h($prio); ?>">
-                                        <?php echo h(prioridadLabel((string)($t['prioridad'] ?? 'media'))); ?>
-                                    </span>
-                                </td>
-                                <td>
-                                    <?php $estado = (string)($t['estado'] ?? 'abierto'); ?>
-
-<select
-    class="ticket-status-select status-<?php echo h($estado); ?>"
-    data-ticket-id="<?php echo (int)$t['id']; ?>"
-    data-prev="<?php echo h($estado); ?>"
->
-    <?php if (!empty($statusCatalog)): ?>
-        <?php foreach ($statusCatalog as $s): ?>
-            <?php
-              $code = (string)($s['code'] ?? '');
-              $name = (string)($s['label'] ?? $code);
-              if ($code === '') continue;
-            ?>
-            <option value="<?php echo h($code); ?>" <?php echo ($code === $estado) ? 'selected' : ''; ?>>
-              <?php echo h($name); ?>
-            </option>
-        <?php endforeach; ?>
+  <div id="incomingGrid" class="tickets-grid" data-empty="No hay tickets entrantes.">
+    <?php if (empty($incomingTickets)): ?>
+      <div class="tickets-empty">No hay tickets entrantes.</div>
     <?php else: ?>
-        <!-- fallback por si el catálogo falla -->
-        <option value="abierto" <?php echo ($estado==='abierto')?'selected':''; ?>>Abierto</option>
-        <option value="en_proceso" <?php echo ($estado==='en_proceso')?'selected':''; ?>>En proceso</option>
-        <option value="soporte" <?php echo ($estado==='soporte')?'selected':''; ?>>Soporte ViSo</option>
-        <option value="cerrado" <?php echo ($estado==='cerrado')?'selected':''; ?>>Cerrado</option>
-    <?php endif; ?>
-</select>
+      <?php foreach ($incomingTickets as $t): ?>
+        <?php
+          $id    = (int)$t['id'];
+          $fecha = (string)($t['fecha_envio'] ?? '');
+          $user  = (string)($t['nombre'] ?? '');
+          $prob  = (string)($t['problema_label'] ?? '');
+          $desc  = (string)($t['descripcion'] ?? '');
+          $prio  = strtolower((string)($t['prioridad'] ?? 'media'));
+        ?>
+        <article class="ticket-card js-ticket"
+                 data-ticket-id="<?php echo $id; ?>"
+                 data-search="<?php echo h(strtolower($id.' '.$fecha.' '.$user.' '.$prob.' '.$desc.' '.$prio)); ?>">
+          <header class="ticket-card__top">
+            <div class="ticket-id">#<?php echo $id; ?></div>
+            <div class="ticket-date"><?php echo h($fecha); ?></div>
+          </header>
 
-                                
-                                </td>
-                                <td>
-                                  <div class="analyst-actions">
-                                    <button type="button" class="btn-mini"
-                                            onclick="openTicketDetail(<?php echo (int)$t['id']; ?>)">
-                                      Ver
-                                    </button>
-
-                                    <button type="button"
-                                            class="btn-mini primary"
-                                            data-chat-btn
-                                            data-ticket-id="<?php echo (int)$t['id']; ?>"
-                                            onclick="openTicketChat(<?php echo (int)$t['id']; ?>,'<?php echo h($t['email'] ?? ''); ?>')">
-                                      Chat <span class="chat-badge" style="display:none;"></span>
-                                    </button>
-                                  </div>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
+          <div class="ticket-card__body">
+            <div class="ticket-row">
+              <span class="ticket-label">Usuario</span>
+              <span class="ticket-value"><?php echo h($user); ?></span>
             </div>
+
+            <div class="ticket-row">
+              <span class="ticket-label">Problema</span>
+              <span class="ticket-value"><?php echo h($prob); ?></span>
+            </div>
+
+            <div class="ticket-row">
+              <span class="ticket-label">Prioridad</span>
+              <span class="priority-pill priority-<?php echo h($prio); ?>">
+                <?php echo h(prioridadLabel((string)($t['prioridad'] ?? 'media'))); ?>
+              </span>
+            </div>
+
+            <div class="ticket-desc"><?php echo h($desc); ?></div>
+          </div>
+
+          <footer class="ticket-card__actions">
+            <button type="button" class="btn-mini" onclick="openTicketDetail(<?php echo $id; ?>)">Previsualizar</button>
+            <button type="button" class="btn-mini primary btn-assign-ticket" data-ticket-id="<?php echo $id; ?>">Asignar</button>
+          </footer>
+        </article>
+      <?php endforeach; ?>
+    <?php endif; ?>
+  </div>
+</div>
+
+
+            <!-- MIS TICKETS (CARDS) -->
+<div id="mytickets-section" class="user-info-card">
+  <div class="tickets-head">
+    <h3>Mis tickets</h3>
+
+    <div class="tickets-controls">
+      <label class="tickets-search">
+        Search:
+        <input id="mySearch" type="search" placeholder="">
+      </label>
+    </div>
+  </div>
+
+  <div id="myGrid" class="tickets-grid" data-empty="No tienes tickets asignados.">
+    <?php if (empty($myTickets)): ?>
+      <div class="tickets-empty">No tienes tickets asignados.</div>
+    <?php else: ?>
+      <?php foreach ($myTickets as $t): ?>
+        <?php
+          $id    = (int)$t['id'];
+          $fecha = (string)($t['fecha_envio'] ?? '');
+          $user  = (string)($t['nombre'] ?? '');
+          $prob  = (string)($t['problema_label'] ?? '');
+          $prio  = strtolower((string)($t['prioridad'] ?? 'media'));
+          $estado = (string)($t['estado'] ?? 'abierto');
+          $email = (string)($t['email'] ?? '');
+        ?>
+        <article class="ticket-card js-ticket"
+                 data-ticket-id="<?php echo $id; ?>"
+                 data-search="<?php echo h(strtolower($id.' '.$fecha.' '.$user.' '.$prob.' '.$prio.' '.$estado)); ?>">
+          <header class="ticket-card__top">
+            <div class="ticket-id">#<?php echo $id; ?></div>
+            <div class="ticket-date"><?php echo h($fecha); ?></div>
+          </header>
+
+          <div class="ticket-card__body">
+            <div class="ticket-row">
+              <span class="ticket-label">Usuario</span>
+              <span class="ticket-value"><?php echo h($user); ?></span>
+            </div>
+
+            <div class="ticket-row">
+              <span class="ticket-label">Problema</span>
+              <span class="ticket-value"><?php echo h($prob); ?></span>
+            </div>
+
+            <div class="ticket-row">
+              <span class="ticket-label">Prioridad</span>
+              <span class="priority-pill priority-<?php echo h($prio); ?>">
+                <?php echo h(prioridadLabel((string)($t['prioridad'] ?? 'media'))); ?>
+              </span>
+            </div>
+
+            <div class="ticket-row">
+              <span class="ticket-label">Estatus</span>
+
+              <select
+                class="ticket-status-select status-<?php echo h($estado); ?>"
+                data-ticket-id="<?php echo $id; ?>"
+                data-prev="<?php echo h($estado); ?>"
+              >
+                <?php if (!empty($statusCatalog)): ?>
+                  <?php foreach ($statusCatalog as $s): ?>
+                    <?php
+                      $code = (string)($s['code'] ?? '');
+                      $name = (string)($s['label'] ?? $code);
+                      if ($code === '') continue;
+                    ?>
+                    <option value="<?php echo h($code); ?>" <?php echo ($code === $estado) ? 'selected' : ''; ?>>
+                      <?php echo h($name); ?>
+                    </option>
+                  <?php endforeach; ?>
+                <?php else: ?>
+                  <option value="abierto" <?php echo ($estado==='abierto')?'selected':''; ?>>Abierto</option>
+                  <option value="en_proceso" <?php echo ($estado==='en_proceso')?'selected':''; ?>>En proceso</option>
+                  <option value="soporte" <?php echo ($estado==='soporte')?'selected':''; ?>>Soporte ViSo</option>
+                  <option value="cerrado" <?php echo ($estado==='cerrado')?'selected':''; ?>>Cerrado</option>
+                <?php endif; ?>
+              </select>
+            </div>
+          </div>
+
+          <footer class="ticket-card__actions">
+            <button type="button" class="btn-mini" onclick="openTicketDetail(<?php echo $id; ?>)">Ver</button>
+
+            <button type="button"
+                    class="btn-mini primary"
+                    data-chat-btn
+                    data-ticket-id="<?php echo $id; ?>"
+                    onclick="openTicketChat(<?php echo $id; ?>,'<?php echo h($email); ?>')">
+              Chat <span class="chat-badge" style="display:none;"></span>
+            </button>
+          </footer>
+        </article>
+      <?php endforeach; ?>
+    <?php endif; ?>
+  </div>
+</div>
+
 
         </section>
     </section>
@@ -617,8 +653,8 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC) ?: [];
         <div style="opacity:.8;">Cargando...</div>
       </div>
       <div class="modal-actions" style="margin-top:14px; display:flex; gap:10px; justify-content:flex-end;">
-        <button type="button" class="btn-secondary" id="ticketDetailChatBtn" style="display:none;">Abrir chat</button>
-        <button type="button" class="btn-main-combined" onclick="closeTicketDetail()">Cerrar</button>
+        <button type="button" class="btn-primary" id="ticketDetailChatBtn" style="display:none;">Abrir chat</button>
+        <button type="button" class="btn-secondary" onclick="closeTicketDetail()">Cerrar</button>
       </div>
     </div>
   </div>
@@ -763,7 +799,6 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC) ?: [];
 <?php include __DIR__ . '/../../../template/footer.php'; ?>
 
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
 
 <script>
 /**
@@ -1241,23 +1276,28 @@ function ticketChatEnterSend(e){
 <script>
 /**
  * ===============================
- *  DATA TABLES + ASIGNACIÓN + ESTADO + POLLING
+ *  CARDS + ASIGNACIÓN + ESTADO + POLLING
  * ===============================
  */
-let incomingDT = null;
-let myDT = null;
+const incomingGrid = document.getElementById('incomingGrid');
+const myGrid = document.getElementById('myGrid');
 
-function initOrGetTable(selector, options) {
-  if (!window.jQuery || !$.fn.dataTable || !$(selector).length) return null;
-  if ($.fn.dataTable.isDataTable(selector)) return $(selector).DataTable();
-  return $(selector).DataTable(options || {});
-}
+function setEmptyIfNeeded(grid){
+  if (!grid) return;
+  const emptyText = grid.getAttribute('data-empty') || 'Sin elementos.';
+  const hasCards = grid.querySelector('.js-ticket');
+  const existing = grid.querySelector('.tickets-empty');
 
-function bumpKpi(deltaAbiertos, deltaEnProceso){
-  const a = document.getElementById('kpiAbiertos');
-  const p = document.getElementById('kpiEnProceso');
-  if (a) a.textContent = Math.max(0, (parseInt(a.textContent || '0',10) + deltaAbiertos));
-  if (p) p.textContent = Math.max(0, (parseInt(p.textContent || '0',10) + deltaEnProceso));
+  if (!hasCards){
+    if (!existing){
+      const div = document.createElement('div');
+      div.className = 'tickets-empty';
+      div.textContent = emptyText;
+      grid.appendChild(div);
+    }
+  } else {
+    if (existing) existing.remove();
+  }
 }
 
 function renderPriorityPill(priorityRaw) {
@@ -1269,54 +1309,163 @@ function renderPriorityPill(priorityRaw) {
   return `<span class="priority-pill priority-${escapeHtml(p)}">${escapeHtml(label)}</span>`;
 }
 
-function addIncomingTicketRow(ticket) {
-  if (!ticket || !ticket.id) return;
+function cardSearchText(obj){
+  // arma string buscable (lower)
+  const parts = [];
+  for (const k in obj) parts.push(String(obj[k] ?? ''));
+  return parts.join(' ').toLowerCase();
+}
 
-  if (document.querySelector(`#incomingTable tbody tr[data-ticket-id="${ticket.id}"]`)) return;
+function buildIncomingCard(ticket){
+  const id = parseInt(ticket.id, 10);
+  const fecha = ticket.fecha || ticket.fecha_envio || '';
+  const usuario = ticket.usuario || ticket.nombre || '';
+  const problema = ticket.problema || ticket.problema_label || '';
+  const descripcion = ticket.descripcion || '';
+  const prio = (ticket.prioridad || 'media').toLowerCase();
 
-  const prioridadHtml = renderPriorityPill(ticket.prioridad || 'media');
+  const article = document.createElement('article');
+  article.className = 'ticket-card js-ticket';
+  article.setAttribute('data-ticket-id', String(id));
+  article.setAttribute('data-search', cardSearchText({id,fecha,usuario,problema,descripcion,prio}));
 
-    const actions = `
-    <div class="analyst-actions">
-      <button type="button" class="btn-mini" onclick="openTicketDetail(${ticket.id})">Ver</button>
-      <button type="button" class="btn-mini primary btn-assign-ticket" data-ticket-id="${ticket.id}">Asignar</button>
+  article.innerHTML = `
+    <header class="ticket-card__top">
+      <div class="ticket-id">#${escapeHtml(id)}</div>
+      <div class="ticket-date">${escapeHtml(fecha)}</div>
+    </header>
+
+    <div class="ticket-card__body">
+      <div class="ticket-row">
+        <span class="ticket-label">Usuario</span>
+        <span class="ticket-value">${escapeHtml(usuario)}</span>
+      </div>
+
+      <div class="ticket-row">
+        <span class="ticket-label">Problema</span>
+        <span class="ticket-value">${escapeHtml(problema)}</span>
+      </div>
+
+      <div class="ticket-row">
+        <span class="ticket-label">Prioridad</span>
+        ${renderPriorityPill(prio)}
+      </div>
+
+      <div class="ticket-desc">${escapeHtml(descripcion)}</div>
     </div>
+
+    <footer class="ticket-card__actions">
+      <button type="button" class="btn-mini" onclick="openTicketDetail(${escapeHtml(id)})">Previsualizar</button>
+      <button type="button" class="btn-mini primary btn-assign-ticket" data-ticket-id="${escapeHtml(id)}">Asignar</button>
+    </footer>
   `;
 
-  const rowData = [
-    ticket.id,
-    escapeHtml(ticket.fecha || ''),
-    escapeHtml(ticket.usuario || ''),
-    escapeHtml(ticket.problema || ''),
-    prioridadHtml,
-    escapeHtml(ticket.descripcion || ''),
-    actions
-  ];
+  return article;
+}
 
-  if (incomingDT) {
-    const node = incomingDT.row.add(rowData).draw(false).node();
-    if (node) node.setAttribute('data-ticket-id', String(ticket.id));
-  } else {
-    const tbody = document.querySelector('#incomingTable tbody');
-    if (!tbody) return;
+function buildMyCard(ticket){
+  const id = parseInt(ticket.id, 10);
+  const fecha = ticket.fecha_envio || ticket.fecha || '';
+  const usuario = ticket.usuario || ticket.nombre || '';
+  const problema = ticket.problema_label || ticket.problema || ticket.problema_raw || '';
+  const prio = (ticket.prioridad || 'media').toLowerCase();
+  const estado = ticket.estado || 'en_proceso';
+  const email = ticket.email || '';
 
-    const tr = document.createElement('tr');
-    tr.setAttribute('data-ticket-id', ticket.id);
-    tr.innerHTML = `
-      <td>${rowData[0]}</td>
-      <td>${rowData[1]}</td>
-      <td>${rowData[2]}</td>
-      <td>${rowData[3]}</td>
-      <td>${rowData[4]}</td>
-      <td>${rowData[5]}</td>
-      <td>${rowData[6]}</td>
-    `;
-    tbody.prepend(tr);
-  }
+  const statusSelect = buildStatusSelect(id, estado);
 
+  const article = document.createElement('article');
+  article.className = 'ticket-card js-ticket';
+  article.setAttribute('data-ticket-id', String(id));
+  article.setAttribute('data-search', cardSearchText({id,fecha,usuario,problema,prio,estado,email}));
+
+  article.innerHTML = `
+    <header class="ticket-card__top">
+      <div class="ticket-id">#${escapeHtml(id)}</div>
+      <div class="ticket-date">${escapeHtml(fecha)}</div>
+    </header>
+
+    <div class="ticket-card__body">
+      <div class="ticket-row">
+        <span class="ticket-label">Usuario</span>
+        <span class="ticket-value">${escapeHtml(usuario)}</span>
+      </div>
+
+      <div class="ticket-row">
+        <span class="ticket-label">Problema</span>
+        <span class="ticket-value">${escapeHtml(problema)}</span>
+      </div>
+
+      <div class="ticket-row">
+        <span class="ticket-label">Prioridad</span>
+        ${renderPriorityPill(prio)}
+      </div>
+
+      <div class="ticket-row">
+        <span class="ticket-label">Estatus</span>
+        ${statusSelect}
+      </div>
+    </div>
+
+    <footer class="ticket-card__actions">
+      <button type="button" class="btn-mini" onclick="openTicketDetail(${escapeHtml(id)})">Ver</button>
+
+      <button type="button"
+              class="btn-mini primary"
+              data-chat-btn
+              data-ticket-id="${escapeHtml(id)}"
+              onclick="openTicketChat(${escapeHtml(id)}, '${escapeHtml(email)}')">
+        Chat <span class="chat-badge" style="display:none;"></span>
+      </button>
+    </footer>
+  `;
+
+  return article;
+}
+
+function bumpKpi(deltaAbiertos, deltaEnProceso){
+  const a = document.getElementById('kpiAbiertos');
+  const p = document.getElementById('kpiEnProceso');
+  if (a) a.textContent = Math.max(0, (parseInt(a.textContent || '0',10) + deltaAbiertos));
+  if (p) p.textContent = Math.max(0, (parseInt(p.textContent || '0',10) + deltaEnProceso));
+}
+
+function addIncomingTicketCard(ticket) {
+  if (!incomingGrid || !ticket || !ticket.id) return;
+
+  const id = String(ticket.id);
+  if (incomingGrid.querySelector(`.js-ticket[data-ticket-id="${CSS.escape(id)}"]`)) return;
+
+  incomingGrid.prepend(buildIncomingCard(ticket));
+  setEmptyIfNeeded(incomingGrid);
   bumpKpi(+1, 0);
 }
 
+function removeIncomingCard(ticketId){
+  if (!incomingGrid) return;
+  const el = incomingGrid.querySelector(`.js-ticket[data-ticket-id="${CSS.escape(String(ticketId))}"]`);
+  if (el) el.remove();
+  setEmptyIfNeeded(incomingGrid);
+}
+
+function addMyTicketCard(ticket){
+  if (!myGrid || !ticket || !ticket.id) return;
+
+  const id = String(ticket.id);
+  if (myGrid.querySelector(`.js-ticket[data-ticket-id="${CSS.escape(id)}"]`)) return;
+
+  myGrid.prepend(buildMyCard(ticket));
+  setEmptyIfNeeded(myGrid);
+}
+
+function removeMyCard(ticketId){
+  if (!myGrid) return;
+  const el = myGrid.querySelector(`.js-ticket[data-ticket-id="${CSS.escape(String(ticketId))}"]`);
+  if (el) el.remove();
+  setEmptyIfNeeded(myGrid);
+}
+
+/* ===== POLLS ===== */
 let lastTicketId = <?php echo (int)$maxIncomingId; ?>;
 
 function showDesktopNotification(ticket) {
@@ -1340,17 +1489,18 @@ function pollNewTickets() {
       showTicketToast('Nuevo ticket #' + data.id + ' – ' + (data.problema || ''));
       showDesktopNotification(data);
 
-      addIncomingTicketRow(data);
+      addIncomingTicketCard(data);
     })
     .catch(err => console.error('Error comprobando nuevos tickets:', err));
 }
 
 function cleanupIncomingTaken() {
-  const rows = document.querySelectorAll('#incomingTable tbody tr[data-ticket-id]');
-  if (!rows.length) return;
+  if (!incomingGrid) return;
 
-  const ids = [];
-  rows.forEach(r => ids.push(r.getAttribute('data-ticket-id')));
+  const cards = Array.from(incomingGrid.querySelectorAll('.js-ticket[data-ticket-id]'));
+  if (!cards.length) return;
+
+  const ids = cards.map(c => c.getAttribute('data-ticket-id')).filter(Boolean);
 
   fetch('/HelpDesk_EQF/modules/ticket/incoming_snapshot.php', {
     method: 'POST',
@@ -1362,13 +1512,12 @@ function cleanupIncomingTaken() {
     if (!data.ok) return;
     const still = new Set((data.available_ids || []).map(x => String(x)));
 
-    rows.forEach(r => {
-      const id = r.getAttribute('data-ticket-id');
-      if (!still.has(String(id))) {
-        if (incomingDT) incomingDT.row($(r)).remove().draw(false);
-        else r.remove();
-      }
+    cards.forEach(c => {
+      const id = c.getAttribute('data-ticket-id');
+      if (id && !still.has(String(id))) c.remove();
     });
+
+    setEmptyIfNeeded(incomingGrid);
   })
   .catch(()=>{});
 }
@@ -1404,7 +1553,7 @@ function pollStaffUnread(){
     .catch(()=>{});
 }
 
-// Eventos (status change / assign) delegados
+/* ===== EVENTOS (delegados) ===== */
 document.addEventListener('change', function (e) {
   const select = e.target.closest('.ticket-status-select');
   if (!select) return;
@@ -1412,7 +1561,6 @@ document.addEventListener('change', function (e) {
   const ticketId    = select.dataset.ticketId;
   const nuevoEstado = select.value;
   const prevEstado  = select.dataset.prev || 'abierto';
-  const rowEl       = select.closest('tr');
 
   fetch('/HelpDesk_EQF/modules/ticket/update_status.php', {
     method: 'POST',
@@ -1429,33 +1577,23 @@ document.addEventListener('change', function (e) {
 
     select.dataset.prev = nuevoEstado;
     select.className = 'ticket-status-select status-' + nuevoEstado;
-// si el ticket se cierra, se elimina de "MIS TICKETS"
-if (nuevoEstado === 'cerrado' ) {
-      if (rowEl) {
-        if (myDT) myDT.row($(rowEl)).remove().draw(false);
-        else rowEl.remove();
-      }
+
+    // si se cierra, quita de MIS
+    if (nuevoEstado === 'cerrado') {
+      removeMyCard(ticketId);
       return;
     }
-if (data.released === 1){
-  // Quitar de "Mis tickets"
-  if (rowEl) {
-    if (myDT) myDT.row($(rowEl)).remove().draw(false);
-    else rowEl.remove();
-  }
 
-  // Agregar a "Tickets entrantes" inmediatamente
-  if (data.incoming_ticket) {
-    addIncomingTicketRow(data.incoming_ticket);
-  }
+    // liberado -> se va a entrantes
+    if (data.released === 1){
+      removeMyCard(ticketId);
 
-  // KPIs: en_proceso--, abiertos++
-  bumpKpi(+1, -1);
+      if (data.incoming_ticket) addIncomingTicketCard(data.incoming_ticket);
 
-  showTicketToast('Ticket #' + ticketId + ' liberado y enviado a entrantes.');
-  return;
-}
-
+      bumpKpi(+1, -1);
+      showTicketToast('Ticket #' + ticketId + ' liberado y enviado a entrantes.');
+      return;
+    }
   })
   .catch(err => {
     console.error(err);
@@ -1468,9 +1606,8 @@ document.addEventListener('click', function (e) {
   const btn = e.target.closest('.btn-assign-ticket');
   if (!btn) return;
 
-  const rowEl = btn.closest('tr');
-  const ticketId = btn.dataset.ticketId || (rowEl && rowEl.getAttribute('data-ticket-id'));
-  if (!ticketId || !rowEl) return;
+  const ticketId = btn.dataset.ticketId;
+  if (!ticketId) return;
 
   btn.disabled = true;
   const original = btn.textContent;
@@ -1490,64 +1627,23 @@ document.addEventListener('click', function (e) {
       return;
     }
 
-    // quitar de incoming
-    if (incomingDT) incomingDT.row($(rowEl)).remove().draw(false);
-    else rowEl.remove();
+    // quita de incoming
+    removeIncomingCard(ticketId);
 
     const t = data.ticket || {};
     const id = t.id || ticketId;
-    const fecha = t.fecha_envio || '';
-    const usuario = t.usuario || '';
-    const problema = (t.problema_label || t.problema_raw || '');
 
-    const prioridadRaw = (t.prioridad || 'media').toLowerCase();
-    const priorityHtml = renderPriorityPill(prioridadRaw);
-
-    const statusSelect = buildStatusSelect(id, 'en_proceso');
-
-
-    const actions = `
-      <div class="analyst-actions">
-        <button type="button" class="btn-mini" onclick="openTicketDetail(${escapeHtml(id)})">Ver</button>
-        <button type="button"
-                class="btn-mini primary"
-                data-chat-btn
-                data-ticket-id="${escapeHtml(id)}"
-                onclick="openTicketChat(${escapeHtml(id)}, '${escapeHtml(usuario)}')">
-          Chat <span class="chat-badge" style="display:none;"></span>
-        </button>
-      </div>
-    `;
-
-    const rowData = [
-      `#${escapeHtml(id)}`,
-      escapeHtml(fecha),
-      escapeHtml(usuario),
-      escapeHtml(problema),
-      priorityHtml,
-      statusSelect,
-      actions
-    ];
-
-    if (myDT) {
-      myDT.row.add(rowData).draw(false);
-    } else {
-      const tbody = document.querySelector('#myTicketsTable tbody');
-      if (tbody) {
-        const tr = document.createElement('tr');
-        tr.setAttribute('data-ticket-id', id);
-        tr.innerHTML = `
-          <td>#${escapeHtml(id)}</td>
-          <td>${escapeHtml(fecha)}</td>
-          <td>${escapeHtml(usuario)}</td>
-          <td>${escapeHtml(problema)}</td>
-          <td>${priorityHtml}</td>
-          <td>${statusSelect}</td>
-          <td>${actions}</td>
-        `;
-        tbody.prepend(tr);
-      }
-    }
+    // crea en MIS
+    addMyTicketCard({
+      id,
+      fecha_envio: t.fecha_envio || '',
+      usuario: t.usuario || '',
+      nombre: t.usuario || '',
+      email: t.email || '',
+      problema_label: (t.problema_label || t.problema_raw || ''),
+      prioridad: (t.prioridad || 'media'),
+      estado: 'en_proceso'
+    });
 
     bumpKpi(-1, +1);
     showTicketToast('Ticket #' + id + ' asignado a ti.');
@@ -1562,32 +1658,39 @@ document.addEventListener('click', function (e) {
   });
 });
 
-// Init principal
+/* ===== SEARCH local (cards) ===== */
+function wireSearch(inputId, gridId){
+  const input = document.getElementById(inputId);
+  const grid = document.getElementById(gridId);
+  if (!input || !grid) return;
+
+  input.addEventListener('input', () => {
+    const q = (input.value || '').trim().toLowerCase();
+    grid.querySelectorAll('.js-ticket').forEach(card => {
+      const hay = (card.getAttribute('data-search') || '');
+      card.style.display = (!q || hay.includes(q)) ? '' : 'none';
+    });
+  });
+}
+
+/* ===== init ===== */
 document.addEventListener('DOMContentLoaded', function () {
-  incomingDT = initOrGetTable('#incomingTable', { pageLength: 5, order: [[1, 'asc']] });
-  myDT       = initOrGetTable('#myTicketsTable', { pageLength: 5, order: [[1, 'desc']] });
+  setEmptyIfNeeded(incomingGrid);
+  setEmptyIfNeeded(myGrid);
+
+  wireSearch('incomingSearch', 'incomingGrid');
+  wireSearch('mySearch', 'myGrid');
 
   if ('Notification' in window && Notification.permission === 'default') {
     Notification.requestPermission();
   }
 
-  // Polls (ya sin duplicidad)
   every(7000, pollStaffUnread);
   every(10000, pollNewTickets);
   every(10000, cleanupIncomingTaken);
 });
 </script>
 
-<script>
-window.CURRENT_USER = {
-  id: <?php echo (int)$_SESSION['user_id']; ?>,
-  email: <?php echo json_encode($_SESSION['user_email'] ?? ''); ?>,
-  sap: <?php echo json_encode($_SESSION['number_sap'] ?? ''); ?>,
-  name: <?php echo json_encode($_SESSION['user_name'] ?? ''); ?>,
-  last_name: <?php echo json_encode($_SESSION['user_last'] ?? ''); ?>,
-  area: <?php echo json_encode($_SESSION['user_area'] ?? ''); ?>
-};
-</script>
 
 <script>
 /**

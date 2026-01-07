@@ -199,7 +199,7 @@ onclick="toggleSidebar()" aria-label="Abrir/cerrar menú">
     </button>
 
     <button type="button" class="user-menu-item"
-            onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/admin/tasks.php'">
+            onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/tasks/admin.php'">
         <span class="user-menu-icon">📒</span>
         <span>Tareas</span>
     </button>
@@ -251,7 +251,7 @@ onclick="toggleSidebar()" aria-label="Abrir/cerrar menú">
                 <span>Notas</span>
             </button>
             <button type="button" class="user-menu-item" 
-                onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/analyst/tasks.php'">
+                onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/tasks/analyst.php'">
                 <span class="user-menu-icon">📋</span>
                 <span>Tareas</span>
             </button>

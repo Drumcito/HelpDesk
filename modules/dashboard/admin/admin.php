@@ -79,86 +79,6 @@ if (!function_exists('annLabel')) {
   }
 }
 
-// =============================
-// 1) Crear tarea (prioridad ALTA) para analista
-// =============================
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['accion'] ?? '') === 'crear_tarea') {
-    $analystId   = (int)($_POST['analyst_id'] ?? 0);
-    $titulo      = trim($_POST['titulo'] ?? '');
-    $descripcion = trim($_POST['descripcion'] ?? '');
-    $fechaLimite = $_POST['fecha_limite'] ?? null;
-
-    $fechaLimiteDB = null;
-    if (!empty($fechaLimite)) {
-        $fechaLimiteDB = str_replace('T', ' ', $fechaLimite) . ':00';
-    }
-
-    // Archivo opcional
-    $archivoRuta = null;
-    if (!empty($_FILES['archivo_tarea']['name'])) {
-        $uploadDir = __DIR__ . '/../../../uploads/tasks/';
-        if (!is_dir($uploadDir)) {
-            mkdir($uploadDir, 0775, true);
-        }
-
-        $nombreOriginal = $_FILES['archivo_tarea']['name'];
-        $ext            = pathinfo($nombreOriginal, PATHINFO_EXTENSION);
-        $nombreSeguro   = uniqid('tarea_') . '.' . $ext;
-        $destino        = $uploadDir . $nombreSeguro;
-
-        if (move_uploaded_file($_FILES['archivo_tarea']['tmp_name'], $destino)) {
-            $archivoRuta = 'uploads/tasks/' . $nombreSeguro;
-        }
-    }
-
-    if ($analystId > 0 && $titulo !== '') {
-        $stmt = $pdo->prepare("
-            INSERT INTO analyst_tasks (
-                area, admin_id, analyst_id,
-                titulo, descripcion, fecha_limite, archivo_ruta
-            ) VALUES (
-                :area, :admin_id, :analyst_id,
-                :titulo, :descripcion, :fecha_limite, :archivo_ruta
-            )
-        ");
-        $stmt->execute([
-            ':area'         => $areaAdmin,
-            ':admin_id'     => $userId,
-            ':analyst_id'   => $analystId,
-            ':titulo'       => $titulo,
-            ':descripcion'  => $descripcion,
-            ':fecha_limite' => $fechaLimiteDB,
-            ':archivo_ruta' => $archivoRuta,
-        ]);
-
-        // (Opcional) Notificación al analista si ya tienes tabla notifications
-        // $pdo->prepare("INSERT INTO notifications (user_id,type,title,body,link) VALUES (?,?,?,?,?)")
-        //     ->execute([$analystId,'task_assigned','Nueva tarea asignada',$titulo,'/HelpDesk_EQF/modules/dashboard/analyst/tasks.php']);
-
-$_SESSION['flash_ok'] = "Tarea creada (prioridad alta) y asignada al analista.";
-header('Location: /HelpDesk_EQF/modules/dashboard/admin/admin.php');
-exit;
-    } else {
-$_SESSION['flash_err'] = "Selecciona un analista y escribe un título.";
-header('Location: /HelpDesk_EQF/modules/dashboard/admin/admin.php');
-exit;
-    }
-}
-
-
-
-// =============================
-// 2) Analistas del área (select tareas)
-// =============================
-$stmtAnalysts = $pdo->prepare("
-    SELECT id, name, last_name
-    FROM users
-    WHERE rol = 3
-      AND area = :area
-    ORDER BY last_name ASC, name ASC
-");
-$stmtAnalysts->execute([':area' => $areaAdmin]);
-$analysts = $stmtAnalysts->fetchAll(PDO::FETCH_ASSOC);
 
 // =============================
 // 3) KPIs del área (cards)
@@ -235,23 +155,6 @@ try {
     // si no existen columnas todavía, ignoramos
 }
 
-// =============================
-// 4) Últimas tareas creadas por este Admin
-// =============================
-$stmtTareas = $pdo->prepare("
-    SELECT t.*, u.name, u.last_name
-    FROM analyst_tasks t
-    JOIN users u ON u.id = t.analyst_id
-    WHERE t.area = :area
-      AND t.admin_id = :admin_id
-    ORDER BY t.created_at DESC
-    LIMIT 8
-");
-$stmtTareas->execute([
-    ':area'     => $areaAdmin,
-    ':admin_id' => $userId
-]);
-$tareas = $stmtTareas->fetchAll(PDO::FETCH_ASSOC);
 
 // =============================
 // 5) Resumen rápido de tickets del área
@@ -408,99 +311,6 @@ include __DIR__ . '/../../../template/sidebar.php';
                 </a>
             </section>
 
-        <section class="button">
-          <button type="button" class="btn-primary" onclick="openTaskModal () " style="width: 150px; height: 40px;">+ Crear tarea</button>
-        </section>
-<div class="user-modal-backdrop" id="taskModal" style="display:none;">
-  <div class="user-modal">
-    <header class="user-modal-header">
-      <h2>Crear tarea </h2>
-      <button type="button" class="user-modal-close" onclick="closeTaskModal()">✕</button>
-    </header>
-
-    <form method="POST" enctype="multipart/form-data" class="admin-task-form">
-      <input type="hidden" name="accion" value="crear_tarea">
-
-      <div class="form-group">
-        <label for="analyst_id">Asignar a analista</label>
-        <select name="analyst_id" id="analyst_id" required>
-          <option value="">Selecciona un analista
-                <?php foreach ($analysts as $a): ?>
-                <option value="<?php echo (int)$a['id']; ?>">
-                <?php echo htmlspecialchars($a['name'] . ' ' . $a['last_name'], ENT_QUOTES, 'UTF-8'); ?>
-          </option>
-            <?php endforeach; ?>
-        </select>
-      </div>
-
-      <div class="form-group">
-        <label for="titulo">Título</label>
-        <input type="text" name="titulo" id="titulo" required maxlength="150">
-      </div>
-
-      <div class="form-group">
-        <label for="descripcion">Descripción</label><br>
-        <textarea name="descripcion" id="descripcion" rows="3"></textarea>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label for="fecha_limite">Fecha límite</label>
-          <input type="datetime-local" name="fecha_limite" id="fecha_limite">
-        </div>
-        <div class="form-group">
-          <label for="archivo_tarea">Adjunto</label>
-          <input type="file" name="archivo_tarea" id="archivo_tarea">
-        </div>
-      </div>
-
-      <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:12px;">
-        <button type="button" class="btn-secondary" onclick="closeTaskModal()">Cancelar</button>
-        <button type="submit" class="btn-primary">Crear</button>
-      </div>
-    </form>
-  </div>
-</div>
-
-
-            <!-- Tareas recientes -->
-            <section class="admin-card">
-                <h2>Tareas activas</h2>
-                <?php if (empty($tareas)): ?>
-                    <p class="admin-empty">No has creado tareas todavía.</p>
-                <?php else: ?>
-                    <div class="admin-task-list">
-                        <?php foreach ($tareas as $t): ?>
-                            <article class="admin-task-card">
-                                <header class="admin-task-header">
-                                    <h3><?php echo htmlspecialchars($t['titulo'], ENT_QUOTES, 'UTF-8'); ?></h3>
-                                    <span class="badge badge-prioridad-alta">Alta</span>
-                                </header>
-
-                                <p class="admin-task-meta">
-                                    Para: <?php echo htmlspecialchars($t['name'] . ' ' . $t['last_name'], ENT_QUOTES, 'UTF-8'); ?>
-                                    · Estado: <?php echo htmlspecialchars($t['estado'] ?? 'pendiente', ENT_QUOTES, 'UTF-8'); ?>
-                                </p>
-
-                                <?php if (!empty($t['fecha_limite'])): ?>
-                                    <p class="admin-task-meta">Fecha límite: <?php echo htmlspecialchars($t['fecha_limite'], ENT_QUOTES, 'UTF-8'); ?></p>
-                                <?php endif; ?>
-
-                                <?php if (!empty($t['descripcion'])): ?>
-                                    <p class="admin-task-desc"><?php echo nl2br(htmlspecialchars($t['descripcion'], ENT_QUOTES, 'UTF-8')); ?></p>
-                                <?php endif; ?>
-
-                                <?php if (!empty($t['archivo_ruta'])): ?>
-                                    <p class="admin-task-meta">
-                                        <a href="/HelpDesk_EQF/<?php echo htmlspecialchars($t['archivo_ruta'], ENT_QUOTES, 'UTF-8'); ?>" target="_blank">Ver archivo adjunto</a>
-                                    </p>
-                                <?php endif; ?>
-                            </article>
-                        <?php endforeach; ?>
-                    </div>
-                <?php endif; ?>
-            </section>
-
             <!-- Tickets recientes -->
             <section class="admin-card">
                 <h2>Tickets en proceso</h2>
@@ -613,20 +423,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 </body>
 </html>
-<script>
-function openTaskModal(){
-  document.getElementById('taskModal').style.display = 'flex';
-}
-function closeTaskModal(){
-  document.getElementById('taskModal').style.display = 'none';
-}
-// cerrar si das click fuera
-document.addEventListener('click', function(e){
-  const backdrop = document.getElementById('taskModal');
-  if(!backdrop) return;
-  if(e.target === backdrop) closeTaskModal();
-});
-</script>
+
 <script>
 document.addEventListener('DOMContentLoaded', function () {
 
