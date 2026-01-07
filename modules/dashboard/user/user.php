@@ -522,7 +522,8 @@ Debes responderlas antes de crear un nuevo ticket.
 
             <div class="form-group form-group-full">
                 <label>Descripción</label>
-                <textarea name="descripcion" rows="3" placeholder="Describe el problema" required></textarea>
+<textarea id="ticketDesc" name="descripcion" rows="3" placeholder="Describe el problema" required
+          onkeydown="ticketFormEnterSubmit(event)"></textarea>
             </div>
 
             <div class="form-group form-group-full" id="adjuntoContainer">
@@ -552,7 +553,8 @@ Debes responderlas antes de crear un nuevo ticket.
         <div class="ticket-chat-body" id="ticketChatBody"></div>
 
         <form class="ticket-chat-form" onsubmit="sendTicketMessage(event)">
-            <textarea id="ticketChatInput" rows="2" placeholder="Escribe tu mensaje..." style="width:100%"></textarea>
+<textarea id="ticketChatInput" rows="2" placeholder="Escribe tu mensaje..." style="width:100%"
+  onkeydown="ticketChatEnterSend(event)"></textarea>
 
             <div class="ticket-chat-input-row">
                 <input type="file"
@@ -595,6 +597,27 @@ function openTicketModal() {
 function closeTicketModal() {
     document.getElementById('ticketModal').classList.remove('is-visible');
 }
+
+function ticketFormEnterSubmit(e){
+  // Enter envía, Shift+Enter hace salto de línea
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+
+    const form = document.getElementById('ticketForm');
+    if (!form) return;
+
+    // valida requireds del form (selects/textarea/etc)
+    if (!form.checkValidity()) {
+      // muestra los mensajes nativos del navegador
+      form.reportValidity();
+      return;
+    }
+
+    // dispara submit como si presionaras el botón
+    form.requestSubmit(); // respeta validaciones y handler submit si tienes
+  }
+}
+
 </script>
 
 <script>
@@ -704,7 +727,15 @@ function appendChatMessage(msg) {
 
     const meta = document.createElement('span');
     meta.className = 'ticket-chat-meta';
-    meta.textContent = (msg.sender_role ? msg.sender_role + ' · ' : '') + (msg.created_at || '');
+
+const who = isMine
+  ? 'Tú'
+  : ((msg.sender_name && String(msg.sender_name).trim())
+      ? String(msg.sender_name).trim()
+      : (msg.sender_role || ''));
+
+meta.textContent = who + ' · ' + (msg.created_at || '');
+
     div.appendChild(meta);
 
     bodyEl.appendChild(div);
@@ -770,6 +801,15 @@ function sendTicketMessage(ev) {
             alert('Error al enviar el mensaje');
         });
 }
+
+function ticketChatEnterSend(e){
+  // Enter envía, Shift+Enter hace salto de línea
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendTicketMessage(e);
+  }
+}
+
 </script>
 
 <script>

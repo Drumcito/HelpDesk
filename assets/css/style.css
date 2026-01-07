@@ -1539,6 +1539,20 @@ footer {
     display: block;
 }
 
+#ticketChatMessages{
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+}
+
+/* opcional: para que el bloque transferido no “estire” raro */
+#ticketTransferBox{
+  align-self: stretch;
+}
+
+
+
 /* -----------------------------------
         CAMBIOS DE STATUS SELECT 
 ------------------------------------*/
@@ -2143,6 +2157,39 @@ table.dataTable tbody tr:hover {
   }
 }
 
+/* Contenedor de transfer NO debe heredar estilos de burbujas */
+#ticketTransferBox .ticket-transfer-block,
+#ticketTransferBox .ticket-transfer-msg,
+#ticketTransferBox .ticket-transfer-messages {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* El bloque como tarjeta */
+.ticket-transfer-block{
+  background:#f8fafc;
+  border:1px solid #e5e7eb;
+  border-left:5px solid var(--eqf-combined);
+  border-radius:12px;
+  padding:12px 14px;
+  margin:10px 0 14px 0;
+}
+
+/* Cada línea del historial (texto plano) */
+.ticket-transfer-msg{
+  padding:8px 0;
+  border-top:1px dashed #e2e8f0;
+  font-size:13px;
+  line-height:1.35;
+}
+.ticket-transfer-msg:first-child{ border-top:none; }
+
+.ticket-transfer-msg-text{
+  white-space: pre-wrap; /* respeta saltos de línea */
+}
+
+
+
 .chat-transfer-block{
   border: 1px dashed rgba(0,0,0,.18);
   background: rgba(120,120,120,.08);
@@ -2716,23 +2763,23 @@ table.dataTable tbody tr:hover {
 .ticket-mi {
   display: inline-flex;
   align-items: center;
-  gap: 4px;           /* más junto */
-  padding-top: 22px; /* conserva tu espaciado */
+  gap: 4px;          
+  padding-top: 22px; 
 }
 
 .ticket-mi input[type="checkbox"] {
-  margin: 0;          /* elimina márgenes raros del navegador */
+  margin: 0;        
 }
 
 .ticket-mi label {
   margin: 0;
-  line-height: 1;     /* evita que se vea “caído” */
+  line-height: 1;    
   cursor: pointer;
 }
 .ticket-mi-label {
   display: inline-flex;
   align-items: center;
-  gap: 4px;           /* juntitos */
+  gap: 4px;           
   cursor: pointer;
 }
 

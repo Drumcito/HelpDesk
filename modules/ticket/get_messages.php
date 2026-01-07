@@ -68,12 +68,29 @@ if ($userId === $ticketUserId) {
 
     // Usuario final (rol 4) NO ve mensajes internos
     $hideInternal = ($rol === 4);
+// ---------------------------------------------------------
+// Evitar duplicado: si el ticket fue transferido, ocultar mensajes
+// anteriores a la última transferencia (ya se muestran en Historial transferido)
+// ---------------------------------------------------------
+$sinceTransferAt = null;
+
+$stmtLastTr = $pdo->prepare("
+    SELECT created_at
+    FROM ticket_transfers
+    WHERE ticket_id = :tid
+    ORDER BY created_at DESC
+    LIMIT 1
+");
+$stmtLastTr->execute([':tid' => $ticketId]);
+$sinceTransferAt = $stmtLastTr->fetchColumn();
+if (!$sinceTransferAt) $sinceTransferAt = null;
 
     $sql = "
         SELECT 
             m.id,
             m.sender_id,
             m.sender_role,
+            COALESCE(u.name,'') AS sender_name,
             m.mensaje,
             m.is_internal,
             m.created_at,
@@ -81,11 +98,18 @@ if ($userId === $ticketUserId) {
             f.file_path,
             f.file_type
         FROM ticket_messages m
+        LEFT JOIN users u
+            ON u.id = m.sender_id
         LEFT JOIN ticket_message_files f
                ON f.message_id = m.id
         WHERE m.ticket_id = :ticket_id
           AND m.id > :last_id
     ";
+
+if ($sinceTransferAt) {
+    $sql .= " AND m.created_at >= :since_transfer ";
+}
+
 
     if ($hideInternal) {
         $sql .= " AND (m.is_internal = 0 OR m.is_internal IS NULL) ";
@@ -94,10 +118,18 @@ if ($userId === $ticketUserId) {
     $sql .= " ORDER BY m.id ASC";
 
     $stmtMsg = $pdo->prepare($sql);
-    $stmtMsg->execute([
-        ':ticket_id' => $ticketId,
-        ':last_id'   => $lastId
-    ]);
+
+$params = [
+    ':ticket_id' => $ticketId,
+    ':last_id'   => $lastId
+];
+
+if ($sinceTransferAt) {
+    $params[':since_transfer'] = $sinceTransferAt;
+}
+
+$stmtMsg->execute($params);
+
 
     $rows = $stmtMsg->fetchAll(PDO::FETCH_ASSOC);
 

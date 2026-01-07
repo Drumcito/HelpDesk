@@ -590,7 +590,7 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC) ?: [];
                                             class="btn-mini primary"
                                             data-chat-btn
                                             data-ticket-id="<?php echo (int)$t['id']; ?>"
-                                            onclick="openTicketChat(<?php echo (int)$t['id']; ?>,'<?php echo h($t['nombre'] ?? ''); ?>')">
+                                            onclick="openTicketChat(<?php echo (int)$t['id']; ?>,'<?php echo h($t['email'] ?? ''); ?>')">
                                       Chat <span class="chat-badge" style="display:none;"></span>
                                     </button>
                                   </div>
@@ -632,17 +632,20 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC) ?: [];
             <button type="button" class="modal-close" onclick="closeTicketChat()">✕</button>
         </div>
 
-        <div class="ticket-chat-body" id="ticketChatBody"></div>
+        <div class="ticket-chat-body" id="ticketChatBody">
+          <div id="ticketTransferBox"></div>
+  <div id="ticketChatMessages"></div>
+</div>
 
         <form class="ticket-chat-form" onsubmit="sendTicketMessage(event)">
             <div class="ticket-chat-internal-row" style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
               <input type="checkbox" id="ticketChatInternal" value="1">
               <label for="ticketChatInternal" style="font-size:13px; opacity:.85;">
-                Nota interna (solo equipo)
-              </label>
+                Nota               </label>
             </div>
 
-            <textarea id="ticketChatInput" rows="2" placeholder="Escribe tu mensaje..." style="width:100%"></textarea>
+<textarea id="ticketChatInput" rows="2" placeholder="Escribe tu mensaje..." style="width:100%"
+  onkeydown="ticketChatEnterSend(event)"></textarea>
             <div class="ticket-chat-input-row">
                 <input type="file" id="ticketChatFile" name="adjunto" class="ticket-chat-file"
                        accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,.csv" style="width:100%">
@@ -741,7 +744,7 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC) ?: [];
             name="descripcion"
             rows="4"
             required
-            placeholder="Describe el problema. Incluye sucursal/equipo, mensaje de error y qué intentaron."
+            placeholder="Describe el problema, mensaje de error y qué intentaron."
           ></textarea>
         </div>
 
@@ -769,6 +772,9 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC) ?: [];
  * ===============================
  */
 const CURRENT_USER_ID = <?php echo (int)($_SESSION['user_id'] ?? 0); ?>;
+
+window.CURRENT_USER_ID = CURRENT_USER_ID;
+window.CURRENT_USER_ROLE = <?php echo (int)($_SESSION['user_rol'] ?? 0); ?>;
 
 const STATUS_CATALOG = <?php echo json_encode($statusCatalog, JSON_UNESCAPED_UNICODE); ?>;
 
@@ -953,7 +959,13 @@ function openTicketChat(ticketId, tituloExtra) {
   if (titleEl) titleEl.textContent = 'Chat del ticket #' + ticketId + (tituloExtra ? ' – ' + tituloExtra : '');
 
   const bodyEl = document.getElementById('ticketChatBody');
-  if (bodyEl) bodyEl.innerHTML = '';
+if (bodyEl) bodyEl.scrollTop = 0;
+
+const trBox = document.getElementById('ticketTransferBox');
+const msgBox = document.getElementById('ticketChatMessages');
+if (trBox) trBox.innerHTML = '';
+if (msgBox) msgBox.innerHTML = '';
+
 
   const modal = document.getElementById('ticket-chat-modal');
   if (typeof openModal === 'function') openModal('ticket-chat-modal');
@@ -994,7 +1006,7 @@ function closeTicketChat() {
 }
 
 function appendChatMessage(msg) {
-  const bodyEl = document.getElementById('ticketChatBody');
+const bodyEl = document.getElementById('ticketChatMessages');
   if (!bodyEl) return;
 
   const div = document.createElement('div');
@@ -1010,8 +1022,21 @@ function appendChatMessage(msg) {
     div.appendChild(badge);
   }
 
-  const senderId = parseInt(msg.sender_id, 10);
-  const isMine   = (senderId === CURRENT_USER_ID);
+const senderId = parseInt(msg.sender_id ?? 0, 10);
+const myId = parseInt(window.CURRENT_USER_ID ?? 0, 10);
+
+let isMine = (senderId > 0 && myId > 0 && senderId === myId);
+
+// fallback: si el backend no manda sender_id correctamente
+if (!isMine && (!senderId || !myId)) {
+  const senderRole = String(msg.sender_role ?? '').toLowerCase();
+  const myRoleNum  = String(window.CURRENT_USER_ROLE ?? '').trim(); // ej: "3"
+  // si eres analista (3) y el mensaje dice "analista", lo tomo como mío
+  if (myRoleNum === '3' && senderRole.includes('analista')) isMine = true;
+  if (myRoleNum === '4' && senderRole.includes('usuario'))  isMine = true;
+}
+
+
   div.classList.add(isMine ? 'mine' : 'other');
 
   if (msg.mensaje) {
@@ -1055,7 +1080,15 @@ function appendChatMessage(msg) {
 
   const meta = document.createElement('span');
   meta.className = 'ticket-chat-meta';
-  meta.textContent = ((msg.sender_role ? msg.sender_role + ' · ' : '') + (msg.created_at || ''));
+
+const who = isMine
+  ? 'Tú'
+  : ((msg.sender_name && String(msg.sender_name).trim())
+      ? String(msg.sender_name).trim()
+      : (msg.sender_role || ''));
+
+meta.textContent = who + ' · ' + (msg.created_at || '');
+
   div.appendChild(meta);
 
   bodyEl.appendChild(div);
@@ -1063,7 +1096,7 @@ function appendChatMessage(msg) {
 }
 
 function renderTransferBlock(payload){
-  const bodyEl = document.getElementById('ticketChatBody');
+const bodyEl = document.getElementById('ticketTransferBox');
   if (!bodyEl) return;
 
   const old = document.getElementById('transfer-block');
@@ -1126,7 +1159,8 @@ function renderTransferBlock(payload){
   }
 
   wrap.appendChild(list);
-  bodyEl.prepend(wrap);
+bodyEl.innerHTML = '';
+bodyEl.appendChild(wrap);
 }
 
 function fetchMessages(isInitial=false) {
@@ -1192,6 +1226,16 @@ function sendTicketMessage(ev) {
       alert('Error al enviar el mensaje');
     });
 }
+
+function ticketChatEnterSend(e){
+  // Enter envía, Shift+Enter hace salto de línea
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendTicketMessage(e);
+  }
+}
+
+
 </script>
 
 <script>
