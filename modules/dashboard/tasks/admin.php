@@ -155,6 +155,7 @@ include __DIR__ . '/../../../template/sidebar.php';
   <?php echo h($t['priority_name'] ?? '—'); ?>
 </span>
 
+
                   </div>
                 </div>
 
@@ -169,16 +170,37 @@ include __DIR__ . '/../../../template/sidebar.php';
               </div>
 
               <div class="ticket-card__actions" style="align-items:center;">
-                <a class="panel-link" href="/HelpDesk_EQF/modules/dashboard/tasks/view.php?id=<?php echo (int)$t['id']; ?>">Ver detalle</a>
+                <a class="panel-link" href="/HelpDesk_EQF/modules/dashboard/tasks/view.php?id=<?php echo (int)$t['id']; ?>">Ver </a>
+<form method="POST" action="/HelpDesk_EQF/modules/dashboard/tasks/reassign.php" style="display:flex; gap:8px; margin:0;">
+  <input type="hidden" name="task_id" value="<?php echo (int)$t['id']; ?>">
+  <select name="new_assigned_to_user_id" required>
+    <option value="">Reasignar…</option>
+    <?php foreach ($analysts as $a): ?>
+      <option value="<?php echo (int)$a['id']; ?>"><?php echo h($a['full_name']); ?></option>
+    <?php endforeach; ?>
+  </select>
+  <button class="btn-secondary" type="submit">Aplicar</button>
+</form>
 
-                <form method="POST"
-                      action="/HelpDesk_EQF/modules/dashboard/tasks/upload_admin_files.php"
-                      enctype="multipart/form-data"
-                      style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:0;">
-                  <input type="hidden" name="task_id" value="<?php echo (int)$t['id']; ?>">
-                  <input type="file" name="admin_files[]" multiple>
-                  <button class="btn-secondary" type="submit" style="width:auto; padding:0 16px;">Adjuntar</button>
-                </form>
+<form method="POST" action="/HelpDesk_EQF/modules/dashboard/tasks/cancel.php" style="margin:0;">
+  <input type="hidden" name="task_id" value="<?php echo (int)$t['id']; ?>">
+  <button class="btn-secondary" type="submit" onclick="return confirm('¿Cancelar esta tarea?');">
+    Cancelar
+  </button>
+</form>
+
+                <form method="POST" action="/HelpDesk_EQF/modules/dashboard/tasks/upload_admin_files.php"
+          enctype="multipart/form-data" style="margin:0;">
+      <input type="hidden" name="task_id" value="<?php echo (int)$t['id']; ?>">
+
+      <input id="ev_<?php echo (int)$t['id']; ?>" type="file" name="evidence_files[]" multiple required style="display:none"
+             onchange="this.form.submit()">
+
+      <button type="button" class="task-link-combined"
+              onclick="document.getElementById('ev_<?php echo (int)$t['id']; ?>').click();">
+        Adjuntar Archivos
+      </button>
+    </form>
               </div>
             </article>
           <?php endforeach; ?>
@@ -210,6 +232,24 @@ include __DIR__ . '/../../../template/sidebar.php';
               <td>
                 <a class="panel-link" href="/HelpDesk_EQF/modules/dashboard/tasks/view.php?id=<?php echo (int)$t['id']; ?>">Ver</a>
                 &nbsp;|&nbsp;
+                <form method="POST" action="/HelpDesk_EQF/modules/dashboard/tasks/reassign.php" style="display:flex; gap:8px; margin:0;">
+  <input type="hidden" name="task_id" value="<?php echo (int)$t['id']; ?>">
+  <select name="new_assigned_to_user_id" required>
+    <option value="">Reasignar…</option>
+    <?php foreach ($analysts as $a): ?>
+      <option value="<?php echo (int)$a['id']; ?>"><?php echo h($a['full_name']); ?></option>
+    <?php endforeach; ?>
+  </select>
+  <button class="btn-secondary" type="submit">Aplicar</button>
+</form>
+
+<form method="POST" action="/HelpDesk_EQF/modules/dashboard/tasks/cancel.php" style="margin:0;">
+  <input type="hidden" name="task_id" value="<?php echo (int)$t['id']; ?>">
+  <button class="btn-secondary" type="submit" onclick="return confirm('¿Cancelar esta tarea?');">
+    Cancelar
+  </button>
+</form>
+
                 <a class="panel-link" href="/HelpDesk_EQF/modules/dashboard/tasks/report_pdf.php?id=<?php echo (int)$t['id']; ?>" target="_blank" rel="noopener">PDF</a>
               </td>
             </tr>
@@ -306,6 +346,67 @@ include __DIR__ . '/../../../template/sidebar.php';
     </form>
   </div>
 </div>
+<div class="user-modal-backdrop" id="taskDetailModal">
+  <div class="user-modal" style="max-width:900px;">
+    <header class="user-modal-header">
+      <h2>Detalle de tarea</h2>
+      <button type="button" class="user-modal-close" onclick="closeTaskDetailModal()">×</button>
+    </header>
+    <div id="taskDetailBody" style="padding:14px 2px 2px 2px;">
+      Cargando...
+    </div>
+  </div>
+</div>
+
+<script>
+async function openTaskDetailModal(taskId){
+  const modal = document.getElementById('taskDetailModal');
+  modal.classList.add('is-visible');
+
+  // placeholders
+  modal.querySelector('[data-title]').textContent = 'Cargando...';
+  modal.querySelector('[data-admin-files]').innerHTML = '<li style="opacity:.7;">Cargando…</li>';
+  modal.querySelector('[data-evidence-files]').innerHTML = '';
+
+  const r = await fetch(`/HelpDesk_EQF/modules/dashboard/tasks/ajax/task_detail.php?id=${taskId}`, {cache:'no-store'});
+  const j = await r.json();
+  if(!j.ok){ alert(j.msg || 'No se pudo cargar'); return; }
+
+  const task = j.task;
+  modal.querySelector('[data-title]').textContent = task.title || '—';
+  modal.querySelector('[data-desc]').textContent = task.description || '';
+  modal.querySelector('[data-due]').textContent = task.due_at || '—';
+  modal.querySelector('[data-priority]').textContent = task.priority_name || '—';
+  modal.querySelector('[data-status]').textContent = task.status || '—';
+
+  const adminUL = modal.querySelector('[data-admin-files]');
+  const evUL = modal.querySelector('[data-evidence-files]');
+  adminUL.innerHTML = '';
+  evUL.innerHTML = '';
+
+  const baseAdmin = '/HelpDesk_EQF/uploads/tasks/admin/';
+  const baseEv = '/HelpDesk_EQF/uploads/tasks/evidence/';
+
+  const adminFiles = j.files.filter(f => f.file_type === 'ADMIN_ATTACHMENT');
+  const evFiles    = j.files.filter(f => f.file_type === 'EVIDENCE');
+
+  adminUL.innerHTML = adminFiles.length ? '' : '<li style="opacity:.7;">Sin adjuntos.</li>';
+  evUL.innerHTML    = evFiles.length ? '' : '<li style="opacity:.7;">Sin evidencias.</li>';
+
+  adminFiles.forEach(f=>{
+    const li=document.createElement('li');
+    li.innerHTML = `<a target="_blank" rel="noopener" href="${baseAdmin}${encodeURIComponent(f.stored_name)}">${f.original_name}</a>`;
+    adminUL.appendChild(li);
+  });
+
+  evFiles.forEach(f=>{
+    const li=document.createElement('li');
+    li.innerHTML = `<a target="_blank" rel="noopener" href="${baseEv}${encodeURIComponent(f.stored_name)}">${f.original_name}</a>`;
+    evUL.appendChild(li);
+  });
+}
+
+</script>
 
 <script>
 function openTaskModal(){ document.getElementById('taskModal')?.classList.add('is-visible'); }
@@ -318,26 +419,46 @@ document.getElementById('taskModal')?.addEventListener('click', (e) => {
 <script>
 (function(){
   let lastSig = '';
+  let sinceEventId = parseInt(localStorage.getItem('tasks_since_event_id') || '0', 10);
+
+  function showToast(msg){
+    // usa tu toast del sistema si ya tienes; por mientras:
+    alert(msg);
+  }
 
   async function poll(){
     try{
-      const r = await fetch('/HelpDesk_EQF/modules/dashboard/tasks/ajax/tasks_signature.php', {cache:'no-store'});
+      const url = `/HelpDesk_EQF/modules/dashboard/tasks/ajax/tasks_signature.php?since_event_id=${sinceEventId}`;
+      const r = await fetch(url, {cache:'no-store'});
       const j = await r.json();
       if(!j.ok) return;
 
+      // notificaciones
+      if (Array.isArray(j.events) && j.events.length){
+        j.events.forEach(ev => {
+          if(ev.event_type === 'REASSIGNED') showToast('Te reasignaron/retiraron una tarea: ' + (ev.note || ''));
+          if(ev.event_type === 'CANCELED')   showToast('Cancelaron una tarea: ' + (ev.note || ''));
+        });
+      }
+
+      if (typeof j.max_event_id === 'number' && j.max_event_id > sinceEventId){
+        sinceEventId = j.max_event_id;
+        localStorage.setItem('tasks_since_event_id', String(sinceEventId));
+      }
+
+      // refresh si cambió la firma
       if(!lastSig){ lastSig = j.signature || ''; return; }
       if((j.signature || '') !== lastSig) location.reload();
+
     }catch(e){}
   }
 
   poll();
   setInterval(poll, 4000);
-
-  document.addEventListener('visibilitychange', () => {
-    if(!document.hidden) poll();
-  });
+  document.addEventListener('visibilitychange', () => { if(!document.hidden) poll(); });
 })();
 </script>
+
 <script>
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('tasksHistory');

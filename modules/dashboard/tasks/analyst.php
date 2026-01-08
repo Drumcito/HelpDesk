@@ -126,9 +126,10 @@ include __DIR__ . '/../../../template/sidebar.php';
                   <div class="ticket-row">
   <div class="ticket-label">Prioridad</div>
   <div class="ticket-value" style="text-align:left;">
-    <span class="task-priority-pill <?php echo prioClass($t['priority_name'] ?? ''); ?>">
+   <span class="task-priority-pill <?php echo prioClass($t['priority_name'] ?? ''); ?>">
   <?php echo h($t['priority_name'] ?? '—'); ?>
 </span>
+
 
   </div>
 </div>
@@ -145,36 +146,54 @@ include __DIR__ . '/../../../template/sidebar.php';
                 <div class="ticket-desc"><?php echo h($t['description']); ?></div>
               </div>
 
-              <div class="ticket-card__actions" style="align-items:center;">
-<a href="/HelpDesk_EQF/modules/dashboard/tasks/view.php?id=<?php echo (int)$t['id']; ?>" class="btn-main-combined">
-    Ver detalle
-</a>
-                <?php if (($t['status'] ?? '') === 'ASIGNADA'): ?>
-  <form method="POST" action="/HelpDesk_EQF/modules/dashboard/tasks/ack.php" style="margin:0;">
-    <input type="hidden" name="task_id" value="<?php echo (int)$t['id']; ?>">
-    <button class="btn-secondary" type="submit" style="width:auto; padding:0 16px;">Enterado</button>
-  </form>
+              <div class="ticket-card__actions task-actions-analyst">
 
-<?php elseif (($t['status'] ?? '') === 'EN_PROCESO'): ?>
-  <form method="POST"
-        action="/HelpDesk_EQF/modules/dashboard/tasks/upload_evidence.php"
-        enctype="multipart/form-data"
-        style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:0;">
-    <input type="hidden" name="task_id" value="<?php echo (int)$t['id']; ?>">
-    <input type="file" name="evidence_files[]" multiple required>
-    <button class="btn-primary" type="submit" >Subir evidencias</button>
-  </form>
+  <!-- status pill arriba a la derecha -->
+  <div class="task-actions-top">
+    <span class="<?php echo statusPillClass($t['status'] ?? ''); ?>">
+      <?php echo h(statusLabel($t['status'] ?? '')); ?>
+    </span>
+  </div>
 
-  <form method="POST" action="/HelpDesk_EQF/modules/dashboard/tasks/finish.php" style="margin:0;">
-    <input type="hidden" name="task_id" value="<?php echo (int)$t['id']; ?>">
-    <button class="btn-secondary" type="submit" >Finalizar</button>
-  </form>
+  <!-- links debajo -->
+  <div class="task-actions-links">
+    <a href="javascript:void(0)" class="btn-main-combined"
+       onclick="openTaskDetailModal(<?php echo (int)$t['id']; ?>)">
+      Ver detalle
+    </a>
 
-<?php else: ?>
-  <span style="opacity:.75;">Sin acciones disponibles.</span>
-<?php endif; ?>
+    <?php if (($t['status'] ?? '') === 'ASIGNADA'): ?>
+      <form method="POST" action="/HelpDesk_EQF/modules/dashboard/tasks/ack.php" style="margin:0;">
+        <input type="hidden" name="task_id" value="<?php echo (int)$t['id']; ?>">
+        <button class="btn-secondary" type="submit">Enterado</button>
+      </form>
 
-              </div>
+    <?php elseif (($t['status'] ?? '') === 'EN_PROCESO'): ?>
+
+      <!-- subir evidencias como texto azul -->
+      <form method="POST" action="/HelpDesk_EQF/modules/dashboard/tasks/upload_evidence.php"
+            enctype="multipart/form-data" style="margin:0;">
+        <input type="hidden" name="task_id" value="<?php echo (int)$t['id']; ?>">
+        <input id="ev_<?php echo (int)$t['id']; ?>" type="file" name="evidence_files[]" multiple required
+               style="display:none" onchange="this.form.submit()">
+        <button type="button" class="task-link-combined"
+                onclick="document.getElementById('ev_<?php echo (int)$t['id']; ?>').click();">
+          Subir evidencias
+        </button>
+      </form>
+
+      <form method="POST" action="/HelpDesk_EQF/modules/dashboard/tasks/finish.php" style="margin:0;">
+        <input type="hidden" name="task_id" value="<?php echo (int)$t['id']; ?>">
+        <button class="btn-secondary" type="submit">Finalizar</button>
+      </form>
+
+    <?php endif; ?>
+  </div>
+</div>
+
+  
+
+
             </article>
           <?php endforeach; ?>
         </div>
@@ -214,6 +233,99 @@ include __DIR__ . '/../../../template/sidebar.php';
     </div>
   </div>
 
+  <div class="task-modal-backdrop" id="taskDetailModal">
+  <div class="task-modal">
+    <header style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+      <h2 style="margin:0;">Detalle de tarea</h2>
+      <button type="button" onclick="closeTaskDetailModal()">×</button>
+    </header>
+
+    <div style="margin-top:12px;">
+      <h3 style="margin:0 0 6px 0;" data-title>Cargando...</h3>
+
+      <div style="display:flex; gap:18px; flex-wrap:wrap; font-size:14px; opacity:.9;">
+        <div>Entrega: <b data-due>—</b></div>
+        <div>Prioridad: <b data-priority>—</b></div>
+        <div>Estatus: <b data-status>—</b></div>
+      </div>
+
+      <p style="margin:12px 0 0 0; white-space:pre-wrap;" data-desc>—</p>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:14px;">
+        <div class="user-info-card" style="margin:0;">
+          <h3 style="margin:0 0 8px 0;">Adjuntos admin</h3>
+          <ul style="margin:0; padding-left:18px;" data-admin-files></ul>
+        </div>
+
+        <div class="user-info-card" style="margin:0;">
+          <h3 style="margin:0 0 8px 0;">Evidencias</h3>
+          <ul style="margin:0; padding-left:18px;" data-evidence-files></ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function closeTaskDetailModal(){
+  document.getElementById('taskDetailModal')?.classList.remove('is-visible');
+}
+document.getElementById('taskDetailModal')?.addEventListener('click', (e)=>{
+  if(e.target.id === 'taskDetailModal') closeTaskDetailModal();
+});
+</script>
+
+
+<script>
+async function openTaskDetailModal(taskId){
+  const modal = document.getElementById('taskDetailModal');
+  modal.classList.add('is-visible');
+
+  // placeholders
+  modal.querySelector('[data-title]').textContent = 'Cargando...';
+  modal.querySelector('[data-admin-files]').innerHTML = '<li style="opacity:.7;">Cargando…</li>';
+  modal.querySelector('[data-evidence-files]').innerHTML = '';
+
+  const r = await fetch(`/HelpDesk_EQF/modules/dashboard/tasks/ajax/task_detail.php?id=${taskId}`, {cache:'no-store'});
+  const j = await r.json();
+  if(!j.ok){ alert(j.msg || 'No se pudo cargar'); return; }
+
+  const task = j.task;
+  modal.querySelector('[data-title]').textContent = task.title || '—';
+  modal.querySelector('[data-desc]').textContent = task.description || '';
+  modal.querySelector('[data-due]').textContent = task.due_at || '—';
+  modal.querySelector('[data-priority]').textContent = task.priority_name || '—';
+  modal.querySelector('[data-status]').textContent = task.status || '—';
+
+  const adminUL = modal.querySelector('[data-admin-files]');
+  const evUL = modal.querySelector('[data-evidence-files]');
+  adminUL.innerHTML = '';
+  evUL.innerHTML = '';
+
+  const baseAdmin = '/HelpDesk_EQF/uploads/tasks/admin/';
+  const baseEv = '/HelpDesk_EQF/uploads/tasks/evidence/';
+
+  const adminFiles = j.files.filter(f => f.file_type === 'ADMIN_ATTACHMENT');
+  const evFiles    = j.files.filter(f => f.file_type === 'EVIDENCE');
+
+  adminUL.innerHTML = adminFiles.length ? '' : '<li style="opacity:.7;">Sin adjuntos.</li>';
+  evUL.innerHTML    = evFiles.length ? '' : '<li style="opacity:.7;">Sin evidencias.</li>';
+
+  adminFiles.forEach(f=>{
+    const li=document.createElement('li');
+    li.innerHTML = `<a target="_blank" rel="noopener" href="${baseAdmin}${encodeURIComponent(f.stored_name)}">${f.original_name}</a>`;
+    adminUL.appendChild(li);
+  });
+
+  evFiles.forEach(f=>{
+    const li=document.createElement('li');
+    li.innerHTML = `<a target="_blank" rel="noopener" href="${baseEv}${encodeURIComponent(f.stored_name)}">${f.original_name}</a>`;
+    evUL.appendChild(li);
+  });
+}
+
+</script>
+
   <!-- DataTables (CDN rápido) -->
   <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
   <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
@@ -239,36 +351,51 @@ include __DIR__ . '/../../../template/sidebar.php';
 </main>
 
 <?php include __DIR__ . '/../../../template/footer.php'; ?>
-<script src="/HelpDesk_EQF/assets/js/script.js?v=<?php echo time(); ?>"></script>
+
 <script>
 (function(){
   let lastSig = '';
+  let sinceEventId = parseInt(localStorage.getItem('tasks_since_event_id') || '0', 10);
+
+  function showToast(msg){
+    // usa tu toast del sistema si ya tienes; por mientras:
+    alert(msg);
+  }
 
   async function poll(){
     try{
-      const r = await fetch('/HelpDesk_EQF/modules/dashboard/tasks/ajax/tasks_signature.php', {cache:'no-store'});
+      const url = `/HelpDesk_EQF/modules/dashboard/tasks/ajax/tasks_signature.php?since_event_id=${sinceEventId}`;
+      const r = await fetch(url, {cache:'no-store'});
       const j = await r.json();
       if(!j.ok) return;
 
-      if(!lastSig){
-        lastSig = j.signature || '';
-        return;
+      // notificaciones
+      if (Array.isArray(j.events) && j.events.length){
+        j.events.forEach(ev => {
+          if(ev.event_type === 'REASSIGNED') showToast('Te reasignaron/retiraron una tarea: ' + (ev.note || ''));
+          if(ev.event_type === 'CANCELED')   showToast('Cancelaron una tarea: ' + (ev.note || ''));
+        });
       }
 
-      if((j.signature || '') !== lastSig){
-        location.reload();
+      if (typeof j.max_event_id === 'number' && j.max_event_id > sinceEventId){
+        sinceEventId = j.max_event_id;
+        localStorage.setItem('tasks_since_event_id', String(sinceEventId));
       }
+
+      // refresh si cambió la firma
+      if(!lastSig){ lastSig = j.signature || ''; return; }
+      if((j.signature || '') !== lastSig) location.reload();
+
     }catch(e){}
   }
 
   poll();
   setInterval(poll, 4000);
-
-  document.addEventListener('visibilitychange', () => {
-    if(!document.hidden) poll();
-  });
+  document.addEventListener('visibilitychange', () => { if(!document.hidden) poll(); });
 })();
 </script>
+
+
 <script>
 document.addEventListener('DOMContentLoaded', () => {
   const el = document.getElementById('tasksHistory');

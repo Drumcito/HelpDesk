@@ -234,7 +234,7 @@ include __DIR__ . '/../../../template/sidebar.php';
                   <?php if (canDeleteFile($rol, $f)): ?>
                     <form method="POST" action="/HelpDesk_EQF/modules/dashboard/tasks/delete_file.php" style="display:inline;">
                       <input type="hidden" name="file_id" value="<?php echo (int)$f['id']; ?>">
-                      <button class="btn-secondary" type="submit" style="height:34px; width:auto; padding:0 14px; margin-left:8px;">
+                      <button class="eraser-red" type="submit" style="height:34px; width:auto; padding:0 14px; margin-left:8px;">
                         Borrar
                       </button>
                     </form>
@@ -260,7 +260,7 @@ include __DIR__ . '/../../../template/sidebar.php';
                   <?php if (canDeleteFile($rol, $f)): ?>
                     <form method="POST" action="/HelpDesk_EQF/modules/dashboard/tasks/delete_file.php" style="display:inline;">
                       <input type="hidden" name="file_id" value="<?php echo (int)$f['id']; ?>">
-                      <button class="btn-secondary" type="submit" style="height:34px; width:auto; padding:0 14px; margin-left:8px;">
+                      <button class="eraser-red" type="submit" style="height:34px; width:auto; padding:0 14px; margin-left:8px;">
                         Borrar
                       </button>
                     </form>

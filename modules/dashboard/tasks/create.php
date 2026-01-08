@@ -34,7 +34,7 @@ if ($assignedTo <= 0 || $priorityId <= 0 || $dueAt === '' || $title === '' || $d
 $dueAtDB = str_replace('T', ' ', $dueAt);
 if (strlen($dueAtDB) === 16) $dueAtDB .= ':00';
 
-// ✅ validar que el analista exista y sea de MI área
+// validar que el analista exista y sea de MI área
 $stmtCheck = $pdo->prepare("SELECT id FROM users WHERE id = ? AND rol = 3 AND area = ? LIMIT 1");
 $stmtCheck->execute([$assignedTo, $adminArea]);
 if (!$stmtCheck->fetchColumn()) {
@@ -43,7 +43,7 @@ if (!$stmtCheck->fetchColumn()) {
   exit;
 }
 
-// ✅ crear task
+//  crear tarea
 $stmt = $pdo->prepare("
   INSERT INTO tasks
     (created_by_admin_id, assigned_to_user_id, priority_id, title, description, due_at, status, created_at)
@@ -62,36 +62,54 @@ $stmt->execute([
 
 $taskId = (int)$pdo->lastInsertId();
 
-// (opcional) subir adjuntos admin_files[]
-$uploadBase = __DIR__ . '/../../../uploads/tasks/';
-if (!is_dir($uploadBase)) @mkdir($uploadBase, 0775, true);
+// ==== guardar adjuntos del admin (si vienen) ====
+if (!empty($_FILES['admin_files']) && !empty($_FILES['admin_files']['name'][0])) {
 
-if (!empty($_FILES['admin_files']) && is_array($_FILES['admin_files']['name'])) {
-  $count = count($_FILES['admin_files']['name']);
+  $uploadDir = __DIR__ . '/../../../uploads/tasks/admin/';
+  if (!is_dir($uploadDir)) {
+    mkdir($uploadDir, 0775, true);
+  }
 
-  for ($i=0; $i<$count; $i++) {
-    if (empty($_FILES['admin_files']['name'][$i])) continue;
-    if ((int)$_FILES['admin_files']['error'][$i] !== UPLOAD_ERR_OK) continue;
+  $filesCount = count($_FILES['admin_files']['name']);
+
+  $stmtFile = $pdo->prepare("
+    INSERT INTO task_files
+      (task_id, uploaded_by_user_id, file_type, original_name, stored_name, mime, size_bytes, created_at, is_deleted)
+    VALUES
+      (?, ?, 'ADMIN_ATTACHMENT', ?, ?, ?, ?, NOW(), 0)
+  ");
+
+  for ($i = 0; $i < $filesCount; $i++) {
+
+    if (($_FILES['admin_files']['error'][$i] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+      continue;
+    }
 
     $orig = (string)$_FILES['admin_files']['name'][$i];
-    $ext  = strtolower(pathinfo($orig, PATHINFO_EXTENSION));
-    $safe = uniqid('task_admin_', true) . ($ext ? ('.'.$ext) : '');
-    $dest = $uploadBase . $safe;
+    $tmp  = (string)$_FILES['admin_files']['tmp_name'][$i];
+    $mime = (string)($_FILES['admin_files']['type'][$i] ?? 'application/octet-stream');
+    $size = (int)($_FILES['admin_files']['size'][$i] ?? 0);
 
-    if (move_uploaded_file($_FILES['admin_files']['tmp_name'][$i], $dest)) {
-      // guarda en tabla task_files si existe (si no existe, esto lo puedes comentar)
-      try {
-        $stmtF = $pdo->prepare("
-          INSERT INTO task_files (task_id, uploaded_by_user_id, role, file_path, original_name, created_at)
-          VALUES (?, ?, 'ADMIN', ?, ?, NOW())
-        ");
-        $stmtF->execute([$taskId, $adminId, 'uploads/tasks/'.$safe, $orig]);
-      } catch (Throwable $e) {
-        // si aún no tienes task_files, no truena el flujo
-      }
+    $ext = pathinfo($orig, PATHINFO_EXTENSION);
+    $stored = 'admin_' . $taskId . '_' . bin2hex(random_bytes(8)) . ($ext ? '.' . $ext : '');
+
+    if (!move_uploaded_file($tmp, $uploadDir . $stored)) {
+      continue;
     }
+
+    $stmtFile->execute([
+      $taskId,
+      $adminId,   // uploaded_by_user_id
+      $orig,
+      $stored,
+      $mime,
+      $size
+    ]);
   }
 }
+
+
+
 
 $_SESSION['flash_ok'] = 'Tarea creada y asignada ';
 header('Location: /HelpDesk_EQF/modules/dashboard/tasks/admin.php');

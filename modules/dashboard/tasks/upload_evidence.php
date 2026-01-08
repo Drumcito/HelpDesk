@@ -5,12 +5,17 @@ require_once __DIR__ . '/../../../config/connectionBD.php';
 require_once __DIR__ . '/helpers/TaskEvents.php';
 require_once __DIR__ . '/helpers/TaskFiles.php';
 
-if (!isset($_SESSION['user_id']) || (int)($_SESSION['user_rol'] ?? 0) !== 1) {
-    header('Location: /HelpDesk_EQF/auth/login.php'); exit;
+function currentRole(): int {
+  if (isset($_SESSION['user_rol'])) return (int)$_SESSION['user_rol'];
+  if (isset($_SESSION['rol']))      return (int)$_SESSION['rol'];
+  return 0;
 }
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    header('Location: /HelpDesk_EQF/modules/dashboard/tasks/analyst.php'); exit;
+
+if (!isset($_SESSION['user_id']) || currentRole() !== 3) {
+  header('Location: /HelpDesk_EQF/auth/login.php');
+  exit;
 }
+
 
 $pdo = Database::getConnection();
 $analystId = (int)$_SESSION['user_id'];
