@@ -4,7 +4,7 @@ session_start();
 require_once __DIR__ . '/../../../config/connectionBD.php';
 require_once __DIR__ . '/helpers/TaskEvents.php';
 
-if (!isset($_SESSION['user_id']) || (int)($_SESSION['user_rol'] ?? 0) !== 1) {
+if (!isset($_SESSION['user_id']) || (int)($_SESSION['user_rol'] ?? 0) !== 3) {
     header('Location: /HelpDesk_EQF/auth/login.php'); exit;
 }
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
