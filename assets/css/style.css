@@ -3084,12 +3084,31 @@ table.dataTable tbody tr:hover {
   align-items:flex-end;
 }
 
+/* Acciones analista (fila limpia como mock) */
 .task-actions-analyst{
-  display:flex;
-  flex-direction:column;
-  gap:10px;
-  align-items:flex-end;
+  padding-top:12px;
 }
+
+.task-actions-analyst__row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+}
+
+.task-actions-analyst__left{ flex: 1; }
+.task-actions-analyst__mid{ flex: 0 0 auto; font-weight:800; }
+.task-actions-analyst__right{ flex: 0 0 auto; }
+
+
+/* Link "Ver" centrado */
+.task-actions-analyst__mid{
+  text-decoration:none;
+}
+.task-actions-analyst__mid:hover{
+  text-decoration:underline;
+}
+
 
 .task-actions-top{
   width:100%;
@@ -3102,6 +3121,46 @@ table.dataTable tbody tr:hover {
   flex-direction:column;
   gap:10px;
   align-items:flex-end;
+}
+.task-actions-admin{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  padding-top:10px;
+}
+
+.task-actions-admin__left{ flex: 1; }
+.task-actions-admin__mid{ flex: 0 0 auto; }
+.task-actions-admin__right{ flex: 0 0 auto; }
+.task-actions-admin__cancel{ flex: 0 0 auto; }
+
+.task-reassign-select{
+  height:36px;
+  border-radius:12px;
+  padding:6px 10px;
+  border:1px solid #d1d5db;
+  background:#fff;
+}
+
+.task-cancel-link{
+  background:transparent;
+  border:none;
+  color:var(--eqf-red);
+  font-weight:700;
+  cursor:pointer;
+  padding:0;
+}
+.task-cancel-link:hover{ text-decoration:underline; }
+
+/* Adjuntar como link ya lo tienes con task-link-combined; por si no: */
+.task-link-combined{
+  background:transparent;
+  border:none;
+  cursor:pointer;
+  padding:0;
+  font-weight:700;
+  text-decoration:underline;
 }
 
 

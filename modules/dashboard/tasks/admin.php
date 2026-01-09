@@ -108,6 +108,8 @@ $history = $stmtH->fetchAll(PDO::FETCH_ASSOC) ?: [];
 include __DIR__ . '/../../../template/header.php'; ?>
 <link rel="stylesheet" href="/HelpDesk_EQF/assets/css/style.css?v=<?php echo time(); ?>">
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+
 
 <?php
 include __DIR__ . '/../../../template/sidebar.php';
@@ -169,39 +171,66 @@ include __DIR__ . '/../../../template/sidebar.php';
                 <div class="ticket-desc"><?php echo h($t['description']); ?></div>
               </div>
 
-              <div class="ticket-card__actions" style="align-items:center;">
-                <a class="panel-link" href="/HelpDesk_EQF/modules/dashboard/tasks/view.php?id=<?php echo (int)$t['id']; ?>">Ver </a>
-<form method="POST" action="/HelpDesk_EQF/modules/dashboard/tasks/reassign.php" style="display:flex; gap:8px; margin:0;">
-  <input type="hidden" name="task_id" value="<?php echo (int)$t['id']; ?>">
-  <select name="new_assigned_to_user_id" required>
-    <option value="">Reasignar…</option>
-    <?php foreach ($analysts as $a): ?>
-      <option value="<?php echo (int)$a['id']; ?>"><?php echo h($a['full_name']); ?></option>
-    <?php endforeach; ?>
-  </select>
-  <button class="btn-secondary" type="submit">Aplicar</button>
-</form>
+             <div class="ticket-card__actions task-actions-admin">
 
-<form method="POST" action="/HelpDesk_EQF/modules/dashboard/tasks/cancel.php" style="margin:0;">
-  <input type="hidden" name="task_id" value="<?php echo (int)$t['id']; ?>">
-  <button class="btn-secondary" type="submit" onclick="return confirm('¿Cancelar esta tarea?');">
-    Cancelar
-  </button>
-</form>
+  <form method="POST"
+        action="/HelpDesk_EQF/modules/dashboard/tasks/upload_admin_files.php"
+        enctype="multipart/form-data"
+        class="task-actions-admin__left"
+        style="margin:0;">
+    <input type="hidden" name="task_id" value="<?php echo (int)$t['id']; ?>">
 
-                <form method="POST" action="/HelpDesk_EQF/modules/dashboard/tasks/upload_admin_files.php"
-          enctype="multipart/form-data" style="margin:0;">
-      <input type="hidden" name="task_id" value="<?php echo (int)$t['id']; ?>">
+    <input id="adm_<?php echo (int)$t['id']; ?>"
+           type="file"
+           name="admin_files[]"
+           multiple
+           style="display:none"
+           onchange="this.form.submit()">
 
-      <input id="ev_<?php echo (int)$t['id']; ?>" type="file" name="evidence_files[]" multiple required style="display:none"
-             onchange="this.form.submit()">
+    <button type="button"
+            class="task-link-combined"
+            onclick="document.getElementById('adm_<?php echo (int)$t['id']; ?>').click();">
+      Adjuntar Archivos
+    </button>
+  </form>
 
-      <button type="button" class="task-link-combined"
-              onclick="document.getElementById('ev_<?php echo (int)$t['id']; ?>').click();">
-        Adjuntar Archivos
-      </button>
-    </form>
-              </div>
+  <!-- Centro: Ver -->
+  <a class="panel-link task-actions-admin__mid"
+     href="/HelpDesk_EQF/modules/dashboard/tasks/view.php?id=<?php echo (int)$t['id']; ?>">
+    Ver
+  </a>
+
+  <!-- Derecha: Reasignar (al seleccionar se envía, sin botón aplicar) -->
+  <form method="POST"
+        action="/HelpDesk_EQF/modules/dashboard/tasks/reassign.php"
+        class="task-actions-admin__right"
+        style="margin:0;">
+    <input type="hidden" name="task_id" value="<?php echo (int)$t['id']; ?>">
+
+    <select name="new_assigned_to_user_id"
+            class="task-reassign-select"
+            onchange="if(this.value){ this.form.submit(); }">
+      <option value="">Reasignar…</option>
+      <?php foreach ($analysts as $a): ?>
+        <option value="<?php echo (int)$a['id']; ?>"><?php echo h($a['full_name']); ?></option>
+      <?php endforeach; ?>
+    </select>
+  </form>
+
+  <!-- Extremo derecho: Cancelar (texto rojo) -->
+  <form method="POST"
+        action="/HelpDesk_EQF/modules/dashboard/tasks/cancel.php"
+        class="task-actions-admin__cancel"
+        style="margin:0;">
+    <input type="hidden" name="task_id" value="<?php echo (int)$t['id']; ?>">
+    <button class="task-cancel-link" type="submit"
+            onclick="return confirm('¿Cancelar esta tarea?');">
+      ¿Cancelar tarea?
+    </button>
+  </form>
+
+</div>
+
             </article>
           <?php endforeach; ?>
         </div>
@@ -232,29 +261,6 @@ include __DIR__ . '/../../../template/sidebar.php';
               <td>
                 <a class="panel-link" href="/HelpDesk_EQF/modules/dashboard/tasks/view.php?id=<?php echo (int)$t['id']; ?>">Ver</a>
                 &nbsp;|&nbsp;
-                <form method="POST" action="/HelpDesk_EQF/modules/dashboard/tasks/reassign.php" class="task-reassign-form" style="margin:0;">
-  <input type="hidden" name="task_id" value="<?php echo (int)$t['id']; ?>">
-  <select name="new_assigned_to_user_id"
-          class="task-reassign-select"
-          required
-          onchange="if(this.value){ this.form.submit(); }">
-    <option value="">Reasignar…</option>
-    <?php foreach ($analysts as $a): ?>
-      <option value="<?php echo (int)$a['id']; ?>">
-        <?php echo h($a['full_name']); ?>
-      </option>
-    <?php endforeach; ?>
-  </select>
-</form>
-
-
-<form method="POST" action="/HelpDesk_EQF/modules/dashboard/tasks/cancel.php" style="margin:0;">
-  <input type="hidden" name="task_id" value="<?php echo (int)$t['id']; ?>">
-  <button class="btn-secondary" type="submit" onclick="return confirm('¿Cancelar esta tarea?');">
-    Cancelar
-  </button>
-</form>
-
                 <a class="panel-link" href="/HelpDesk_EQF/modules/dashboard/tasks/report_pdf.php?id=<?php echo (int)$t['id']; ?>" target="_blank" rel="noopener">PDF</a>
               </td>
             </tr>
@@ -296,7 +302,7 @@ include __DIR__ . '/../../../template/sidebar.php';
       <button type="button" class="user-modal-close" onclick="closeTaskModal()">×</button>
     </header>
 
-    <p class="user-modal-description">Asigna una tarea a un analista y define fecha/hora máxima de entrega.</p>
+    <p class="user-modal-description">Asignar Tarea a tu equipo</p>
 
     <form method="POST"
           action="/HelpDesk_EQF/modules/dashboard/tasks/create.php"
@@ -307,7 +313,7 @@ include __DIR__ . '/../../../template/sidebar.php';
       <div class="form-group">
         <label>Asignar a</label>
         <select name="assigned_to_user_id" id="assigned_to_user_id" required>
-          <option value="">Selecciona un analista…</option>
+          <option value="">Analista…</option>
           <?php foreach ($analysts as $a): ?>
             <option value="<?php echo (int)$a['id']; ?>"><?php echo h($a['full_name']); ?></option>
           <?php endforeach; ?>
@@ -315,8 +321,8 @@ include __DIR__ . '/../../../template/sidebar.php';
       </div>
 
       <div class="form-group">
-        <label>Fecha y hora máxima</label>
-        <input type="datetime-local" name="due_at" id="due_at" required>
+        <label>Fecha y hora de entrega</label>
+        <input type="text" name="due_at" id="due_at" placeholder="dd/mm/aaaa --:--" required>
       </div>
 
       <div class="form-group">
@@ -466,25 +472,23 @@ document.getElementById('taskModal')?.addEventListener('click', (e) => {
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-  const el = document.getElementById('tasksHistory');
-  if(!el || !window.jQuery || !jQuery.fn.DataTable) return;
+  if (!window.flatpickr) return;
 
-  jQuery(el).DataTable({
-    pageLength: 5,
-    lengthMenu: [5,10,25,50],
-    order: [],
-    language: {
-      search: "Buscar:",
-      lengthMenu: "Mostrar _MENU_",
-      info: "Mostrando _START_ a _END_ de _TOTAL_",
-      paginate: { next: ">", previous: "<" },
-      zeroRecords: "Sin resultados",
-      infoEmpty: "Sin registros",
-      infoFiltered: "(filtrado de _MAX_)"
-    }
+  flatpickr("#due_at", {
+    enableTime: true,
+    time_24hr: true,
+    dateFormat: "d/m/Y H:i",   // lo que se envía al backend
+    locale: "es",
+    minuteIncrement: 1,
+    defaultHour: 9,
+    defaultMinute: 0,
+    allowInput: true
   });
 });
 </script>
-<script src="/HelpDesk_EQF/assets/js/script.js?v=<?php echo time(); ?>"></script>
 
+
+<script src="/HelpDesk_EQF/assets/js/script.js?v=<?php echo time(); ?>"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
 <?php include __DIR__ . '/../../../template/footer.php'; ?>

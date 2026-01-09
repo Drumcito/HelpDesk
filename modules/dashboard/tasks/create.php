@@ -30,9 +30,15 @@ if ($assignedTo <= 0 || $priorityId <= 0 || $dueAt === '' || $title === '' || $d
   exit;
 }
 
-// datetime-local -> "Y-m-d H:i:s"
-$dueAtDB = str_replace('T', ' ', $dueAt);
-if (strlen($dueAtDB) === 16) $dueAtDB .= ':00';
+$dt = DateTime::createFromFormat('d/m/Y H:i', $dueAt);
+if (!$dt) {
+  $_SESSION['flash_err'] = 'Fecha/hora inválida.';
+  header('Location: /HelpDesk_EQF/modules/dashboard/tasks/admin.php');
+  exit;
+}
+$dueAtDB = $dt->format('Y-m-d H:i:s');
+
+
 
 // validar que el analista exista y sea de MI área
 $stmtCheck = $pdo->prepare("SELECT id FROM users WHERE id = ? AND rol = 3 AND area = ? LIMIT 1");

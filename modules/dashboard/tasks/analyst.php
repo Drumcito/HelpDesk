@@ -145,54 +145,63 @@ include __DIR__ . '/../../../template/sidebar.php';
 
                 <div class="ticket-desc"><?php echo h($t['description']); ?></div>
               </div>
-
               <div class="ticket-card__actions task-actions-analyst">
 
-  <!-- status pill arriba a la derecha -->
-  <div class="task-actions-top">
-    <span class="<?php echo statusPillClass($t['status'] ?? ''); ?>">
-      <?php echo h(statusLabel($t['status'] ?? '')); ?>
-    </span>
-  </div>
+  <!-- Línea inferior (como tu imagen): izquierda / centro / derecha -->
+  <div class="task-actions-analyst__row">
 
-  <!-- links debajo -->
-  <div class="task-actions-links">
-    <a href="javascript:void(0)" class="btn-main-combined"
-       onclick="openTaskDetailModal(<?php echo (int)$t['id']; ?>)">
-      Ver detalle
-    </a>
-
-    <?php if (($t['status'] ?? '') === 'ASIGNADA'): ?>
-      <form method="POST" action="/HelpDesk_EQF/modules/dashboard/tasks/ack.php" style="margin:0;">
+    <!-- IZQUIERDA -->
+    <?php if (($t['status'] ?? '') === 'EN_PROCESO'): ?>
+      <form method="POST"
+            action="/HelpDesk_EQF/modules/dashboard/tasks/upload_evidence.php"
+            enctype="multipart/form-data"
+            class="task-actions-analyst__left"
+            style="margin:0;">
         <input type="hidden" name="task_id" value="<?php echo (int)$t['id']; ?>">
-        <button class="btn-secondary" type="submit">Enterado</button>
-      </form>
 
-    <?php elseif (($t['status'] ?? '') === 'EN_PROCESO'): ?>
+        <input id="ev_<?php echo (int)$t['id']; ?>"
+               type="file"
+               name="evidence_files[]"
+               multiple
+               required
+               style="display:none"
+               onchange="this.form.submit()">
 
-      <!-- subir evidencias como texto azul -->
-      <form method="POST" action="/HelpDesk_EQF/modules/dashboard/tasks/upload_evidence.php"
-            enctype="multipart/form-data" style="margin:0;">
-        <input type="hidden" name="task_id" value="<?php echo (int)$t['id']; ?>">
-        <input id="ev_<?php echo (int)$t['id']; ?>" type="file" name="evidence_files[]" multiple required
-               style="display:none" onchange="this.form.submit()">
-        <button type="button" class="task-link-combined"
+        <button type="button"
+                class="task-link-combined"
                 onclick="document.getElementById('ev_<?php echo (int)$t['id']; ?>').click();">
-          Subir evidencias
+          Adjuntar Evidencia
         </button>
       </form>
-
-      <form method="POST" action="/HelpDesk_EQF/modules/dashboard/tasks/finish.php" style="margin:0;">
-        <input type="hidden" name="task_id" value="<?php echo (int)$t['id']; ?>">
-        <button class="btn-secondary" type="submit">Finalizar</button>
-      </form>
-
+    <?php else: ?>
+      <div class="task-actions-analyst__left"></div>
     <?php endif; ?>
+
+    <!-- CENTRO -->
+    <a href="javascript:void(0)"
+       class="panel-link task-actions-analyst__mid"
+       onclick="openTaskDetailModal(<?php echo (int)$t['id']; ?>)">
+      Ver
+    </a>
+
+    <!-- DERECHA -->
+    <div class="task-actions-analyst__right">
+      <?php if (($t['status'] ?? '') === 'ASIGNADA'): ?>
+        <form method="POST" action="/HelpDesk_EQF/modules/dashboard/tasks/ack.php" style="margin:0;">
+          <input type="hidden" name="task_id" value="<?php echo (int)$t['id']; ?>">
+          <button class="btn-secondary" type="submit">Enterado</button>
+        </form>
+
+      <?php elseif (($t['status'] ?? '') === 'EN_PROCESO'): ?>
+        <form method="POST" action="/HelpDesk_EQF/modules/dashboard/tasks/finish.php" style="margin:0;">
+          <input type="hidden" name="task_id" value="<?php echo (int)$t['id']; ?>">
+          <button class="btn-secondary" type="submit">Finalizar</button>
+        </form>
+      <?php endif; ?>
+    </div>
+
   </div>
 </div>
-
-  
-
 
             </article>
           <?php endforeach; ?>
@@ -395,28 +404,6 @@ async function openTaskDetailModal(taskId){
 })();
 </script>
 
-
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-  const el = document.getElementById('tasksHistory');
-  if(!el || !window.jQuery || !jQuery.fn.DataTable) return;
-
-  jQuery(el).DataTable({
-    pageLength: 5,
-    lengthMenu: [5,10,25,50],
-    order: [],
-    language: {
-      search: "Buscar:",
-      lengthMenu: "Mostrar _MENU_",
-      info: "Mostrando _START_ a _END_ de _TOTAL_",
-      paginate: { next: ">", previous: "<" },
-      zeroRecords: "Sin resultados",
-      infoEmpty: "Sin registros",
-      infoFiltered: "(filtrado de _MAX_)"
-    }
-  });
-});
-</script>
 <script src="/HelpDesk_EQF/assets/js/script.js?v=<?php echo time(); ?>"></script>
 
 </body>
