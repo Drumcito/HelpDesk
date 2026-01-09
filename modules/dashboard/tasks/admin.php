@@ -232,16 +232,21 @@ include __DIR__ . '/../../../template/sidebar.php';
               <td>
                 <a class="panel-link" href="/HelpDesk_EQF/modules/dashboard/tasks/view.php?id=<?php echo (int)$t['id']; ?>">Ver</a>
                 &nbsp;|&nbsp;
-                <form method="POST" action="/HelpDesk_EQF/modules/dashboard/tasks/reassign.php" style="display:flex; gap:8px; margin:0;">
+                <form method="POST" action="/HelpDesk_EQF/modules/dashboard/tasks/reassign.php" class="task-reassign-form" style="margin:0;">
   <input type="hidden" name="task_id" value="<?php echo (int)$t['id']; ?>">
-  <select name="new_assigned_to_user_id" required>
+  <select name="new_assigned_to_user_id"
+          class="task-reassign-select"
+          required
+          onchange="if(this.value){ this.form.submit(); }">
     <option value="">Reasignar…</option>
     <?php foreach ($analysts as $a): ?>
-      <option value="<?php echo (int)$a['id']; ?>"><?php echo h($a['full_name']); ?></option>
+      <option value="<?php echo (int)$a['id']; ?>">
+        <?php echo h($a['full_name']); ?>
+      </option>
     <?php endforeach; ?>
   </select>
-  <button class="btn-secondary" type="submit">Aplicar</button>
 </form>
+
 
 <form method="POST" action="/HelpDesk_EQF/modules/dashboard/tasks/cancel.php" style="margin:0;">
   <input type="hidden" name="task_id" value="<?php echo (int)$t['id']; ?>">
