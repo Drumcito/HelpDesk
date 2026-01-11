@@ -123,7 +123,7 @@ include __DIR__ . '/../../../template/sidebar.php';
         <p class="login-brand">
           <span>HelpDesk </span><span class="eqf-e">E</span><span class="eqf-q">Q</span><span class="eqf-f">F</span>
         </p>
-        <p class="user-main-subtitle">Tareas (Admin) — Área <?php echo h($adminArea); ?></p>
+        <p class="user-main-subtitle">Tareas — Área <?php echo h($adminArea); ?></p>
       </div>
 
       <button type="button" class="btn-primary" onclick="openTaskModal()">+ Crear tarea</button>

@@ -1,21 +1,59 @@
 <?php
 session_start();
 require_once __DIR__ . '/../../../config/connectionBD.php';
-
 require_once __DIR__ . '/../../../vendor/autoload.php';
-use Dompdf\Dompdf;
 
-if (!isset($_SESSION['user_id'])) { header('Location:/HelpDesk_EQF/auth/login.php'); exit; }
+use Dompdf\Dompdf;
+use Dompdf\Options;
+
+if (!isset($_SESSION['user_id'])) {
+  header('Location:/HelpDesk_EQF/auth/login.php');
+  exit;
+}
 
 $pdo = Database::getConnection();
 $taskId = (int)($_GET['id'] ?? 0);
-if ($taskId <= 0) { http_response_code(400); exit('ID inválido'); }
+if ($taskId <= 0) {
+  http_response_code(400);
+  exit('ID inválido');
+}
 
-// Traer datos (ajusta columnas si tu users usa name/last_name)
+/* =========================
+   Helpers
+========================= */
+function h($v): string {
+  return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+}
+
+function fmtDate($dt, string $fallback = '—'): string {
+  if (!$dt) return $fallback;
+  $ts = strtotime((string)$dt);
+  if (!$ts) return $fallback;
+  return date('d/m/Y', $ts);
+}
+
+function imgDataUri(string $absPath): string {
+  if (!is_file($absPath)) return '';
+  $ext = strtolower(pathinfo($absPath, PATHINFO_EXTENSION));
+  $mime = match ($ext) {
+    'png' => 'image/png',
+    'jpg', 'jpeg' => 'image/jpeg',
+    'gif' => 'image/gif',
+    'svg' => 'image/svg+xml',
+    default => 'application/octet-stream'
+  };
+  $data = base64_encode((string)file_get_contents($absPath));
+  return "data:$mime;base64,$data";
+}
+
+/* =========================
+   Datos tarea
+========================= */
 $stmt = $pdo->prepare("
   SELECT
     t.id, t.title, t.description, t.status, t.due_at, t.created_at,
     t.acknowledged_at, t.finished_at,
+    t.notes,
     cp.label AS priority_name,
     CONCAT(ad.name,' ',ad.last_name) AS admin_name,
     CONCAT(an.name,' ',an.last_name) AS analyst_name,
@@ -29,21 +67,15 @@ $stmt = $pdo->prepare("
 ");
 $stmt->execute([$taskId]);
 $t = $stmt->fetch(PDO::FETCH_ASSOC);
-if (!$t) { http_response_code(404); exit('No encontrada'); }
 
-// Archivos
-$stmtF = $pdo->prepare("
-  SELECT file_type, original_name, stored_name
-  FROM task_files
-  WHERE task_id = ? AND is_deleted = 0
-  ORDER BY created_at ASC
-");
-$stmtF->execute([$taskId]);
-$files = $stmtF->fetchAll(PDO::FETCH_ASSOC) ?: [];
+if (!$t) {
+  http_response_code(404);
+  exit('No encontrada');
+}
 
-$adminFiles = array_values(array_filter($files, fn($x)=>($x['file_type']??'')==='ADMIN_ATTACHMENT'));
-$evidFiles  = array_values(array_filter($files, fn($x)=>($x['file_type']??'')==='EVIDENCE'));
-
+/* =========================
+   Tiempo en minutos
+========================= */
 $mins = null;
 if (!empty($t['acknowledged_at']) && !empty($t['finished_at'])) {
   $stmtD = $pdo->prepare("SELECT TIMESTAMPDIFF(MINUTE, ?, ?) AS m");
@@ -51,113 +83,288 @@ if (!empty($t['acknowledged_at']) && !empty($t['finished_at'])) {
   $mins = (int)($stmtD->fetchColumn() ?? 0);
 }
 
-$year = (int)date('Y');
-$fecha = date('d \d\e F \d\e Y');
+$year  = (int)date('Y');
+$fecha = date('d/m/Y');
+$notes = trim((string)($t['notes'] ?? ''));
 
+/* =========================
+   Imágenes
+========================= */
+$projectRoot   = realpath(__DIR__ . '/../../..');
+$logoPath      = $projectRoot . '/assets/img/Logo-334x98.png';
+$watermarkPath = $projectRoot . '/assets/img/icon_desktop.png';
+$chartPath     = $projectRoot . '/assets/img/chart_placeholder.png'; // opcional
+
+$logoData      = imgDataUri($logoPath);
+$watermarkData = imgDataUri($watermarkPath);
+$chartData     = imgDataUri($chartPath);
+
+/* Textos footer */
+$footerLine1 = 'REPORTE GENERADO AUTOMATICAMENTE POR EL SISTEMA HELPDESK EQF';
+$footerLine2 = 'TODOS LOS DERECHOS RESERVADOS ©'.$year.' EQUILIBRIO FARMACÉUTICO';
+
+/* =========================
+   HTML / CSS
+========================= */
 $html = '
 <!doctype html>
 <html lang="es">
 <head>
 <meta charset="utf-8">
 <style>
-  body{ font-family: DejaVu Sans, sans-serif; font-size:12px; color:#111; }
-  .top{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; }
-  .title{ font-size:22px; font-weight:800; margin:10px 0 0 0; }
-  .sub{ margin-top:4px; font-size:12px; }
-  .hr{ height:2px; background:#0b3a55; margin:10px 0 14px; }
-  h3{ margin:0 0 6px 0; font-size:14px; }
-  .box{ border-top:2px solid #C8002D; padding-top:10px; margin-top:10px; }
-  ul{ margin:6px 0 0 16px; padding:0; }
-  .grid2{ display:flex; gap:24px; }
-  .col{ flex:1; }
-  table{ width:100%; border-collapse:collapse; margin-top:6px; }
-  th,td{ border:1px solid #cfd8df; padding:8px; vertical-align:top; }
-  th{ background:#0b3a55; color:#fff; text-align:left; }
-  .note{ height:70px; border:1px solid #cfd8df; margin-top:8px; }
-  .sign{ display:flex; gap:60px; margin-top:26px; justify-content:center; }
-  .line{ width:240px; border-top:1px solid #777; text-align:center; padding-top:6px; color:#444; }
-  .footer{ margin-top:14px; font-size:9px; color:#444; text-align:center; }
+  /* ✅ CARTA: dejamos margen inferior pequeño para que el footer baje */
+  @page { margin: 24px 34px 24px 34px; }
+
+  body{
+    font-family: Arial, Helvetica, sans-serif;
+    font-size:12px;
+    color:#111;
+    font-weight:400;
+
+    /* ✅ Reservamos el espacio “prohibido” de firmas+footer SIN usar margin-bottom */
+    padding-bottom: 210px;
+  }
+
+  .b{ font-weight:700; }
+
+  /* Header */
+  table.header{ width:100%; border-collapse:collapse; }
+  table.header td{ vertical-align: top; }
+  .title{ font-size:16px; font-weight:700; margin:0; }
+
+  .logoCell{ width:260px; text-align:right; vertical-align: bottom; }
+  .logoImg{ width:240px; display:inline-block; vertical-align:bottom; margin-top:12px; }
+
+  /* ✅ Baja el bloque de “Área/Fecha” + “Asignado/Analista” */
+  table.metaRow{ width:100%; border-collapse:collapse; margin-top: 34px; }
+  table.metaRow td{ vertical-align: top; }
+  .meta{ font-size:12px; }
+  .assignRight{ text-align:right; font-size:12px; line-height:1.7; }
+
+  /* Línea roja */
+  .redline{
+    height:2px;
+    background:#C8002D;
+    margin:8px 0 10px;
+  }
+
+  /* ✅ Watermark (más tenue de verdad) */
+  .wm{
+    position: fixed;
+    left: 50%;
+    top: 55%;
+    transform: translate(-50%, -50%);
+    z-index: -1;
+    width: 520px;
+    text-align:center;
+  }
+  .wm img{
+    width:520px;
+    opacity: 0.08; /* aquí, no en el div */
+  }
+
+  /* Sección */
+  .sectionTitle{
+    font-size:14px;
+    font-weight:700;
+    margin:0 0 6px 0;
+  }
+  .blueBar{
+    height:4px;
+    background:#14378A;
+    margin:4px 0 12px;
+  }
+
+  /* Tabla */
+  table.detail{
+    width:100%;
+    border-collapse:collapse;
+    table-layout: fixed;
+  }
+  table.detail thead{ display: table-header-group; }
+  table.detail tbody{ display: table-row-group; }
+  table.detail tr{ page-break-inside: avoid; }
+
+  table.detail th, table.detail td{
+    border:0.7px solid #6f6f6f;
+    padding:10px 8px;
+    vertical-align:top;
+    font-size:12px;
+  }
+
+  table.detail th{
+    background-color:#14378A !important;
+    color:#ffffff !important;
+    font-weight:700;
+    font-size:14px;
+    text-align:center;
+  }
+
+  /* Bloque inferior */
+  table.bottomGrid{ width:100%; border-collapse:collapse; margin-top: 18px; }
+  table.bottomGrid td{ vertical-align: top; }
+
+  .notesBox{
+    border:0.7px solid #cfcfcf;
+    min-height:110px;
+    padding:10px;
+    font-size:12px;
+    line-height:1.4;
+    word-wrap: break-word;
+  }
+  .vred{ width:2px; background:#C8002D; }
+
+  .chartBox{ height:130px; }
+  .chartPh{
+    border:0.7px solid #e5e5e5;
+    height:130px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:#777;
+    font-size:12px;
+  }
+  .chartImg{ width:100%; height:130px; object-fit:contain; }
+
+  /* ✅ Firmas a buena altura */
+  .signFixed{
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 95px;   /* firmas arriba del footer */
+    padding: 0 34px;
+  }
+  table.signRow{ width:100%; border-collapse:collapse; }
+  table.signRow td{ width:50%; text-align:center; font-size:12px; }
+  .signLine{ width:75%; margin:0 auto 8px; border-top:0.7px solid #222; height:1px; }
+
+  /* ✅ Footer REAL hasta el borde inferior */
+  .footerWrap{
+    position: fixed;
+    left:0; right:0;
+    bottom: 0px; /* ahora sí baja */
+    text-align:center;
+    padding-bottom: 0px;
+  }
+  .foot1{ color:#bdbdbd; font-size:10px; margin:0; font-weight:700; }
+  .foot2{ color:#111; font-size:10px; margin:6px 0 0; font-weight:700; }
 </style>
 </head>
 <body>
 
-<div class="top">
-  <div>
-    <div class="title">REPORTE DE ACTIVIDADES</div>
-    <div class="sub"><b>Área:</b> '.htmlspecialchars($t["analyst_area"] ?? "—").' &nbsp;|&nbsp; <b>Fecha de generación de reporte:</b> '.$fecha.'</div>
-  </div>
-  <div style="text-align:right;">
-  </div>
-</div>
+'.($watermarkData ? '<div class="wm"><img src="'.$watermarkData.'" alt="watermark"></div>' : '').'
 
-<div class="hr"></div>
+<table class="header">
+  <tr>
+    <td>
+      <div class="title">REPORTE DE TAREA</div>
+    </td>
+    <td class="logoCell">
+      '.($logoData ? '<img class="logoImg" src="'.$logoData.'" alt="logo">' : '').'
+    </td>
+  </tr>
+</table>
 
-<div class="box">
-  <h3> </h3>
-  <ul>
-    <li><b>Analista encargado:</b> '.htmlspecialchars($t["analyst_name"] ?? "—").'</li>
-    <li><b>Asignado por:</b> '.htmlspecialchars($t["admin_name"] ?? "—").'</li>
-  </ul>
-</div>
+<table class="metaRow">
+  <tr>
+    <td class="meta">
+      <span class="b">Área:</span> '.h($t["analyst_area"] ?? "—").'
+      &nbsp;&nbsp; | &nbsp;&nbsp;
+      <span class="b">Fecha de reporte:</span> '.$fecha.'
+    </td>
+    <td class="assignRight">
+      <span class="b">Asignado por:</span> '.h($t["admin_name"] ?? "—").'<br>
+      <span class="b">Analista:</span> '.h($t["analyst_name"] ?? "—").'
+    </td>
+  </tr>
+</table>
 
-<div class="box">
-  <h3>Detalle de la Tarea</h3>
-  <table>
-    <thead>
-      <tr>
-        <th>Tarea</th>
-        <th>Prioridad</th>
-        <th>Fecha de Maxima de entrega</th>
-        <th>Fecha de entrega</th>
-        <th>Tiempo (min)</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td>'.htmlspecialchars($t["title"]).'<br><span style="color:#555;">'.nl2br(htmlspecialchars($t["description"])).'</span></td>
-        <td>'.htmlspecialchars($t["priority_name"] ?? "—").'</td>
-        <td>'.htmlspecialchars($t["due_at"] ?? "—").'</td>
-        <td>'.htmlspecialchars(substr((string)$t["finished_at"],0,10)).'</td>
-        <td>'.($mins === null ? "—" : (string)$mins).'</td>
-      </tr>
-    </tbody>
+<div class="redline"></div>
+<br>
+<div class="sectionTitle">Detalle de la tarea</div>
+<table class="detail">
+  <thead>
+    <tr>
+      <th>Tarea</th>
+      <th>Prioridad</th>
+      <th>Fecha límite de entrega</th>
+      <th>Fecha entregada</th>
+      <th>Tiempo (min)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>'.h($t["title"] ?? "—").'</td>
+      <td style="text-align:center;">'.h($t["priority_name"] ?? "—").'</td>
+      <td style="text-align:center;">'.h(fmtDate($t["due_at"] ?? null)).'</td>
+      <td style="text-align:center;">'.h(fmtDate($t["finished_at"] ?? null)).'</td>
+      <td style="text-align:center;">'.($mins === null ? "—" : (string)$mins).'</td>
+    </tr>
+    <tr>
+      <td colspan="5"><span class="b">Descripción:</span><br>'.nl2br(h($t["description"] ?? "—")).'</td>
+    </tr>
+  </tbody>
+</table>
+
+<table class="bottomGrid" cellpadding="0" cellspacing="0">
+  <tr>
+    <td style="width:48%; padding-right:12px;">
+      <div class="sectionTitle">Observaciones y/o Notas</div>
+      <div class="notesBox">'.($notes !== '' ? nl2br(h($notes)) : '').'</div>
+    </td>
+
+    <td class="vred"></td>
+
+    <td style="width:49%; padding-left:12px;">
+      <div class="sectionTitle">Tiempos</div>
+      <div class="chartBox">
+        '.($chartData
+            ? '<img class="chartImg" src="'.$chartData.'" alt="chart">'
+            : '<div class="chartPh">Gráfica (Power BI pendiente)</div>'
+        ).'
+      </div>
+    </td>
+  </tr>
+</table>
+
+<!-- Firmas -->
+<div class="signFixed">
+  <table class="signRow" cellpadding="0" cellspacing="0">
+    <tr>
+      <td>
+        <div class="signLine"></div>
+        <div class="b">'.h($t["admin_name"] ?? "—").'</div>
+        <div style="font-size:11px;">Asignado por</div>
+      </td>
+      <td>
+        <div class="signLine"></div>
+        <div class="b">'.h($t["analyst_name"] ?? "—").'</div>
+        <div style="font-size:11px;">Analista</div>
+      </td>
+    </tr>
   </table>
 </div>
 
-
-
-<div class="box">
-  <h3>Observaciones y Notas</h3>
-  <div class="note"></div>
-  $notes = trim((string)($task['notes'] ?? ''));
-
-if ($notes !== '') {
-  // Ejemplo genérico (ajusta según tu librería PDF)
-  // $pdf->Ln(4);
-  // $pdf->SetFont('Arial','B',12);
-  // $pdf->Cell(0, 8, 'Observaciones / Notas', 0, 1);
-  // $pdf->SetFont('Arial','',11);
-  // $pdf->MultiCell(0, 6, $notes);
-}
-
-</div>
-
-<div class="sign">
-  <div class="line">'.htmlspecialchars($t["analyst_name"] ?? "—").'</div>
-  <div class="line">'.htmlspecialchars($t["admin_name"] ?? "—").'</div>
-</div>
-
-<div class="footer">
-  REPORTE GENERADO AUTOMATICAMENTE POR EL SISTEMA HELPDESK EQF.<br> TODOS LOS DERECHOS RESERVADOS ©'.$year.' EQUILIBRIO FARMACEUTICO
+<!-- Footer -->
+<div class="footerWrap">
+  <p class="foot1">'.$footerLine1.'</p>
+  <p class="foot2">'.$footerLine2.'</p>
 </div>
 
 </body>
 </html>
 ';
 
-$dompdf = new Dompdf();
+/* =========================
+   Dompdf
+========================= */
+$options = new Options();
+$options->set('isRemoteEnabled', true);
+$options->set('isHtml5ParserEnabled', true);
+
+$dompdf = new Dompdf($options);
 $dompdf->loadHtml($html, 'UTF-8');
-$dompdf->setPaper('A4', 'portrait');
+$dompdf->setPaper('letter', 'portrait');
 $dompdf->render();
 
 header('Content-Type: application/pdf');
