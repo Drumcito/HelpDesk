@@ -216,6 +216,23 @@ include __DIR__ . '/../../../template/sidebar.php';
           <?php echo nl2br(h($task['description'])); ?>
         </div>
       </div>
+<div class="user-info-card" style="margin-top:14px;">
+  <h2 style="margin:0 0 10px 0;">Observaciones y/o notas</h2>
+
+  <form method="POST" action="/HelpDesk_EQF/modules/dashboard/tasks/save_notes.php" style="margin:0;">
+    <input type="hidden" name="task_id" value="<?php echo (int)$task['id']; ?>">
+
+    <textarea name="notes"
+              rows="6"
+              style="width:100%; resize:vertical;"
+              placeholder="Escribe aquí observaciones, avances, acuerdos, etc."><?php echo h($task['notes'] ?? ''); ?></textarea>
+
+    <div style="display:flex; justify-content:flex-end; margin-top:10px;">
+      <button class="btn-primary" type="submit">Guardar notas</button>
+    </div>
+
+  </form>
+</div>
 
       <div class="panel-grid-2" style="margin-top:14px;">
 

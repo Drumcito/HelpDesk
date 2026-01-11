@@ -66,7 +66,7 @@ $html = '
   .sub{ margin-top:4px; font-size:12px; }
   .hr{ height:2px; background:#0b3a55; margin:10px 0 14px; }
   h3{ margin:0 0 6px 0; font-size:14px; }
-  .box{ border-top:2px solid #0b3a55; padding-top:10px; margin-top:10px; }
+  .box{ border-top:2px solid #C8002D; padding-top:10px; margin-top:10px; }
   ul{ margin:6px 0 0 16px; padding:0; }
   .grid2{ display:flex; gap:24px; }
   .col{ flex:1; }
@@ -83,34 +83,32 @@ $html = '
 
 <div class="top">
   <div>
-    <div class="title">REPORTE DE ACTIVIDADES: ANALISTA</div>
-    <div class="sub"><b>Departamento:</b> '.htmlspecialchars($t["analyst_area"] ?? "—").' &nbsp;|&nbsp; <b>Fecha:</b> '.$fecha.'</div>
+    <div class="title">REPORTE DE ACTIVIDADES</div>
+    <div class="sub"><b>Área:</b> '.htmlspecialchars($t["analyst_area"] ?? "—").' &nbsp;|&nbsp; <b>Fecha de generación de reporte:</b> '.$fecha.'</div>
   </div>
   <div style="text-align:right;">
-    <div style="font-weight:700;">Equilibrio Farmacéutico</div>
   </div>
 </div>
 
 <div class="hr"></div>
 
 <div class="box">
-  <h3>1. Resumen del Colaborador</h3>
+  <h3> </h3>
   <ul>
-    <li><b>Nombre:</b> '.htmlspecialchars($t["analyst_name"] ?? "—").'</li>
+    <li><b>Analista encargado:</b> '.htmlspecialchars($t["analyst_name"] ?? "—").'</li>
     <li><b>Asignado por:</b> '.htmlspecialchars($t["admin_name"] ?? "—").'</li>
-    <li><b>Periodo:</b> '.htmlspecialchars(substr((string)$t["created_at"],0,10)).' a '.htmlspecialchars(substr((string)$t["finished_at"],0,10)).'</li>
   </ul>
 </div>
 
 <div class="box">
-  <h3>2. Detalle de Tareas Asignadas</h3>
+  <h3>Detalle de la Tarea</h3>
   <table>
     <thead>
       <tr>
         <th>Tarea</th>
         <th>Prioridad</th>
-        <th>Entrega</th>
-        <th>Estatus</th>
+        <th>Fecha de Maxima de entrega</th>
+        <th>Fecha de entrega</th>
         <th>Tiempo (min)</th>
       </tr>
     </thead>
@@ -119,41 +117,34 @@ $html = '
         <td>'.htmlspecialchars($t["title"]).'<br><span style="color:#555;">'.nl2br(htmlspecialchars($t["description"])).'</span></td>
         <td>'.htmlspecialchars($t["priority_name"] ?? "—").'</td>
         <td>'.htmlspecialchars($t["due_at"] ?? "—").'</td>
-        <td>'.htmlspecialchars($t["status"] ?? "—").'</td>
+        <td>'.htmlspecialchars(substr((string)$t["finished_at"],0,10)).'</td>
         <td>'.($mins === null ? "—" : (string)$mins).'</td>
       </tr>
     </tbody>
   </table>
 </div>
 
-<div class="box">
-  <h3>ARCHIVOS ADJUNTOS</h3>
-  <div class="grid2">
-    <div class="col">
-      <b>ARCHIVOS DE REFERENCIA</b>
-      <ul>';
-        if(empty($adminFiles)){ $html .= '<li>Sin archivos</li>'; }
-        else foreach($adminFiles as $f){ $html .= '<li>'.htmlspecialchars($f["original_name"]).'</li>'; }
-$html .= '</ul>
-    </div>
-    <div class="col">
-      <b>EVIDENCIA DE ENTREGA</b>
-      <ul>';
-        if(empty($evidFiles)){ $html .= '<li>Sin evidencias</li>'; }
-        else foreach($evidFiles as $f){ $html .= '<li>'.htmlspecialchars($f["original_name"]).'</li>'; }
-$html .= '</ul>
-    </div>
-  </div>
-</div>
+
 
 <div class="box">
-  <h3>4. Observaciones y Notas</h3>
+  <h3>Observaciones y Notas</h3>
   <div class="note"></div>
+  $notes = trim((string)($task['notes'] ?? ''));
+
+if ($notes !== '') {
+  // Ejemplo genérico (ajusta según tu librería PDF)
+  // $pdf->Ln(4);
+  // $pdf->SetFont('Arial','B',12);
+  // $pdf->Cell(0, 8, 'Observaciones / Notas', 0, 1);
+  // $pdf->SetFont('Arial','',11);
+  // $pdf->MultiCell(0, 6, $notes);
+}
+
 </div>
 
 <div class="sign">
-  <div class="line">Nombre del Analista</div>
-  <div class="line">Nombre del Responsable</div>
+  <div class="line">'.htmlspecialchars($t["analyst_name"] ?? "—").'</div>
+  <div class="line">'.htmlspecialchars($t["admin_name"] ?? "—").'</div>
 </div>
 
 <div class="footer">
