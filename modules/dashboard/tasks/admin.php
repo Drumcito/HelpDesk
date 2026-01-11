@@ -223,7 +223,7 @@ include __DIR__ . '/../../../template/sidebar.php';
         class="task-actions-admin__cancel"
         style="margin:0;">
     <input type="hidden" name="task_id" value="<?php echo (int)$t['id']; ?>">
-    <button class="task-cancel-link" type="submit"
+    <button class="chip-btn-finish" type="submit"
             onclick="return confirm('¿Cancelar esta tarea?');">
       ¿Cancelar tarea?
     </button>
@@ -310,15 +310,16 @@ include __DIR__ . '/../../../template/sidebar.php';
           class="user-modal-form"
           id="taskForm">
 
-      <div class="form-group">
-        <label>Asignar a</label>
-        <select name="assigned_to_user_id" id="assigned_to_user_id" required>
-          <option value="">Analista…</option>
-          <?php foreach ($analysts as $a): ?>
-            <option value="<?php echo (int)$a['id']; ?>"><?php echo h($a['full_name']); ?></option>
-          <?php endforeach; ?>
-        </select>
-      </div>
+   <div class="form-group">
+  <label>Asignar a</label>
+  <select name="assigned_to_user_id" id="assigned_to_user_id" required>
+    <option value="">Analista…</option>
+    <?php foreach ($analysts as $a): ?>
+      <option value="<?php echo (int)$a['id']; ?>"><?php echo h($a['full_name']); ?></option>
+    <?php endforeach; ?>
+  </select>
+</div>
+
 
       <div class="form-group">
         <label>Fecha y hora de entrega</label>
@@ -468,7 +469,11 @@ document.getElementById('taskModal')?.addEventListener('click', (e) => {
   setInterval(poll, 4000);
   document.addEventListener('visibilitychange', () => { if(!document.hidden) poll(); });
 })();
+
 </script>
+
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
@@ -489,6 +494,5 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 <script src="/HelpDesk_EQF/assets/js/script.js?v=<?php echo time(); ?>"></script>
-<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/es.js"></script>
+
 <?php include __DIR__ . '/../../../template/footer.php'; ?>

@@ -64,10 +64,11 @@ $tasks = $stmtT->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
 $stmtH = $pdo->prepare("
   SELECT
-    t.id, t.title, t.due_at, t.finished_at,
-    TIMESTAMPDIFF(SECOND, t.created_at, t.finished_at) AS elapsed_sec,
-    (SELECT COUNT(*) FROM task_files f
-      WHERE f.task_id=t.id AND f.is_deleted=0 AND f.file_type='EVIDENCE') AS evidence_files_count
+    t.id AS task_id,
+    t.title,
+    t.due_at,
+    t.finished_at,
+    TIMESTAMPDIFF(SECOND, t.acknowledged_at, t.finished_at) AS elapsed_sec
   FROM tasks t
   WHERE t.assigned_to_user_id = ?
     AND t.status = 'FINALIZADA'
@@ -84,7 +85,7 @@ include __DIR__ . '/../../../template/sidebar.php';
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Mis tareas (Analista) | HelpDesk EQF</title>
+  <title>Mis tareas| HelpDesk EQF</title>
   <link rel="stylesheet" href="/HelpDesk_EQF/assets/css/style.css?v=<?php echo time(); ?>">
 </head>
 
@@ -138,20 +139,23 @@ include __DIR__ . '/../../../template/sidebar.php';
 
                 <div class="ticket-row">
                   <div class="ticket-label">Estado</div>
-<span class="<?php echo statusPillClass($t['status'] ?? ''); ?>">
-  <?php echo h(statusLabel($t['status'] ?? '')); ?>
+<?php $st = $t['status'] ?? ''; ?>
+
+<span class="<?php echo statusPillClass($st); ?>">
+  <?php echo h(statusLabel($st)); ?>
 </span>
+
                 </div>
 
                 <div class="ticket-desc"><?php echo h($t['description']); ?></div>
               </div>
-              <div class="ticket-card__actions task-actions-analyst">
+        <?php $st = $t['status'] ?? ''; ?>
 
-  <!-- Línea inferior (como tu imagen): izquierda / centro / derecha -->
+<div class="ticket-card__actions task-actions-analyst">
   <div class="task-actions-analyst__row">
 
-    <!-- IZQUIERDA -->
-    <?php if (($t['status'] ?? '') === 'EN_PROCESO'): ?>
+    <!-- IZQUIERDA: evidencias SOLO si EN_PROCESO -->
+    <?php if ($st === 'EN_PROCESO'): ?>
       <form method="POST"
             action="/HelpDesk_EQF/modules/dashboard/tasks/upload_evidence.php"
             enctype="multipart/form-data"
@@ -177,31 +181,33 @@ include __DIR__ . '/../../../template/sidebar.php';
       <div class="task-actions-analyst__left"></div>
     <?php endif; ?>
 
-    <!-- CENTRO -->
+    <!-- CENTRO: Ver detalle (modal) usa TASK_ID -->
     <a href="javascript:void(0)"
        class="panel-link task-actions-analyst__mid"
        onclick="openTaskDetailModal(<?php echo (int)$t['id']; ?>)">
       Ver
     </a>
 
-    <!-- DERECHA -->
+    <!-- DERECHA: Enterado / Finalizar -->
     <div class="task-actions-analyst__right">
-      <?php if (($t['status'] ?? '') === 'ASIGNADA'): ?>
+      <?php if ($st === 'ASIGNADA'): ?>
         <form method="POST" action="/HelpDesk_EQF/modules/dashboard/tasks/ack.php" style="margin:0;">
           <input type="hidden" name="task_id" value="<?php echo (int)$t['id']; ?>">
-          <button class="btn-secondary" type="submit">Enterado</button>
+          <button class="chip-btn" type="submit">Enterado</button>
         </form>
 
-      <?php elseif (($t['status'] ?? '') === 'EN_PROCESO'): ?>
+      <?php elseif ($st === 'EN_PROCESO'): ?>
         <form method="POST" action="/HelpDesk_EQF/modules/dashboard/tasks/finish.php" style="margin:0;">
           <input type="hidden" name="task_id" value="<?php echo (int)$t['id']; ?>">
-          <button class="btn-secondary" type="submit">Finalizar</button>
+          <button class="chip-btn-finish" type="submit">Finalizar</button>
         </form>
       <?php endif; ?>
     </div>
 
   </div>
 </div>
+
+
 
             </article>
           <?php endforeach; ?>
@@ -231,10 +237,10 @@ include __DIR__ . '/../../../template/sidebar.php';
               <td><?php echo h($t['due_at']); ?></td>
               <?php if ($rol === 2): ?><td><?php echo h($t['analyst_name'] ?? '—'); ?></td><?php endif; ?>
               <td>
-                <a class="panel-link" href="/HelpDesk_EQF/modules/dashboard/tasks/view.php?id=<?php echo (int)$t['id']; ?>">Ver</a>
-                &nbsp;|&nbsp;
-                <a class="panel-link" href="/HelpDesk_EQF/modules/dashboard/tasks/report_pdf.php?id=<?php echo (int)$t['id']; ?>" target="_blank" rel="noopener">PDF</a>
-              </td>
+                <a class="panel-link" href="/HelpDesk_EQF/modules/dashboard/tasks/view.php?id=<?php echo (int)$t['task_id']; ?>">Ver</a>
+&nbsp;|&nbsp;
+<a class="panel-link" href="/HelpDesk_EQF/modules/dashboard/tasks/report_pdf.php?id=<?php echo (int)$t['task_id']; ?>" target="_blank" rel="noopener">PDF</a>
+</td>
             </tr>
           <?php endforeach; ?>
         </tbody>

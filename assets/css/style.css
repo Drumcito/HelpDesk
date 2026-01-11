@@ -1905,19 +1905,33 @@ footer {
     padding: 16px !important;
 }
 
-/* Botón chip ✅ */
 .chip-btn {
     border: none;
     cursor: pointer;
     border-radius: 999px;
     padding: 6px 10px;
-    background: rgba(30, 138, 79, 0.12);
-    color: var(--eqf-green);
+    background: var(--eqf-green);
+    color: var(--eqf-bg);
     font-weight: 700;
     transition: transform .1s ease, box-shadow .1s ease;
 }
 
 .chip-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 18px rgba(0,0,0,0.12);
+}
+.chip-btn-finish {
+    border: none;
+    cursor: pointer;
+    border-radius: 999px;
+    padding: 6px 10px;
+    background: var(--eqf-red);
+    color: var(--eqf-bg);
+    font-weight: 700;
+    transition: transform .1s ease, box-shadow .1s ease;
+}
+
+.chip-btn-finish:hover {
     transform: translateY(-1px);
     box-shadow: 0 8px 18px rgba(0,0,0,0.12);
 }
@@ -2903,10 +2917,6 @@ table.dataTable tbody tr:hover {
   padding: 10px 12px;
   border-radius: 16px;
 
-  overflow:hidden;
-  display:-webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
 }
 
 .ticket-card__actions{
@@ -2930,6 +2940,12 @@ table.dataTable tbody tr:hover {
 /* =========================
    TASKS
 ========================= */
+
+.task-multi-select{
+  min-height: 120px;
+  padding: 10px;
+}
+
 .tasks-head{
   display:flex;
   justify-content:space-between;
