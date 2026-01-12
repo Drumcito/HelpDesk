@@ -269,11 +269,13 @@ include __DIR__ . '/../../../template/sidebar.php';
       </table>
     </div>
   </div>
+<script src="/HelpDesk_EQF/assets/js/script.js?v=<?php echo time(); ?>"></script>
 
   <!-- DataTables (CDN rápido) -->
   <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
   <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
   <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+  
   <script>
     $(function(){
       $('#tasksHistoryTable').DataTable({
@@ -492,7 +494,5 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 
-
-<script src="/HelpDesk_EQF/assets/js/script.js?v=<?php echo time(); ?>"></script>
 
 <?php include __DIR__ . '/../../../template/footer.php'; ?>

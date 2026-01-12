@@ -410,7 +410,7 @@ async function openTaskDetailModal(taskId){
 })();
 </script>
 
-<script src="/HelpDesk_EQF/assets/js/script.js?v=<?php echo time(); ?>"></script>
 
 </body>
 </html>
+<script src="/HelpDesk_EQF/assets/js/script.js?v=<?php echo time(); ?>"></script>

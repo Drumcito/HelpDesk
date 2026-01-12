@@ -604,32 +604,18 @@ include __DIR__ . '/../../../template/sidebar.php';
                 }
                 ?>
               </td>
-              <td style="display:flex; gap:8px; flex-wrap:wrap;">
-                <button type="button" class="btn-main-combined"
-                  onclick="openAssignModal(<?php echo (int)$t['id']; ?>, <?php echo (int)($t['asignado_a'] ?? 0); ?>)"
-                  style="width:95px; height:35px;">
-                  <?php echo $hasAnalyst ? 'Reasignar' : 'Asignar'; ?>
-                </button>
+              <td class="actions-inline">
+  <button type="button" class="task-link-combined"
+    onclick="openAssignModal(<?php echo (int)$t['id']; ?>, <?php echo (int)($t['asignado_a'] ?? 0); ?>)">
+    <?php echo $hasAnalyst ? 'Reasignar' : 'Asignar'; ?>
+  </button>
 
-                <button type="button" class="btn-main-combined"
-                  onclick="openStateModal(<?php echo (int)$t['id']; ?>, '<?php echo h($t['estado'] ?? 'abierto'); ?>')"
-                  style="width:90px; height:35px;">
-                  Estado
-                </button>
-
-                <button type="button" class="btn-main-combined"
-                  onclick="openCanalizarModal(<?php echo (int)$t['id']; ?>)"
-                  style="width:95px; height:35px;">
-                  Canalizar
-                </button>
-
-                <a class="btn-main-combined"
-                   href="/HelpDesk_EQF/modules/dashboard/admin/ticket_pdf.php?id=<?php echo (int)$t['id']; ?>"
-                   target="_blank"
-                   style="display:inline-flex; align-items:center; justify-content:center; width:70px; height:35px;">
-                  PDF
-                </a>
-              </td>
+<span class="actions-sep">|</span>
+  <button type="button" class="task-cancel-link"
+    onclick="openCanalizarModal(<?php echo (int)$t['id']; ?>)">
+    Canalizar
+  </button>
+</td>
             </tr>
           <?php endforeach; ?>
           </tbody>

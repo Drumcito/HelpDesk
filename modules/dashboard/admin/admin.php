@@ -338,7 +338,6 @@ include __DIR__ . '/../../../template/sidebar.php';
 
         </section>
     </section>
-<script src="/HelpDesk_EQF/assets/js/script.js?v=<?php echo time(); ?>"></script>
 
 </main>
 <?php include __DIR__ . '/../../../template/footer.php'; ?>
@@ -740,6 +739,7 @@ function every(ms, fn){
   });
 })();
 </script>
+<script src="/HelpDesk_EQF/assets/js/script.js?v=<?php echo time(); ?>"></script>
 
 
 

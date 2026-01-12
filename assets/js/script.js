@@ -3,6 +3,19 @@
    Archivo: assets/js/script.js
 ============================================ */
 
+
+
+
+//  aplica ANTES de que pinte la UI (evita flash)
+(function initSidebarStateEarly(){
+  try{
+    const saved = localStorage.getItem('eqf_sidebar_collapsed');
+    if (saved === '1') document.documentElement.classList.add('sidebar-collapsed');
+  }catch(e){}
+})();
+
+
+
 document.addEventListener('DOMContentLoaded', () => {
 
     /* ============================================
@@ -605,13 +618,83 @@ if (areaSoporte && problemaSelect) {
 
 
 /*------------------
-Colapsar Sidebar
+ SIDEBAR
 -------------------*/
-function toggleSidebar() {
-  document.body.classList.toggle('sidebar-collapsed');
-}
 
+function toggleSidebar() {
+  // si hay modal abierto, no permitas mover sidebar (ver punto 4)
+  if (document.documentElement.classList.contains('modal-open')) return;
+
+  const collapsed = document.documentElement.classList.toggle('sidebar-collapsed');
+  try { localStorage.setItem('eqf_sidebar_collapsed', collapsed ? '1' : '0'); } catch(e){}
+}
 window.toggleSidebar = toggleSidebar;
+
+//  reforzar al cargar
+document.addEventListener('DOMContentLoaded', () => {
+  try{
+    const saved = localStorage.getItem('eqf_sidebar_collapsed');
+    if (saved === '1') document.documentElement.classList.add('sidebar-collapsed');
+  }catch(e){}
+});
+
+(function watchModals(){
+  function isVisible(el){
+    if (!el) return false;
+    const st = getComputedStyle(el);
+    if (st.display === 'none' || st.visibility === 'hidden' || st.opacity === '0') return false;
+    const r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0;
+  }
+
+  function hasOpenModal(){
+    const selectors = [
+      '.modal-backdrop.show',
+      '.user-modal-backdrop.is-visible',
+      '.eqf-modal-backdrop.show',
+      '.task-modal-backdrop.is-visible',
+      '#announceModal.show',
+      '[role="dialog"][open]',
+      '[aria-modal="true"]',
+      '.show',
+      '.is-visible'
+    ];
+
+    for (const sel of selectors){
+      const nodes = document.querySelectorAll(sel);
+      for (const n of nodes){
+        // filtramos solo overlays/modales “reales”
+        const looksLikeModal =
+          n.classList.contains('modal-backdrop') ||
+          n.classList.contains('user-modal-backdrop') ||
+          n.classList.contains('eqf-modal-backdrop') ||
+          n.classList.contains('task-modal-backdrop') ||
+          n.getAttribute('role') === 'dialog' ||
+          n.getAttribute('aria-modal') === 'true' ||
+          n.id.toLowerCase().includes('modal') ||
+          n.className.toLowerCase().includes('modal');
+
+        if (looksLikeModal && isVisible(n)) return true;
+      }
+    }
+    return false;
+  }
+
+  function sync(){
+    if (hasOpenModal()) document.documentElement.classList.add('modal-open');
+    else document.documentElement.classList.remove('modal-open');
+  }
+
+  document.addEventListener('click', () => setTimeout(sync, 0), true);
+  document.addEventListener('keydown', () => setTimeout(sync, 0), true);
+
+  // observa cambios de clase/atributos en el DOM
+  const obs = new MutationObserver(() => sync());
+  obs.observe(document.documentElement, { subtree:true, attributes:true, attributeFilter:['class','style','open','aria-hidden'] });
+
+  document.addEventListener('DOMContentLoaded', sync);
+})();
+
 
 /* notificaciones*/
 (function(){

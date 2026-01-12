@@ -14,20 +14,16 @@ $puedeInventario = (
     && $areaLower === 'ti'         // Área TI
 );
 
-
-
 /**
  * FOTO DE PERFIL SEGÚN ROL / ÁREA / CORREO
  */
 $profileImg = '/HelpDesk_EQF/assets/img/pp/pp_corporativo.jpg';
 
 if ($rol === 3) {
-    // ANALISTA → lógica por área/correo
     $area  = strtolower(trim($userArea));
     $email = strtolower(trim($userEmail));
 
     $profileImg = match (true) {
-        // TI
         $area === 'ti'
         || str_starts_with($email, 'ti@')
         || str_starts_with($email, 'ti1@')
@@ -38,7 +34,6 @@ if ($rol === 3) {
         || str_starts_with($email, 'ti6@') =>
             '/HelpDesk_EQF/assets/img/pp/pp_ti.jpg',
 
-        // SAP
         $area === 'sap'
         || str_starts_with($email, 'administracion@')
         || str_starts_with($email, 'administracion1@')
@@ -47,7 +42,6 @@ if ($rol === 3) {
         || str_starts_with($email, 'administracion4@') =>
             '/HelpDesk_EQF/assets/img/pp/pp_sap.jpg',
 
-        // MKT
         $area === 'mkt'
         || str_starts_with($email, 'gerente.mercadotecnia@')
         || str_starts_with($email, 'mkt@')
@@ -58,7 +52,6 @@ if ($rol === 3) {
         || str_starts_with($email, 'mkt5@') =>
             '/HelpDesk_EQF/assets/img/pp/pp_mkt.jpg',
 
-        // DISEÑO
         $area === 'diseno'
         || str_starts_with($email, 'diseno@')
         || str_starts_with($email, 'diseno1@')
@@ -70,34 +63,23 @@ if ($rol === 3) {
     };
 
 } elseif ($rol === 4) {
-    // USUARIO FINAL
-    if ($userArea === 'Sucursal') {
-        $profileImg = '/HelpDesk_EQF/assets/img/pp/pp_sucursal.jpg';
-    } else {
-        $profileImg = '/HelpDesk_EQF/assets/img/pp/pp_corporativo.jpg';
-    }
+    $profileImg = ($userArea === 'Sucursal')
+        ? '/HelpDesk_EQF/assets/img/pp/pp_sucursal.jpg'
+        : '/HelpDesk_EQF/assets/img/pp/pp_corporativo.jpg';
 
 } elseif ($rol === 2) {
-    // ADMIN
     $profileImg = '/HelpDesk_EQF/assets/img/pp/pp_admin.jpg';
 
 } elseif ($rol === 1) {
-    // SUPER ADMIN
     $profileImg = '/HelpDesk_EQF/assets/img/pp/pp_sa.jpg';
 }
 ?>
-<button id="sidebarToggle" class="sidebar-toggle" type="button" 
-onclick="toggleSidebar()" aria-label="Abrir/cerrar menú">
-≡
-</button>
 
-
-
-
-<aside class="user-sidebar">
-<button id="sidebarToggle" class="sidebar-toggle" type="button" aria-label="Abrir/cerrar menú">
-  
-</button>
+<aside class="user-sidebar" id="appSidebar" aria-label="Sidebar">
+    <!-- Toggle dentro del sidebar (como tu img2) -->
+    <button id="sidebarToggle" class="sidebar-toggle" type="button" onclick="toggleSidebar()" aria-label="Abrir/cerrar menú">
+        ☰
+    </button>
 
     <div class="user-sidebar-profile">
         <img src="<?php echo htmlspecialchars($profileImg, ENT_QUOTES, 'UTF-8'); ?>"
@@ -113,198 +95,179 @@ onclick="toggleSidebar()" aria-label="Abrir/cerrar menú">
             </p>
 
             <?php if ($rol !== 4): ?>
-                <p class="user-sidebar-email" style="opacity:0.8;">
+                <p class="user-sidebar-area">
                     Área: <?php echo htmlspecialchars($userArea, ENT_QUOTES, 'UTF-8'); ?>
                 </p>
             <?php endif; ?>
         </div>
     </div>
 
-    <nav class="user-sidebar-menu">
+    <nav class="user-sidebar-menu" aria-label="Menú">
         <?php if ($rol === 1): ?>
-            <!-- ================= SA ================= -->
-<button type="button" class="user-menu-item"
-            onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/sa/sa.php'">
-        <span class="user-menu-icon">⭐</span>
-        <span>Super Admin</span>
-    </button>
-
-    <button type="button" class="user-menu-item"
-            onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/sa/directory.php'">
-        <span class="user-menu-icon">👥</span>
-        <span>Usuarios</span>
-    </button>
-
-    <button type="button" class="user-menu-item"
-            onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/sa/tickets_global.php'">
-        <span class="user-menu-icon">🎫</span>
-        <span>Tickets</span>
-    </button>
-
-    <button type="button" class="user-menu-item"
-            onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/sa/documents.php'">
-        <span class="user-menu-icon">📁</span>
-        <span>Documentos</span>
-    </button>
-
-    <button type="button" class="user-menu-item"
-            onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/sa/reports.php'">
-        <span class="user-menu-icon">📊</span>
-        <span>Reportes & KPIs</span>
-    </button>
-
-    <button type="button" class="user-menu-item"
-            onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/sa/catalogs.php'">
-        <span class="user-menu-icon">⚙️</span>
-        <span>Catálogos</span>
-    </button>
-
-    <button type="button" class="user-menu-item"
-            onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/sa/sla_global.php'">
-        <span class="user-menu-icon">⏱️</span>
-        <span>SLA Global</span>
-    </button>
-
-    <button type="button" class="user-menu-item"
-            onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/sa/auditoria.php'">
-        <span class="user-menu-icon">🧾</span>
-        <span>Auditoría</span>
-    </button>
-
-<?php elseif ($rol === 2): ?>
-    <!-- ================= ADMIN ================= -->
-
-    <button type="button" class="user-menu-item"
-            onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/admin/admin.php'">
-        <span class="user-menu-icon">⭐</span>
-        <span>Admin</span>
-    </button>
-            <button type="button" class="user-menu-item" data-open-announcement>
-  <span class="user-menu-icon">📣</span>
-  Enviar aviso
-</button>
-
-
-
-    <button type="button" class="user-menu-item"
-            onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/admin/tickets_area.php'">
-        <span class="user-menu-icon">🎫</span>
-        <span>Tickets</span>
-    </button>
-
-        <button type="button" class="user-menu-item"
-            onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/admin/analysts_cards.php'">
-        <span class="user-menu-icon">👥</span>
-        <span>Analistas</span>
-    </button>
-
-    <button type="button" class="user-menu-item"
-            onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/tasks/admin.php'">
-        <span class="user-menu-icon">📒</span>
-        <span>Tareas</span>
-    </button>
-                <?php if ($puedeInventario): ?>
-    <button type="button" class="user-menu-item"
-            onclick="window.location.href='/HelpDesk_EQF/inventory/index.html'">
-        <span class="user-menu-icon">📦</span>
-        <span>Inventario</span>
-    </button>
-    <?php endif; ?>
-
-            <button type="button" class="user-menu-item" 
-                onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/shared/internal_notes.php'">
-                <span class="user-menu-icon">📝</span>
-                <span>Notas</span>
-            </button>
-
-    <button type="button" class="user-menu-item"
-            onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/admin/reports.php'">
-        <span class="user-menu-icon">📊</span>
-        <span>Reportes y KPIs</span>
-    </button>
-
-
-        <?php elseif ($rol === 3): ?>
-            <!-- ================= ANALISTA ================= -->
-            <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/analyst/analyst.php'">
+            <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/sa/sa.php'">
                 <span class="user-menu-icon">⭐</span>
-                <span>Dashboard</span>
+                <span class="user-menu-text">Super Admin</span>
             </button>
-             <button type="button" class="user-menu-item" id="btnOpenCreateTicket">
-                <span class="user-menu-icon">➕</span>
-                <span>Crear ticket</span>
+
+            <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/sa/directory.php'">
+                <span class="user-menu-icon">👥</span>
+                <span class="user-menu-text">Usuarios</span>
             </button>
+
+            <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/sa/tickets_global.php'">
+                <span class="user-menu-icon">🎫</span>
+                <span class="user-menu-text">Tickets</span>
+            </button>
+
+            <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/sa/documents.php'">
+                <span class="user-menu-icon">📁</span>
+                <span class="user-menu-text">Documentos</span>
+            </button>
+
+            <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/sa/reports.php'">
+                <span class="user-menu-icon">📊</span>
+                <span class="user-menu-text">Reportes & KPIs</span>
+            </button>
+
+            <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/sa/catalogs.php'">
+                <span class="user-menu-icon">⚙️</span>
+                <span class="user-menu-text">Catálogos</span>
+            </button>
+
+            <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/sa/sla_global.php'">
+                <span class="user-menu-icon">⏱️</span>
+                <span class="user-menu-text">SLA Global</span>
+            </button>
+
+            <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/sa/auditoria.php'">
+                <span class="user-menu-icon">🧾</span>
+                <span class="user-menu-text">Auditoría</span>
+            </button>
+<!-- ADMIN -->
+        <?php elseif ($rol === 2): ?>
+            <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/admin/admin.php'">
+                <span class="user-menu-icon">⭐</span>
+                <span class="user-menu-text">Admin</span>
+            </button>
+
             <button type="button" class="user-menu-item" data-open-announcement>
-  <span class="user-menu-icon">📣</span>
-  Enviar aviso
-</button>
-
-            <button type="button" class="user-menu-item" 
-                onclick="window.location.href='/HelpDesk_EQF/modules/ticket/history.php'">
-                <span class="user-menu-icon">📈</span>
-                <span>KPI</span>
+                <span class="user-menu-icon">📣</span>
+                <span class="user-menu-text">Enviar aviso</span>
             </button>
 
-            <button type="button" class="user-menu-item" 
-                onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/shared/internal_notes.php'">
-                <span class="user-menu-icon">📝</span>
-                <span>Notas</span>
-            </button>
-            <button type="button" class="user-menu-item" 
-                onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/tasks/analyst.php'">
-                <span class="user-menu-icon">📋</span>
-                <span>Tareas</span>
+            <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/admin/tickets_area.php'">
+                <span class="user-menu-icon">🎫</span>
+                <span class="user-menu-text">Tickets</span>
             </button>
 
-            <button type="button" class="user-menu-item" 
-                    onclick="window.location.href='/HelpDesk_EQF/modules/ticket/history.php'">
-                <span class="user-menu-icon">📚</span>
-                <span>Historial</span>
+            <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/admin/analysts_cards.php'">
+                <span class="user-menu-icon">👥</span>
+                <span class="user-menu-text">Analistas</span>
+            </button>
+
+            <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/tasks/admin.php'">
+                <span class="user-menu-icon">📒</span>
+                <span class="user-menu-text">Tareas</span>
             </button>
 
             <?php if ($puedeInventario): ?>
-    <button type="button" class="user-menu-item"
-            onclick="window.location.href='/HelpDesk_EQF/inventory/index.html'">
-        <span class="user-menu-icon">📦</span>
-        <span>Inventario</span>
-    </button>
-<?php endif; ?>
+                <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/inventory/index.html'">
+                    <span class="user-menu-icon">📦</span>
+                    <span class="user-menu-text">Inventario</span>
+                </button>
+            <?php endif; ?>
 
+            <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/shared/internal_notes.php'">
+                <span class="user-menu-icon">📝</span>
+                <span class="user-menu-text">Notas</span>
+            </button>
 
+            <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/admin/reports.php'">
+                <span class="user-menu-icon">📊</span>
+                <span class="user-menu-text">Reportes y KPIs</span>
+            </button>
+<!-- ANALISTA -->
+        <?php elseif ($rol === 3): ?>
+            <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/analyst/analyst.php'">
+                <span class="user-menu-icon">⭐</span>
+                <span class="user-menu-text">Dashboard</span>
+            </button>
+
+            <button type="button" class="user-menu-item" id="btnOpenCreateTicket">
+                <span class="user-menu-icon">➕</span>
+                <span class="user-menu-text">Crear ticket</span>
+            </button>
+
+            <button type="button" class="user-menu-item" data-open-announcement>
+                <span class="user-menu-icon">📣</span>
+                <span class="user-menu-text">Enviar aviso</span>
+            </button>
+
+            <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/modules/ticket/history.php'">
+                <span class="user-menu-icon">📈</span>
+                <span class="user-menu-text">KPI</span>
+            </button>
+
+            <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/shared/internal_notes.php'">
+                <span class="user-menu-icon">📝</span>
+                <span class="user-menu-text">Notas</span>
+            </button>
+
+            <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/tasks/analyst.php'">
+                <span class="user-menu-icon">📋</span>
+                <span class="user-menu-text">Tareas</span>
+            </button>
+
+            <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/modules/ticket/history.php'">
+                <span class="user-menu-icon">📚</span>
+                <span class="user-menu-text">Historial</span>
+            </button>
+
+            <?php if ($puedeInventario): ?>
+                <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/inventory/index.html'">
+                    <span class="user-menu-icon">📦</span>
+                    <span class="user-menu-text">Inventario</span>
+                </button>
+            <?php endif; ?>
+<!-- USUARIO -->
         <?php elseif ($rol === 4): ?>
-            <!-- ================= USUARIO ================= -->
             <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/user/user.php'">
                 <span class="user-menu-icon">⭐</span>
-                <span>Dashboard</span>
+                <span class="user-menu-text">Dashboard</span>
             </button>
+
             <button type="button" class="user-menu-item" onclick="openTicketModal()">
                 <span class="user-menu-icon">➕</span>
-                <span>Crear ticket</span>
+                <span class="user-menu-text">Crear ticket</span>
             </button>
 
-            <button type="button" class="user-menu-item"
-                    onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/user/tickets.php'">
+            <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/user/tickets.php'">
                 <span class="user-menu-icon">📄</span>
-                <span>Tickets</span>
+                <span class="user-menu-text">Tickets</span>
             </button>
 
-            <button type="button" class="user-menu-item"
-                    onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/user/support_team.php'">
+            <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/user/support_team.php'">
                 <span class="user-menu-icon">🫂</span>
-                <span>Team</span>
+                <span class="user-menu-text">Team</span>
             </button>
 
-            <button type="button" class="user-menu-item"
-                    onclick="window.location.href='/HelpDesk_EQF/modules/docs/important.php'">
+            <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/modules/docs/important.php'">
                 <span class="user-menu-icon">📎</span>
-                <span>Documentos importantes</span>
+                <span class="user-menu-text">Documentos importantes</span>
             </button>
         <?php endif; ?>
-
     </nav>
-        <!-- Común a todos -->
-        <button type="button" class="cerrar-sesion-sidebar"
-                onclick="window.location.href='/HelpDesk_EQF/auth/logout.php'">
+
+    <div class="sidebar-footer">
+        <button type="button" class="cerrar-sesion-sidebar" onclick="window.location.href='/HelpDesk_EQF/auth/logout.php'" aria-label="Cerrar sesión">
             <span class="user-menu-icon">⏻</span>
         </button>
+    </div>
 </aside>
+
+<script>
+  // Si ya tienes toggleSidebar() en otro archivo, borra este bloque.
+  function toggleSidebar() {
+    document.body.classList.toggle('sidebar-collapsed');
+  }
+</script>
