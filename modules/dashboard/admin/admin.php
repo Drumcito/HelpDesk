@@ -739,7 +739,7 @@ function every(ms, fn){
   });
 })();
 </script>
-<script src="/HelpDesk_EQF/assets/js/script.js?v=<?php echo time(); ?>"></script>
+<script src="/HelpDesk_EQF/assets/js/script.js?v=20251208a"></script>
 
 
 

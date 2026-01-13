@@ -370,17 +370,16 @@ body.sidebar-collapsed .user-sidebar{
 
 
 /*============MANTENER SIDEBAR ATRAS DE LOS MODAL==================*/
-/* Cuando haya modal abierto: bloquea sidebar */
-html.modal-open .user-sidebar,
-html.modal-open .sidebar-toggle{
+html.sidebar-locked .eqf-sidebar,
+html.sidebar-locked .sidebar {
   pointer-events: none;
-  user-select: none;
-  filter: grayscale(0.2) opacity(0.85);
+  filter: grayscale(0.2); /* opcional */
 }
 
-/* si quieres “siempre atrás” */
-html.modal-open .user-sidebar{
-  z-index: 10;
+/* Si tu modal/overlay usa z-index alto, fuerza al sidebar a quedar abajo */
+html.sidebar-locked .eqf-sidebar,
+html.sidebar-locked .sidebar {
+  z-index: 1 !important;
 }
 
 /* Toggle (dentro, arriba) */
@@ -3258,7 +3257,6 @@ table.dataTable tbody tr:hover {
 }
 .task-cancel-link:hover{ text-decoration:underline; }
 
-/* Adjuntar como link ya lo tienes con task-link-combined; por si no: */
 .task-link-combined{
   background:transparent;
   border:none;

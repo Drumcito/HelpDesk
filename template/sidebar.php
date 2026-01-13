@@ -101,7 +101,7 @@ if ($rol === 3) {
             <?php endif; ?>
         </div>
     </div>
-
+<!-- SA -->
     <nav class="user-sidebar-menu" aria-label="Menú">
         <?php if ($rol === 1): ?>
             <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/sa/sa.php'">
@@ -265,9 +265,4 @@ if ($rol === 3) {
     </div>
 </aside>
 
-<script>
-  // Si ya tienes toggleSidebar() en otro archivo, borra este bloque.
-  function toggleSidebar() {
-    document.body.classList.toggle('sidebar-collapsed');
-  }
-</script>
+
