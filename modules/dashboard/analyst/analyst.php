@@ -811,6 +811,17 @@ const CURRENT_USER_ID = <?php echo (int)($_SESSION['user_id'] ?? 0); ?>;
 window.CURRENT_USER_ID = CURRENT_USER_ID;
 window.CURRENT_USER_ROLE = <?php echo (int)($_SESSION['user_rol'] ?? 0); ?>;
 
+const CURRENT_USER = <?php echo json_encode([
+  'id'        => (int)($_SESSION['user_id'] ?? 0),
+  'sap'       => (string)($_SESSION['number_sap'] ?? ''),
+  'name'      => (string)($_SESSION['user_name'] ?? ''),
+  'last_name' => (string)($_SESSION['user_last'] ?? ''),
+  'email'     => (string)($_SESSION['user_email'] ?? ''),
+  'area'      => (string)($_SESSION['user_area'] ?? ''),
+], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+
+window.CURRENT_USER = CURRENT_USER;
+
 const STATUS_CATALOG = <?php echo json_encode($statusCatalog, JSON_UNESCAPED_UNICODE); ?>;
 
 let currentTicketId = null;
@@ -2044,6 +2055,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         showOk(true);
         hideMsg();
+        if (window.refreshAnalystSupport) window.refreshAnalystSupport();
         setTimeout(() => closeModal(), 350);
 
       } catch(err) {
@@ -2059,99 +2071,7 @@ document.addEventListener('DOMContentLoaded', function () {
 })();
 </script>
 
-<script>
-/**
- * ===============================
- *  MY TI SNAPSHOT (poll)
- * ===============================
- */
-(() => {
-  'use strict';
 
-  const wrap = document.getElementById('myTiListWrap');
-  if (!wrap) return;
-
-  function esc(s){
-    return String(s ?? '')
-      .replaceAll('&','&amp;')
-      .replaceAll('<','&lt;')
-      .replaceAll('>','&gt;')
-      .replaceAll('"','&quot;')
-      .replaceAll("'","&#039;");
-  }
-
-  function render(items){
-    if (!items || !items.length) {
-      wrap.innerHTML = `<p style="opacity:.8;">No tienes solicitudes activas a TI ni encuestas pendientes.</p>`;
-      return;
-    }
-
-    wrap.innerHTML = `
-      <ul class="user-tickets-list" style="margin-top:10px;">
-        ${items.map(t => {
-          const id = parseInt(t.id, 10);
-          const fecha = esc(t.fecha_envio || '');
-          const estado = esc(t.estado || '');
-          const atendidoPor = esc((t.atendido_por || '').trim() || 'Sin asignar');
-          const token = t.feedback_token ? String(t.feedback_token) : '';
-
-          const badge = token ? `<span class="feedback-badge">encuesta pendiente</span>` : '';
-
-          const actionBtn = token
-            ? `<button type="button"
-                        class="btn-main-combined"
-                        style="padding:6px 14px; font-size:0.75rem;"
-                        onclick="openFeedbackIframe('${esc(token)}', ${id}, 'Encuesta ticket #${id}')">
-                  Encuesta
-               </button>`
-            : `<button type="button"
-                        class="btn-main-combined"
-                        style="padding:6px 14px; font-size:0.75rem;"
-                        onclick="openTicketChat(${id}, 'Solicitud a TI')">
-                  Ver chat
-               </button>`;
-
-          return `
-            <li class="user-ticket-item" data-ticket-id="${id}">
-              <div class="user-ticket-info">
-                <div>
-                  <strong>#${id}</strong> ${badge}
-                </div>
-                <small>
-                  ${fecha} · ${estado} · <strong>Atiende:</strong> ${atendidoPor}
-                </small>
-              </div>
-              <div class="user-ticket-actions">
-                ${actionBtn}
-              </div>
-            </li>
-          `;
-        }).join('')}
-      </ul>
-    `;
-  }
-
-  let lastSignature = '';
-
-  async function pollMyTI(){
-    try {
-      const r = await fetch('/HelpDesk_EQF/modules/ticket/my_ti_snapshot.php', { cache:'no-store' });
-      const j = await r.json();
-      if (!r.ok || !j || !j.ok) return;
-
-      const items = j.items || [];
-      const sig = JSON.stringify(items.map(x => [x.id, x.estado, x.asignado_a, x.atendido_por, x.feedback_token]));
-
-      if (sig === lastSignature) return;
-      lastSignature = sig;
-
-      render(items);
-    } catch (_) {}
-  }
-
-  every(4000, pollMyTI);
-})();
-</script>
 
 <script>
 /**
@@ -2183,6 +2103,8 @@ function closeFeedbackModal(){
     modal.classList.remove('show');
     modal.style.display = 'none';
   }
+    if (window.refreshAnalystSupport) window.refreshAnalystSupport();
+
 }
 
 document.addEventListener('click', (e) => {
@@ -2400,6 +2322,104 @@ document.addEventListener('click', async (e) => {
 
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) poll();
+  });
+})();
+</script>
+
+
+<!-- POLL: TICKETS DE APOYO (usa poll_my_support.php) -->
+<script>
+(function () {
+  const wrap = document.getElementById('myTiListWrap');
+  if (!wrap) return;
+
+  function esc(s){
+    return String(s ?? '')
+      .replaceAll('&','&amp;')
+      .replaceAll('<','&lt;')
+      .replaceAll('>','&gt;')
+      .replaceAll('"','&quot;')
+      .replaceAll("'","&#039;");
+  }
+
+  function render(items){
+    if (!items || !items.length) {
+      wrap.innerHTML = `<p style="opacity:.8;">No tienes solicitudes activas a TI ni encuestas pendientes.</p>`;
+      return;
+    }
+
+    wrap.innerHTML = `
+      <ul class="user-tickets-list" style="margin-top:10px;">
+        ${items.map(t => {
+          const id = parseInt(t.id, 10);
+          const fecha = esc(t.fecha_envio || '');
+          const estado = esc(t.estado || '');
+          const atendidoPor = esc((t.atendido_por || '').trim() || 'Sin asignar');
+          const token = t.feedback_token ? String(t.feedback_token) : '';
+
+          const badge = token ? `<span class="feedback-badge">encuesta pendiente</span>` : '';
+
+          const actionBtn = token
+            ? `<button type="button"
+                        class="btn-main-combined"
+                        style="padding:6px 14px; font-size:0.75rem;"
+                        onclick="openFeedbackIframe('${esc(token)}', ${id}, 'Encuesta ticket #${id}')">
+                  Encuesta
+               </button>`
+            : `<button type="button"
+                        class="btn-main-combined"
+                        style="padding:6px 14px; font-size:0.75rem;"
+                        onclick="openTicketChat(${id}, 'Solicitud a TI')">
+                  Ver chat
+               </button>`;
+
+          return `
+            <li class="user-ticket-item" data-ticket-id="${id}">
+              <div class="user-ticket-info">
+                <div>
+                  <strong>#${id}</strong> ${badge}
+                </div>
+                <small>
+                  ${fecha} · ${estado} · <strong>Atiende:</strong> ${atendidoPor}
+                </small>
+              </div>
+              <div class="user-ticket-actions">
+                ${actionBtn}
+              </div>
+            </li>
+          `;
+        }).join('')}
+      </ul>
+    `;
+  }
+
+  let lastSig = '';
+
+  async function refreshSupport(){
+    try {
+      const r = await fetch('/HelpDesk_EQF/modules/dashboard/analyst/ajax/poll_my_support.php', { cache:'no-store' });
+      const j = await r.json();
+      if (!r.ok || !j || !j.ok) return;
+
+      if (j.signature && j.signature === lastSig) return;
+      lastSig = j.signature || '';
+
+      render(j.items || []);
+    } catch (e) {
+      console.warn('poll_my_support error', e);
+    }
+  }
+
+  //  para refresh inmediato al crear ticket / cerrar encuesta
+  window.refreshAnalystSupport = refreshSupport;
+
+  // inicial + cada 4s
+  refreshSupport();
+  setInterval(refreshSupport, 4000);
+
+  // al volver a la pestaña, refresca
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) refreshSupport();
   });
 })();
 </script>

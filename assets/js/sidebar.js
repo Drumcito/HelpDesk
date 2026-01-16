@@ -20,7 +20,6 @@
     try { localStorage.setItem(key, val); } catch (e) {}
   }
 
-  // --- MODALS: detección universal ---
   function isVisible(el) {
     if (!el) return false;
     const st = getComputedStyle(el);
@@ -29,35 +28,24 @@
     return r.width > 0 && r.height > 0;
   }
 
+  // ✅ Selectores *específicos* del proyecto (evita escanear medio DOM)
+  // Nota: .show es la convención usada por openModal()/closeModal().
+  const MODAL_SELECTOR = [
+    'dialog[open]',
+    '[aria-modal="true"]',
+    '.user-modal-backdrop.show',
+    '.eqf-modal-backdrop.show',
+    '.task-modal-backdrop.show',
+    '.modal-backdrop.show',
+    // fallback por si alguna vista usa id="*Modal" sin clase show (poco común)
+    '[id$="Modal"].show',
+    '[id$="modal"].show'
+  ].join(',');
+
   function hasOpenModal() {
-    const nodes = document.querySelectorAll(`
-      dialog[open],
-      [aria-modal="true"],
-      [role="dialog"],
-      .modal-backdrop,
-      .user-modal-backdrop,
-      .eqf-modal-backdrop,
-      .task-modal-backdrop,
-      [class*="modal"],
-      [id*="modal"],
-      [class*="backdrop"],
-      [id*="backdrop"]
-    `);
-
+    const nodes = document.querySelectorAll(MODAL_SELECTOR);
     for (const el of nodes) {
-      const cls = (el.className || '').toString().toLowerCase();
-      const id  = (el.id || '').toLowerCase();
-
-      const looksLikeModal =
-        el.matches('dialog[open]') ||
-        el.getAttribute('aria-modal') === 'true' ||
-        el.getAttribute('role') === 'dialog' ||
-        cls.includes('modal') ||
-        cls.includes('backdrop') ||
-        id.includes('modal') ||
-        id.includes('backdrop');
-
-      if (looksLikeModal && isVisible(el)) return true;
+      if (isVisible(el)) return true;
     }
     return false;
   }
@@ -70,13 +58,22 @@
     if (open) document.body.classList.remove('show-sidebar');
   }
 
-  // --- Persistencia: aplicar estado guardado ---
+  // Throttle: máx 1 ejecución por frame
+  let rafPending = false;
+  function scheduleSync() {
+    if (rafPending) return;
+    rafPending = true;
+    requestAnimationFrame(() => {
+      rafPending = false;
+      syncModalLock();
+    });
+  }
+
   function applySavedCollapsedState() {
     const saved = safeGet(STORAGE_KEY);
     document.body.classList.toggle('sidebar-collapsed', saved === '1');
   }
 
-  // --- API global para tu onclick="toggleSidebar()" ---
   function toggleSidebar() {
     // Si hay modal abierto, bloquea interacción
     if (document.documentElement.classList.contains('sidebar-locked')) return;
@@ -93,33 +90,32 @@
   // Exponer global (porque en tu HTML lo llamas con onclick)
   window.toggleSidebar = toggleSidebar;
 
-  // Init
   document.addEventListener('DOMContentLoaded', () => {
     applySavedCollapsedState();
 
     // En móvil arranca cerrado
     if (isMobile()) document.body.classList.remove('show-sidebar');
 
-    syncModalLock();
+    scheduleSync();
   });
 
-  // Watchers para cambios de modales
+  // Watchers para cambios de modales (barato + throttled)
   (function watchModals() {
-    document.addEventListener('click', () => setTimeout(syncModalLock, 0), true);
-    document.addEventListener('keydown', () => setTimeout(syncModalLock, 0), true);
+    document.addEventListener('click', scheduleSync, true);
+    document.addEventListener('keydown', scheduleSync, true);
 
-    const obs = new MutationObserver(() => syncModalLock());
-    obs.observe(document.documentElement, {
+    const obs = new MutationObserver(scheduleSync);
+    obs.observe(document.body || document.documentElement, {
       subtree: true,
       attributes: true,
       attributeFilter: ['class', 'style', 'open', 'aria-hidden', 'aria-modal']
     });
   })();
 
-  // Evitar estados raros al cambiar tamaño
   window.addEventListener('resize', () => {
     if (!isMobile()) {
-      document.body.classList.remove('show-sidebar'); // salir de móvil => cerrar drawer
+      document.body.classList.remove('show-sidebar');
     }
+    scheduleSync();
   });
 })();

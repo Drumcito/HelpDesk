@@ -257,8 +257,8 @@ if (isset($_GET['updated'])) {
                         <button type="button" class="btn-secondary" onclick="closeModal('modal-create-user')">
                             Cancelar
                         </button>
-                        <button type="submit" class="btn-login" style="width:auto;">
-                            Guardar usuario
+                        <button type="submit" class="btn-primary" style="width:auto;">
+                               Registrar   
                         </button>
                     </div>
                 </form>
@@ -328,8 +328,8 @@ if (isset($_GET['updated'])) {
                         <button type="button" class="btn-secondary" onclick="closeModal('modal-edit-user')">
                             Cancelar
                         </button>
-                        <button type="submit" class="btn-login" style="width:auto;">
-                            Guardar cambios
+                        <button type="submit" class="btn-primary" style="width:auto;">
+                            Guardar
                         </button>
                     </div>
                 </form>
