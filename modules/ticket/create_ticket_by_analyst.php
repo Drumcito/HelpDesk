@@ -60,24 +60,47 @@ try {
 
   // fecha_envio siempre ahora
   $fechaEnvio = date('Y-m-d H:i:s');
-
+// Si llega la misma solicitud (mismo user_id + desc + destino) en ~5 segundos, regresa el último ticket.
+$stDup = $pdo->prepare("
+  SELECT id
+  FROM tickets
+  WHERE user_id = :uid
+    AND area = :area
+    AND descripcion = :desc
+    AND fecha_envio >= (NOW() - INTERVAL 5 SECOND)
+  ORDER BY id DESC
+  LIMIT 1
+");
+$stDup->execute([':uid'=>$userId, ':area'=>$areaDestino, ':desc'=>$desc]);
+$dup = $stDup->fetch(PDO::FETCH_ASSOC);
+if ($dup && !empty($dup['id'])) {
+  echo json_encode(['ok'=>true,'ticket_id'=>(int)$dup['id'], 'deduped'=>true], JSON_UNESCAPED_UNICODE);
+  exit;
+}
   $sql = "
-    INSERT INTO tickets
-      (user_id, sap, nombre, area, email, problema, prioridad, descripcion, fecha_envio, estado,
-       creado_por_ip, creado_por_navegador,
-       fecha_primera_respuesta, fecha_resolucion)
-    VALUES
-      (:user_id, :sap, :nombre, :area, :email, :problema, :prioridad, :descripcion, :fecha_envio, :estado,
-       :ip, :ua,
-       :fpr, :fres)
-  ";
+  INSERT INTO tickets
+    (user_id, sap, nombre, area, email, problema, prioridad, descripcion, fecha_envio, estado,
+     asignado_a, fecha_asignacion,
+     creado_por_ip, creado_por_navegador,
+     fecha_primera_respuesta, fecha_resolucion,
+     transferred_from_area, transferred_by, transferred_at)
+  VALUES
+    (:user_id, :sap, :nombre, :area, :email, :problema, :prioridad, :descripcion, :fecha_envio, :estado,
+     :asignado_a, :fecha_asignacion,
+     :ip, :ua,
+     :fpr, :fres,
+     :from_area, :by, :at)
+";
+
+
+
 
   $stmt = $pdo->prepare($sql);
   $stmt->execute([
     ':user_id' => $userId,
     ':sap' => $sap,
     ':nombre' => $nombre,
-    ':area' => $areaDestino,          // 👈 destino real del ticket (área del analista o TI)
+    ':area' => $areaDestino,  
     ':email' => $email,
     ':problema' => $problema,
     ':prioridad' => $prioridad,
@@ -88,6 +111,13 @@ try {
     ':ua' => $_SERVER['HTTP_USER_AGENT'] ?? null,
     ':fpr' => $inicio !== '' ? $inicio : null,
     ':fres' => $fechaResolucion,
+    ':asignado_a' => null,
+':fecha_asignacion' => null,
+
+':from_area' => ($ticketParaMi ? $creatorArea : null),
+':by'        => ($ticketParaMi ? $creatorId   : null),
+':at'        => ($ticketParaMi ? date('Y-m-d H:i:s') : null),
+
   ]);
 
   $ticketId = (int)$pdo->lastInsertId();
