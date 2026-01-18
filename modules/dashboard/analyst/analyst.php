@@ -230,6 +230,40 @@ LEFT JOIN users u_from ON u_from.id = t.transferred_by
 $stmtMy->execute([':area' => $userArea, ':uid' => $userId]);
 $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+/**
+ * ============================
+ *  MIS SOLICITUDES A TI 
+ * ============================
+ */
+$myToTI = [];
+
+if (strcasecmp(trim($userArea), 'TI') !== 0) {
+  $stmtMyToTI = $pdo->prepare("
+    SELECT
+      t.id,
+      t.fecha_envio,
+      t.estado,
+      t.asignado_a,
+      t.email,
+      t.nombre,
+      t.prioridad,
+      t.problema AS problema_raw,
+      COALESCE(cp1.label, cp2.label, t.problema) AS problema_label,
+
+      CONCAT(COALESCE(u.name,''),' ',COALESCE(u.last_name,'')) AS atendido_por
+    FROM tickets t
+    LEFT JOIN users u ON u.id = t.asignado_a
+    LEFT JOIN catalog_problems cp1 ON cp1.id = t.problema
+    LEFT JOIN catalog_problems cp2 ON cp2.code = t.problema
+    WHERE t.user_id = :uid
+      AND t.area = 'TI'
+      AND t.estado IN ('abierto','en_proceso','soporte','cerrado')
+    ORDER BY t.fecha_envio DESC
+    LIMIT 10
+  ");
+  $stmtMyToTI->execute([':uid' => $userId]);
+  $myToTI = $stmtMyToTI->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
 
 ?>
 <!DOCTYPE html>
@@ -252,6 +286,13 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC) ?: [];
   outline: 2px solid rgba(110,28,92,.25);
   box-shadow: 0 0 0 6px rgba(110,28,92,.06);
       }
+      /*
+========UN ESTILO DIFERENTE PARA SEPARAR DEL TICKET NORMAL AL DE LA AYUDA A TI=========
+      .ticket-card--support{
+  outline: 2px dashed rgba(110,28,92,.25);
+  box-shadow: 0 0 0 6px rgba(110,28,92,.04);
+}*/
+
     </style>
 </head>
 
@@ -617,6 +658,65 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC) ?: [];
       </select>
     </div>
   </div>
+<?php if (!empty($myToTI)): ?>
+  <?php foreach ($myToTI as $t): ?>
+    <?php
+      $id    = (int)$t['id'];
+      $fecha = (string)($t['fecha_envio'] ?? '');
+      $prob  = (string)($t['problema_label'] ?? '');
+      $prio  = strtolower((string)($t['prioridad'] ?? 'media'));
+      $estado = (string)($t['estado'] ?? 'abierto');
+      $email = (string)($t['email'] ?? '');
+      $atiende = trim((string)($t['atendido_por'] ?? ''));
+    ?>
+    <article
+      class="ticket-card js-ticket ticket-card--support"
+      data-ticket-id="<?php echo $id; ?>"
+      data-support="1"
+      data-search="<?php echo h(strtolower($id.' '.$fecha.' '.$prob.' '.$prio.' '.$estado.' '.$atiende)); ?>"
+    >
+      <header class="ticket-card__top">
+        <div class="ticket-id">#<?php echo $id; ?></div>
+        <div class="ticket-date"><?php echo h($fecha); ?></div>
+      </header>
+
+      <div style="margin:6px 0 2px; font-size:12px; font-weight:900; color:#6e1c5c;">
+        Atiende: <?php echo h($atiende !== '' ? $atiende : 'Sin asignar'); ?>
+      </div>
+
+      <div class="ticket-card__body">
+        <div class="ticket-row">
+          <span class="ticket-label">Problema</span>
+          <span class="ticket-value"><?php echo h($prob); ?></span>
+        </div>
+
+        <div class="ticket-row">
+          <span class="ticket-label">Prioridad</span>
+          <span class="priority-pill priority-<?php echo h($prio); ?>">
+            <?php echo h(prioridadLabel((string)($t['prioridad'] ?? 'media'))); ?>
+          </span>
+        </div>
+
+        <div class="ticket-row">
+          <span class="ticket-label">Estatus</span>
+          <span class="ticket-value"><?php echo h($estado); ?></span>
+        </div>
+      </div>
+
+      <footer class="ticket-card__actions">
+        <button type="button" class="btn-mini" onclick="openTicketDetail(<?php echo $id; ?>)">Ver</button>
+
+        <button type="button"
+          class="btn-mini primary"
+          data-chat-btn
+          data-ticket-id="<?php echo $id; ?>"
+          onclick="openTicketChat(<?php echo $id; ?>,'<?php echo h($email); ?>')">
+          Chat <span class="chat-badge" style="display:none;"></span>
+        </button>
+      </footer>
+    </article>
+  <?php endforeach; ?>
+<?php endif; ?>
 
   <footer class="ticket-card__actions">
     <button type="button" class="btn-mini" onclick="openTicketDetail(<?php echo $id; ?>)">Ver</button>
@@ -807,6 +907,7 @@ $myTickets = $stmtMy->fetchAll(PDO::FETCH_ASSOC) ?: [];
  * ===============================
  */
 const CURRENT_USER_ID = <?php echo (int)($_SESSION['user_id'] ?? 0); ?>;
+const shownFeedbackTokens = new Set();
 
 window.CURRENT_USER_ID = CURRENT_USER_ID;
 window.CURRENT_USER_ROLE = <?php echo (int)($_SESSION['user_rol'] ?? 0); ?>;
@@ -1453,6 +1554,65 @@ article.className = 'ticket-card js-ticket' + (isFromAnalyst ? ' ticket-card--an
 
   return article;
 }
+function buildSupportCard(t){
+  const id = parseInt(t.id,10);
+  const fecha = t.fecha_envio || '';
+  const problema = t.problema_label || t.problema_raw || '';
+  const prio = (t.prioridad || 'media').toLowerCase();
+  const estado = t.estado || 'abierto';
+  const email = t.email || '';
+  const atiende = (t.atendido_por || '').trim();
+
+  const article = document.createElement('article');
+  article.className = 'ticket-card js-ticket ticket-card--support';
+  article.dataset.ticketId = String(id);
+  article.dataset.support = '1';
+
+  article.setAttribute('data-search', cardSearchText({
+    id, fecha, problema, prio, estado, atiende
+  }));
+
+  article.innerHTML = `
+    <header class="ticket-card__top">
+      <div class="ticket-id">#${escapeHtml(id)}</div>
+      <div class="ticket-date">${escapeHtml(fecha)}</div>
+    </header>
+
+    <div style="margin:6px 0 2px; font-size:12px; font-weight:900; color:#6e1c5c;">
+      Atiende: ${escapeHtml(atiende || 'Sin asignar')}
+    </div>
+
+    <div class="ticket-card__body">
+      <div class="ticket-row">
+        <span class="ticket-label">Problema</span>
+        <span class="ticket-value">${escapeHtml(problema)}</span>
+      </div>
+
+      <div class="ticket-row">
+        <span class="ticket-label">Prioridad</span>
+        ${renderPriorityPill(prio)}
+      </div>
+
+      <div class="ticket-row">
+        <span class="ticket-label">Estatus</span>
+        <span class="ticket-value">${escapeHtml(estado)}</span>
+      </div>
+    </div>
+
+    <footer class="ticket-card__actions">
+      <button type="button" class="btn-mini" onclick="openTicketDetail(${escapeHtml(id)})">Ver</button>
+      <button type="button"
+              class="btn-mini primary"
+              data-chat-btn
+              data-ticket-id="${escapeHtml(id)}"
+              onclick="openTicketChat(${escapeHtml(id)}, '${escapeHtml(email)}')">
+        Chat <span class="chat-badge" style="display:none;"></span>
+      </button>
+    </footer>
+  `;
+
+  return article;
+}
 
 function bumpKpi(deltaAbiertos, deltaEnProceso){
   const a = document.getElementById('kpiAbiertos');
@@ -1498,6 +1658,53 @@ function removeMyCard(ticketId){
 
 /* ===== POLLS ===== */
 let lastTicketId = <?php echo (int)$maxIncomingId; ?>;
+let myTiSig = '';
+
+async function pollMyTiSnapshot(){
+  try{
+    const r = await fetch('/HelpDesk_EQF/modules/ticket/my_ti_snapshot.php', {cache:'no-store'});
+    const j = await r.json();
+    if (!r.ok || !j || !j.ok) return;
+
+    if (j.signature && j.signature === myTiSig) return;
+    myTiSig = j.signature || '';
+
+    const items = j.items || [];
+    const should = new Set(items.map(x => String(x.id)));
+
+    // quitar cards support que ya no estén
+    myGrid?.querySelectorAll('.js-ticket[data-support="1"]').forEach(card => {
+      const id = card.getAttribute('data-ticket-id');
+      if (id && !should.has(String(id))) card.remove();
+    });
+
+    // agregar/actualizar
+    items.forEach(t => {
+      const id = String(t.id);
+      const existing = myGrid?.querySelector(`.js-ticket[data-support="1"][data-ticket-id="${CSS.escape(id)}"]`);
+      const node = buildSupportCard(t);
+
+      if (!existing) myGrid?.prepend(node);
+      else existing.replaceWith(node);
+    });
+// Auto-abrir encuesta si hay ticket cerrado con token pendiente
+for (const t of items) {
+  const estado = String(t.estado || '');
+  const tok = String(t.feedback_token || '').trim();
+  const tid = parseInt(t.id || 0, 10);
+
+  if (estado === 'cerrado' && tok && tid > 0 && !shownFeedbackTokens.has(tok)) {
+    shownFeedbackTokens.add(tok);
+    openFeedbackIframe(tok, tid, 'Encuesta de satisfacción – Ticket #' + tid);
+    break; // abre una a la vez
+  }
+}
+
+    setEmptyIfNeeded(myGrid);
+  }catch(e){
+    console.warn('pollMyTiSnapshot', e);
+  }
+}
 
 function showDesktopNotification(ticket) {
   if (!('Notification' in window)) return;
@@ -1760,6 +1967,9 @@ document.addEventListener('DOMContentLoaded', function () {
 every(10000, pollNewTickets);
 every(10000, cleanupIncomingTaken);
 every(5000, pollMyAssignedSnapshot);
+if ((window.CURRENT_USER?.area || '') !== 'TI') {
+  every(5000, pollMyTiSnapshot);
+}
 
 
 });
@@ -2186,6 +2396,8 @@ function closeFeedbackModal(){
   }
 if (window.pollMyAssignedSnapshot) window.pollMyAssignedSnapshot();
 if (typeof pollNewTickets === 'function') pollNewTickets();
+if (typeof pollMyTiSnapshot === 'function') pollMyTiSnapshot();
+
 
 }
 
