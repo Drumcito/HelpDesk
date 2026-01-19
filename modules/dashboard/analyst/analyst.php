@@ -311,16 +311,16 @@ if (strcasecmp(trim($userArea), 'TI') !== 0) {
 <main class="user-main">
     <section class="user-main-inner">
 
-        <header class="user-main-header" id="analyst-dashboard">
-            <div>
-                <p class="login-brand">
-                    <span>HelpDesk </span><span class="eqf-e">E</span><span class="eqf-q">Q</span><span class="eqf-f">F</span>
-                </p>
-                <p class="user-main-subtitle">
-                    Panel de Analista – <?php echo h($userArea); ?>
-                </p>
-            </div>
-        </header>
+<header class="analyst-topbar" id="analyst-dashboard">
+  <div class="analyst-topbar-left">
+    <p class="login-brand">
+      <span>HelpDesk </span><span class="eqf-e">E</span><span class="eqf-q">Q</span><span class="eqf-f">F</span>
+    </p>
+    <p class="user-main-subtitle">
+      Panel de Analista – <?php echo h($userArea); ?>
+    </p>
+  </div>
+</header>
 
         <!-- ANUNCIOS -->
 <div class="user-info-card" style="margin-top:18px;" id="annWrap">
@@ -451,30 +451,6 @@ if (strcasecmp(trim($userArea), 'TI') !== 0) {
 
         <section class="user-main-content">
 
-            <!-- KPIs -->
-            <div class="user-info-card">
-                <h2>Resumen Diario</h2>
-                <p>Aquí podrás ver tu resumen diario.</p>
-
-                <div class="kpi-analyst-row" id="kpiRow">
-                    <div class="kpi-card kpi-green">
-                        <span class="kpi-label">Abiertos</span>
-                        <span class="kpi-value" id="kpiAbiertos"><?php echo (int)$kpi['abiertos']; ?></span>
-                    </div>
-                    <div class="kpi-card kpi-blue">
-                        <span class="kpi-label">En proceso</span>
-                        <span class="kpi-value" id="kpiEnProceso"><?php echo (int)$kpi['en_proceso']; ?></span>
-                    </div>
-                    <div class="kpi-card kpi-yellow">
-                        <span class="kpi-label">Resueltos</span>
-                        <span class="kpi-value" id="kpiResueltos"><?php echo (int)$kpi['cerrados']; ?></span>
-                    </div>
-                    <div class="kpi-card kpi-gray">
-                        <span class="kpi-label">Total</span>
-                        <span class="kpi-value" id="kpiTotal"><?php echo (int)$kpi['total']; ?></span>
-                    </div>
-                </div>
-            </div>
             <!-- MODAL ENCUESTA -->
             <div class="modal-backdrop" id="feedback-modal" style="display:none;">
               <div class="modal-card" style="max-width:900px; width:92vw; height:82vh;">

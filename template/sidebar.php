@@ -251,7 +251,7 @@ if ($rol === 3) {
                 <span class="user-menu-text">Team</span>
             </button>
 
-            <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/modules/docs/important.php'">
+            <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/user/documents.php'">
                 <span class="user-menu-icon">📎</span>
                 <span class="user-menu-text">Documentos importantes</span>
             </button>

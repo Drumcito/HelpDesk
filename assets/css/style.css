@@ -3333,3 +3333,52 @@ table.dataTable tbody tr:hover {
 @media (max-width: 900px){
   .task-modal-backdrop{ left: 0; }
 }
+.analyst-topbar{
+  display:flex;
+  align-items:flex-start;
+  width:100%;
+  margin: 6px 0 18px;
+  padding: 6px 4px;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+
+.analyst-topbar-left .login-brand{
+  margin: 0;
+}
+
+.analyst-topbar-left .user-main-subtitle{
+  margin: 6px 0 0;
+  opacity: .8;
+}
+.user-topbar{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:16px;
+  width:100%;
+  margin: 6px 0 16px;
+  padding: 6px 4px;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+
+.user-topbar-left .login-brand{ margin:0; }
+.user-topbar-left .user-main-subtitle{ margin: 6px 0 0; opacity:.8; }
+
+.user-topbar-right{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  padding-top: 6px;
+}
+
+/* móvil */
+@media (max-width: 800px){
+  .user-topbar{ flex-direction: column; }
+  .user-topbar-right{ padding-top:0; width:100%; justify-content:flex-start; }
+}

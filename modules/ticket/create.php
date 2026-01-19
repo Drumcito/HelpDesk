@@ -20,6 +20,20 @@ try {
     $sap        = $_POST['sap'] ?? '';
     $nombre     = $_POST['nombre'] ?? '';
 
+    // Checkbox "No soy jefe"
+$no_jefe = isset($_POST['no_jefe']) ? 1 : 0;
+$nombre_jefe = trim((string)($_POST['nombre_jefe'] ?? ''));
+
+// Si marca "no soy jefe", entonces el nombre del jefe es obligatorio
+if ($no_jefe === 1 && $nombre_jefe === '') {
+    throw new Exception('Falta nombre del jefe de sucursal.');
+}
+
+// Si NO marcó, no guardamos nada
+if ($no_jefe === 0) {
+    $nombre_jefe = null;
+}
+
     // Área del usuario (Sucursal / Corporativo, etc.)
     $user_area    = $_POST['area'] ?? '';
     // Área de soporte elegida en el formulario (TI / SAP / MKT)
@@ -51,16 +65,19 @@ if (is_numeric($problema)) {
     // IMPORTANTE:
     // En la BD la columna debe llamarse "prioridad" .
     $sql = "INSERT INTO tickets (
-                user_id,
-                sap,
-                nombre,
-                area,
-                email,
-                problema,
-                prioridad,
-                descripcion,
-                fecha_envio
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            user_id,
+            sap,
+            nombre,
+            area,
+            email,
+            problema,
+            prioridad,
+            descripcion,
+            fecha_envio,
+            no_jefe,
+            nombre_jefe
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute([
@@ -72,22 +89,31 @@ if (is_numeric($problema)) {
         $problema,
         $prioridad,
         $descripcion,
-        $fecha_envio
+        $fecha_envio,
+        $no_jefe,
+        $nombre_jefe
     ]);
 
-    $ticket_id = $pdo->lastInsertId();
+  $ticket_id = (int)$pdo->lastInsertId();
+
+$areaDestino = $area; // el área que ya calculaste (TI/SAP/MKT o user_area)
+
 $stmt = $pdo->prepare("SELECT id FROM users WHERE area = :a AND rol IN (2,3)");
 $stmt->execute([':a' => $areaDestino]);
-$uids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+$uids = $stmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
 
-notify_many(
-  $pdo,
-  $uids,
-  'ticket_new',
-  'Nuevo ticket',
-  "Ticket #{$ticketId} entrante para {$areaDestino}.",
-  '/HelpDesk_EQF/modules/dashboard/admin/tickets_area.php'
-);
+if (!empty($uids)) {
+    notify_many(
+        $pdo,
+        $uids,
+        'ticket_new',
+        'Nuevo ticket',
+        "Ticket #{$ticket_id} entrante para {$areaDestino}.",
+        '/HelpDesk_EQF/modules/dashboard/admin/tickets_area.php'
+    );
+}
+
+
     // MANEJO DE ADJUNTOS (opcional)
     if (!empty($_FILES['adjuntos']['name'][0])) {
 

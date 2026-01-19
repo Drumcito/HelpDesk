@@ -289,16 +289,26 @@ foreach ($openTickets as $t) {
 
 <main class="user-main">
     <section class="user-main-inner">
-        <header class="user-main-header">
-            <div>
-                <p class="login-brand">
-                    <span>HelpDesk </span><span class="eqf-e">E</span><span class="eqf-q">Q</span><span class="eqf-f">F</span>
-                </p>
-                <p class="user-main-subtitle">
-                    Bienvenid@, <?php echo htmlspecialchars($userName, ENT_QUOTES, 'UTF-8'); ?>.
-                </p>
-            </div>
-        </header>
+
+<header class="user-topbar" id="user-dashboard-topbar">
+  <div class="user-topbar-left">
+    <p class="login-brand">
+      <span>HelpDesk </span><span class="eqf-e">E</span><span class="eqf-q">Q</span><span class="eqf-f">F</span>
+    </p>
+    <p class="user-main-subtitle">
+      Bienvenid@, <?php echo h($userName); ?>.
+    </p>
+  </div>
+
+  <div class="user-topbar-right">
+    <button id="btnCreateTicket" type="button"
+      class="btn-primary"
+      onclick="<?php echo ($pendingCount > 0) ? 'return false;' : 'openTicketModal()'; ?>"
+      <?php echo ($pendingCount > 0) ? 'disabled style="opacity:.6; cursor:not-allowed;"' : ''; ?>>
+      Crear ticket
+    </button>
+  </div>
+</header>
 
         <section class="user-main-content">
   <div class="user-info-card">
@@ -381,14 +391,7 @@ Debes responderlas antes de crear un nuevo ticket.
                 </div>
             <?php endif; ?>
 
-            <div class="button">
-                <button id="btnCreateTicket" type="button"
-                        class="btn-primary user-main-cta"
-                        onclick="<?php echo ($pendingCount > 0) ? 'return false;' : 'openTicketModal()'; ?>"
-                        <?php echo ($pendingCount > 0) ? 'disabled style="opacity:.6; cursor:not-allowed;"' : ''; ?>>
-                    Crear ticket
-                </button>
-            </div>
+
 
             <div id="tickets-section" class="user-tickets-placeholder">
                 <h3>Tus tickets</h3>
@@ -497,9 +500,24 @@ Debes responderlas antes de crear un nuevo ticket.
             <input type="hidden" name="nombre" id="nombreValue" value="<?php echo htmlspecialchars($userName, ENT_QUOTES, 'UTF-8'); ?>">
 
             <div class="form-group checkbox-container">
-                <input type="checkbox" id="noJefe">
-                <label for="noJefe">No soy jefe de sucursal</label>
-            </div>
+  <input type="checkbox" id="noJefe" name="no_jefe" value="1">
+  <label for="noJefe">No soy jefe de sucursal</label>
+</div>
+
+<div class="form-group" id="nombreJefeWrap" style="display:none;">
+  <label>Nombre del jefe de sucursal</label>
+  <input
+    type="text"
+    id="nombreJefeInput"
+    name="nombre_jefe"
+    placeholder="Escribe el nombre completo"
+    maxlength="120"
+  >
+  <small style="opacity:.75; display:block; margin-top:6px;">
+    Este ticket se registrará a tu nombre, pero se mostrará que lo solicitas para esta persona.
+  </small>
+</div>
+
 
             <div class="form-group">
                 <label>Área de soporte</label>
@@ -850,7 +868,6 @@ function closeFeedbackModal(){
 
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
-<script src="/HelpDesk_EQF/assets/js/script.js?v=20251208a"></script>
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
@@ -1442,6 +1459,26 @@ document.addEventListener('DOMContentLoaded', () => {
 })();
 </script>
 
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const cb   = document.getElementById('noJefe');
+  const wrap = document.getElementById('nombreJefeWrap');
+  const inp  = document.getElementById('nombreJefeInput');
+
+  function toggleNombreJefe(){
+    const on = !!cb?.checked;
+
+    if (wrap) wrap.style.display = on ? '' : 'none';
+    if (inp) {
+      inp.required = on;        // si marca “no soy jefe”, obligas el nombre
+      if (!on) inp.value = '';  // si lo desmarca, limpias
+    }
+  }
+
+  if (cb) cb.addEventListener('change', toggleNombreJefe);
+  toggleNombreJefe();
+});
+</script>
 
 </body>
 </html>
