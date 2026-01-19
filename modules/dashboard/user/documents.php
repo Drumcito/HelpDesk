@@ -111,14 +111,16 @@ $docs = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
                 <tr>
                   <td><?php echo h($name); ?></td>
                   <td>
-                    <a class="task-link-blue"
+        <!--  BOTON VER PENDIENTE HASTA SUBIR A HOSTING
+                  
+                  <a class="task-link-blue"
                        target="_blank"
                        rel="noopener"
                        href="/HelpDesk_EQF/modules/dashboard/user/view_document.php?id=<?php echo $id; ?>">
                       Ver
                     </a>
-
-                    <a class="task-link-combined"
+              -->       
+                    <a class="task-link-blue"
                        style="margin-left:12px;"
                        href="/HelpDesk_EQF/modules/dashboard/user/download_document.php?id=<?php echo $id; ?>">
                       Descargar

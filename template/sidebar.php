@@ -186,6 +186,10 @@ if ($rol === 3) {
                 <span class="user-menu-icon">📊</span>
                 <span class="user-menu-text">Reportes y KPIs</span>
             </button>
+            <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/user/documents.php'">
+                <span class="user-menu-icon">📎</span>
+                <span class="user-menu-text">Documentos importantes</span>
+            </button>
 <!-- ANALISTA -->
         <?php elseif ($rol === 3): ?>
             <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/analyst/analyst.php'">
@@ -229,6 +233,10 @@ if ($rol === 3) {
                     <span class="user-menu-text">Inventario</span>
                 </button>
             <?php endif; ?>
+            <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/user/documents.php'">
+                <span class="user-menu-icon">📎</span>
+                <span class="user-menu-text">Documentos</span>
+            </button>
 <!-- USUARIO -->
         <?php elseif ($rol === 4): ?>
             <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/user/user.php'">

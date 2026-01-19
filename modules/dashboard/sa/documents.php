@@ -211,7 +211,7 @@ $err   = trim($_GET['err'] ?? '');
 
         <div class="modal-actions">
           <button type="button" class="btn-secondary" onclick="closeModal('modal-upload-doc')">Cancelar</button>
-          <button type="submit" class="btn-login" style="width:auto;">Guardar</button>
+          <button type="submit" class="btn-primary" style="width:auto;">Guardar</button>
         </div>
       </form>
     </div>
