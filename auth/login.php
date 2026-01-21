@@ -3,6 +3,7 @@ session_start();
 require_once __DIR__ . '/../config/connectionBD.php';
 require_once __DIR__ . '/../config/audit.php';
 
+
 $pdo = Database::getConnection();
 
 $error = '';
@@ -97,7 +98,7 @@ audit_log($pdo, 'AUTH_LOGIN_OK', 'users', (int)$user['id'], [
 <head>
     <meta charset="UTF-8">
     <title>Login | Mesa de Ayuda EQF</title>
-    <link rel="stylesheet" href="../assets/css/style.css">
+    <link rel="stylesheet" href="/HelpDesk_EQF/assets/css/style.css?v=<?php echo time(); ?>">
 </head>
 <body class="login-body">
     <div class="login-wrapper">
@@ -225,5 +226,4 @@ document.getElementById('openForgotModal')?.addEventListener('click', () => {
 });
 </script>
 </html>
-
 
