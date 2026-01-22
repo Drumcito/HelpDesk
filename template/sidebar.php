@@ -244,9 +244,9 @@ if ($rol === 3) {
                 <span class="user-menu-text">Dashboard</span>
             </button>
 
-            <button type="button" class="user-menu-item" onclick="openTicketModal()">
-                <span class="user-menu-icon">➕</span>
-                <span class="user-menu-text">Crear ticket</span>
+            <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/user/equipo.php'">
+                <span class="user-menu-icon">🖥️</span>
+                <span class="user-menu-text">Solicitud de equipo</span>
             </button>
 
             <button type="button" class="user-menu-item" onclick="window.location.href='/HelpDesk_EQF/modules/dashboard/user/tickets.php'">

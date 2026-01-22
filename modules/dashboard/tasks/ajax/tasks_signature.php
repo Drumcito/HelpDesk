@@ -94,8 +94,9 @@ try {
   $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
   $signature = sha1(json_encode($rows));
 
-  $likeOld = '%"assigned_to_user_id":' . $uid . '%';
-  $likeHash = '%#' . $uid . '%';
+$likeAssignedTo = '%"assigned_to_user_id":' . $uid . '%';
+$likeAssignee   = '%"assignee_id":' . $uid . '%';
+$likeHash       = '%#' . $uid . '%';
 
   $stmtE = $pdo->prepare("
     SELECT id, task_id, event_type, note, created_at
@@ -103,17 +104,23 @@ try {
     WHERE event_type IN ('REASSIGNED','CANCELED')
       AND id > ?
       AND (
-        old_value LIKE ? OR note LIKE ?
-      )
+  old_value LIKE ? OR old_value LIKE ? OR note LIKE ?
+)
+
     ORDER BY id ASC
     LIMIT 20
   ");
-  $stmtE->execute([$sinceEventId, $likeOld, $likeHash]);
+$stmtE->execute([$sinceEventId, $likeAssignedTo, $likeAssignee, $likeHash]);
   $events = $stmtE->fetchAll(PDO::FETCH_ASSOC) ?: [];
   $maxId = $sinceEventId;
   foreach ($events as $e) { $maxId = max($maxId, (int)$e['id']); }
 
-  echo json_encode(['ok'=>true,'signature'=>$signature,'events'=>$events,'max_event_id'=>$maxId], JSON_UNESCAPED_UNICODE);
+echo json_encode([
+  'ok' => true,
+  'signature' => $signature,
+  'events' => $events,
+  'max_event_id' => (int)$maxId
+], JSON_UNESCAPED_UNICODE | JSON_NUMERIC_CHECK);
 
 } catch(Throwable $e){
   http_response_code(500);

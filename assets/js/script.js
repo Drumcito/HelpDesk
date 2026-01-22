@@ -608,12 +608,10 @@ if (areaSoporte && problemaSelect) {
         }
     });
 
-
-
-
-
 /* notificaciones*/
 (function(){
+      if (window.HELPDESK_USE_NOTI_PUSH === true) return;
+
   let lastNotifId = parseInt(localStorage.getItem('lastNotifId') || '0', 10) || 0;
 
   function setBadge(n){

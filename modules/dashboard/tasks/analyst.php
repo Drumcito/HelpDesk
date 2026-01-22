@@ -369,35 +369,123 @@ async function openTaskDetailModal(taskId){
 
 <script>
 (function(){
-  let lastSig = '';
-  let sinceEventId = parseInt(localStorage.getItem('tasks_since_event_id') || '0', 10);
+  const UID = <?php echo (int)($_SESSION['user_id'] ?? 0); ?>;
 
-  function showToast(msg){
-    // usa tu toast del sistema si ya tienes; por mientras:
-    alert(msg);
+  // claves por usuario (para que NO se repitan al abrir/cerrar)
+  const KEY_SINCE = `tasks_since_event_id_u${UID}`;
+  const KEY_SEEN  = `tasks_seen_event_ids_u${UID}`;
+
+  let lastSig = '';
+  let sinceEventId = parseInt(localStorage.getItem(KEY_SINCE) || '0', 10);
+
+async function ensureNotifyPermission(){
+  if (!("Notification" in window)) return false;
+
+  if (Notification.permission === "granted") return true;
+
+  // Importante: esto debe correr por una acción del usuario la primera vez.
+  // Pero en localhost normalmente ya lo tienes concedido por tickets.
+  if (Notification.permission === "default") {
+    const p = await Notification.requestPermission();
+    return p === "granted";
   }
+
+  return false; // denied
+}
+
+async function pushNotify(title, body, tag){
+  const ok = await ensureNotifyPermission();
+  if (!ok) return;
+
+  // 1) Preferir Service Worker (notificación "real" como la tuya)
+  if ("serviceWorker" in navigator) {
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (reg && reg.showNotification) {
+      reg.showNotification(title, {
+        body,
+        tag,              // evita duplicadas si llega varias veces
+        renotify: false,
+        silent: false
+        // icon: "/HelpDesk_EQF/assets/img/logo_helpdesk.png" // si quieres
+      });
+      return;
+    }
+  }
+
+  // 2) Fallback
+  new Notification(title, { body, tag });
+}
+
+
+  function getSeen(){
+    try { return new Set(JSON.parse(localStorage.getItem(KEY_SEEN) || '[]')); }
+    catch(e){ return new Set(); }
+  }
+  function saveSeen(set){
+    // guarda solo últimos 200 para que no crezca infinito
+    const arr = Array.from(set).slice(-200);
+    localStorage.setItem(KEY_SEEN, JSON.stringify(arr));
+  }
+
+  function showToast(msg, tag){
+    pushNotify("Tareas · HelpDesk EQF", msg, tag || "task-event");
+  }
+
 
   async function poll(){
     try{
       const url = `/HelpDesk_EQF/modules/dashboard/tasks/ajax/tasks_signature.php?since_event_id=${sinceEventId}`;
-      const r = await fetch(url, {cache:'no-store'});
+      const r = await fetch(url, { cache:'no-store' });
       const j = await r.json();
       if(!j.ok) return;
 
-      // notificaciones
+      const seen = getSeen();
+
+      // 1) notificaciones (sin repetir)
       if (Array.isArray(j.events) && j.events.length){
-        j.events.forEach(ev => {
-          if(ev.event_type === 'REASSIGNED') showToast('Te reasignaron/retiraron una tarea: ' + (ev.note || ''));
-          if(ev.event_type === 'CANCELED')   showToast('Cancelaron una tarea: ' + (ev.note || ''));
-        });
+        for (const ev of j.events){
+          const id = String(ev.id || '');
+          if (!id || seen.has(id)) continue;
+
+         if (ev.event_type === 'REASSIGNED') {
+  showToast(
+    `Te reasignaron/retiraron una tarea: ${ev.note || ''}`.trim(),
+    `task-${ev.task_id}-reassigned`
+  );
+}
+if (ev.event_type === 'CANCELED') {
+  showToast(
+    `Cancelaron una tarea: ${ev.note || ''}`.trim(),
+    `task-${ev.task_id}-canceled`
+  );
+}
+
+
+          seen.add(id);
+        }
+        saveSeen(seen);
       }
 
-      if (typeof j.max_event_id === 'number' && j.max_event_id > sinceEventId){
-        sinceEventId = j.max_event_id;
-        localStorage.setItem('tasks_since_event_id', String(sinceEventId));
+      // 2) avanzar marcador SIEMPRE (aunque venga string)
+      const maxId = parseInt(j.max_event_id ?? sinceEventId, 10) || sinceEventId;
+
+      let maxFromEvents = sinceEventId;
+      if (Array.isArray(j.events)) {
+        for (const ev of j.events) {
+          const eid = parseInt(ev.id || 0, 10) || 0;
+          if (eid > maxFromEvents) maxFromEvents = eid;
+        }
       }
 
-      // refresh si cambió la firma
+      const nextSince = Math.max(maxId, maxFromEvents);
+
+      if (nextSince > sinceEventId) {
+        sinceEventId = nextSince;
+        localStorage.setItem(KEY_SINCE, String(sinceEventId));
+      }
+
+
+      // 3) refresh si cambió firma
       if(!lastSig){ lastSig = j.signature || ''; return; }
       if((j.signature || '') !== lastSig) location.reload();
 
@@ -409,6 +497,7 @@ async function openTaskDetailModal(taskId){
   document.addEventListener('visibilitychange', () => { if(!document.hidden) poll(); });
 })();
 </script>
+
 
 
 </body>

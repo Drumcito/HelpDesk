@@ -15,7 +15,12 @@
     }
     ?>
 
-    <script src="/HelpDesk_EQF/assets/js/sidebar.js" defer></script>
+    <script>
+        window.HELPDESK_USER_ID = <?php echo (int)($_SESSION['user_id'] ?? 0); ?>;
+        window.HELPDESK_USE_NOTI_PUSH = true;
+    </script>
 
+    <script src="/HelpDesk_EQF/assets/js/noti_push.js?v=<?php echo time(); ?>"></script>
+    <script src="/HelpDesk_EQF/assets/js/sidebar.js" defer></script>
    <script src="/HelpDesk_EQF/assets/js/script.js" defer></script> 
 </footer>
