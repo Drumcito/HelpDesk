@@ -38,17 +38,13 @@ if ($title === '' || $body === '') {
   exit;
 }
 
-// level
 $level = strtoupper(trim((string)($in['level'] ?? 'INFO')));
 $allowedLevel = ['INFO', 'WARN', 'CRITICAL'];
 if (!in_array($level, $allowedLevel, true)) $level = 'INFO';
 
-// target_area (ALL/Sucursal/Corporativo)
 $target_area = strtoupper(trim((string)($in['target_area'] ?? '')));
 if ($target_area === '') $target_area = 'ALL';
 
-// Normaliza para que guarde con el formato que tú quieres
-// (manteniendo "Sucursal" / "Corporativo" con mayúscula inicial si así lo manejas)
 $mapTarget = [
   'ALL'         => 'ALL',
   'SUCURSAL'    => 'Sucursal',
@@ -62,7 +58,6 @@ if (!isset($mapTarget[$target_area])) {
 }
 $target_area = $mapTarget[$target_area];
 
-// fechas (datetime-local)
 $starts_at = $in['starts_at'] ?? null;
 $ends_at   = $in['ends_at'] ?? null;
 
@@ -72,7 +67,6 @@ $ends_at   = (is_string($ends_at)   && trim($ends_at)   !== '') ? trim($ends_at)
 $normalizeDT = function ($v) {
   if (!$v) return null;
   $v = str_replace('T', ' ', $v);
-  // si viene sin segundos, agregarlos
   if (preg_match('/^\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}$/', $v)) $v .= ':00';
   return $v;
 };
@@ -106,6 +100,33 @@ try {
     $createdByUserId,
     $createdByArea
   ]);
+  $annId = (int)$pdo->lastInsertId();
+
+  $target = $target_area; // 'ALL'|'Sucursal'|'Corporativo'
+
+  if ($target === 'ALL') {
+    $uStmt = $pdo->query("SELECT id FROM users WHERE rol IN (3,4)"); // analistas+usuarios (ajusta)
+  } else {
+  $uStmt = $pdo->query("SELECT id FROM users WHERE rol IN (3,4)");
+  }
+
+  $userIds = $uStmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+
+  if ($userIds) {
+    $n = $pdo->prepare("
+      INSERT INTO notifications (user_id, title, body, link, is_read, created_at)
+      VALUES (?, ?, ?, ?, 0, NOW())
+    ");
+
+    $link = '/HelpDesk_EQF/modules/dashboard/user/user.php#announcements'; // ajusta ruta real
+    $ntitle = '📣 Aviso: ' . $title;
+
+    foreach ($userIds as $uid) {
+      $n->execute([(int)$uid, $ntitle, $body, $link]);
+    }
+  }
+
+  echo json_encode(['ok' => true, 'id' => $annId]);
 
   echo json_encode(['ok' => true, 'id' => (int)$pdo->lastInsertId()]);
 } catch (Throwable $e) {

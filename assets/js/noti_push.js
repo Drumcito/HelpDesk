@@ -1,15 +1,8 @@
-/* ============================================
-   NOTIFICACIONES GLOBALES · HELPDESK EQF
-   Archivo: assets/js/noti_push.js
-   - Poll unificado (tickets + tareas si vienen en notifications)
-   - Badge + mark_read
-   - Notificación nativa con icono + click abre link
-============================================ */
+
 
 (function () {
   if (typeof window.HELPDESK_USER_ID === 'undefined' || !window.HELPDESK_USER_ID) return;
 
-  // 🔁 Reusar misma llave que tu script.js para NO perder estado
   let lastNotifId = parseInt(localStorage.getItem('lastNotifId') || '0', 10) || 0;
 
   function setBadge(n) {
@@ -25,7 +18,6 @@
     if (Notification.permission === 'granted') return true;
     if (Notification.permission === 'denied') return false;
 
-    // pedir permiso al cargar
     try {
       const p = await Notification.requestPermission();
       return p === 'granted';
@@ -34,19 +26,40 @@
     }
   }
 
+  function prefixByType(typeRaw) {
+    const t = String(typeRaw || '').toLowerCase().trim();
+
+    if (t === 'ticket_transfer') return '🔁 Ticket canalizado';
+    if (t === 'ticket_status')   return '📝 Ticket actualizado';
+    if (t === 'ticket_new')      return '🎫 Nuevo ticket';
+
+    if (t === 'task_assigned')   return '✅ Tarea asignada';
+    if (t === 'task_reassigned') return '🔁 Tarea reasignada';
+    if (t === 'task_canceled')   return '⛔ Tarea cancelada';
+    if (t === 'task_finished')   return '🏁 Tarea finalizada';
+    
+    if (t === 'ticket_assigned') return '👤 Ticket asignado';
+
+    if (t.startsWith('ticket_')) return '🎫 Ticket';
+    if (t.startsWith('task_'))   return '📋 Tarea';
+
+    return 'HelpDesk EQF';
+  }
+
   async function showDesktop(title, body, link, tag) {
     const ok = await ensurePermission();
     if (!ok) return;
 
-    // Intentar SW (mejor comportamiento). Si no hay, fallback a Notification normal.
+    const iconPath = '/HelpDesk_EQF/assets/img/icon_desktop.png';
+
     if ('serviceWorker' in navigator) {
       try {
         const reg = await navigator.serviceWorker.getRegistration('/HelpDesk_EQF/');
         if (reg && reg.showNotification) {
           await reg.showNotification(title || 'HelpDesk EQF', {
             body: body || '',
-            icon: '/HelpDesk_EQF/assets/img/icon_desktop.png',
-            badge: '/HelpDesk_EQF/assets/img/icon_desktop.png',
+            icon: iconPath,
+            badge: iconPath,
             tag: tag || undefined,
             data: { url: link || '/HelpDesk_EQF/' },
             renotify: false
@@ -58,7 +71,7 @@
 
     const n = new Notification(title || 'HelpDesk EQF', {
       body: body || '',
-      icon: '/HelpDesk_EQF/assets/img/icon_desktop.png',
+      icon: iconPath,
       tag: tag || undefined
     });
 
@@ -111,11 +124,15 @@
           ids.push(id);
         }
 
-        // Notificación nativa (unificada)
+        const prefix = prefixByType(n.type);
+
+        const baseTitle = String(n.title || '').trim();
+        const title = baseTitle ? `${prefix} · ${baseTitle}` : prefix;
+
         await showDesktop(
-          n.title || 'HelpDesk EQF',
-          n.body || '',
-          n.link || '/HelpDesk_EQF/',
+          title,
+          String(n.body || ''),
+          String(n.link || '/HelpDesk_EQF/'),
           'helpdesk-' + (id || Date.now())
         );
       }
@@ -124,7 +141,6 @@
       await markRead(ids);
 
     } catch (e) {
-      // console.warn('noti_push poll error', e);
     } finally {
       running = false;
     }

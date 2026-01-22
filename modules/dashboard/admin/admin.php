@@ -343,7 +343,7 @@ include __DIR__ . '/../../../template/sidebar.php';
 <?php include __DIR__ . '/../../../template/footer.php'; ?>
 <?php if ((int)($_SESSION['user_rol'] ?? 0) === 2): ?>
 <div class="eqf-modal-backdrop" id="announceModal">
-  <div class="eqf-modal eqf-announce-modal">
+  <div class="eqf-modal eqf-announce-modal" data-ann-modal>
     <div class="eqf-modal-header">
       <div>
         <strong>Nuevo aviso</strong>
@@ -403,23 +403,6 @@ include __DIR__ . '/../../../template/sidebar.php';
   </div>
 </div>
 <?php endif; ?>
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-  const btn = document.getElementById('btnOpenAnnouncement');
-  const modal = document.getElementById('announceModal');
-
-  console.log('BTN:', btn, 'MODAL:', modal);
-
-  if (btn && modal) {
-    btn.addEventListener('click', (e) => {
-      e.preventDefault();
-      modal.classList.add('show');
-      console.log('Modal abierto ✅');
-    });
-  }
-});
-</script>
-
 </body>
 </html>
 
@@ -471,36 +454,50 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>
 
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-  const btn = document.getElementById('btnOpenAnnouncement');
+/* Modal Aviso (unificado): abre con [data-open-announcement], cierra con X/Cancelar, click fuera, ESC */
+(() => {
   const modal = document.getElementById('announceModal');
+  if (!modal) return;
 
-  if (!btn || !modal) {
-    console.warn('No se encontró btnOpenAnnouncement o announceModal');
-    return;
-  }
+  function open() { modal.classList.add('show'); }
+  function close(){ modal.classList.remove('show'); }
 
-  btn.addEventListener('click', (e) => {
-    e.preventDefault();
-    modal.classList.add('show');
+  window.openAnnounceModal = open;
+  window.closeAnnounceModal = close;
+
+  document.addEventListener('click', (e) => {
+    // ABRIR (sidebar)
+    if (e.target.closest('[data-open-announcement]')) {
+      e.preventDefault();
+      open();
+      return;
+    }
+
+    // CERRAR (soporta admin ids + analyst data-*)
+    if (
+      e.target.closest('[data-close-announcement]') ||
+      e.target.closest('[data-cancel-announcement]') ||
+      e.target.closest('#btnCloseAnnouncement') ||
+      e.target.closest('#btnCancelAnnouncement')
+    ) {
+      e.preventDefault();
+      close();
+      return;
+    }
+
+    // click fuera
+    if (modal.classList.contains('show')) {
+      const inner = modal.querySelector('[data-ann-modal]') || modal.querySelector('.eqf-modal');
+      if (inner && !inner.contains(e.target) && e.target.closest('#announceModal')) close();
+    }
   });
 
-  // click en backdrop para cerrar
-  modal.addEventListener('click', (e) => {
-    if (e.target === modal) modal.classList.remove('show');
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal.classList.contains('show')) close();
   });
-
-  document.getElementById('btnCloseAnnouncement')?.addEventListener('click', (e) => {
-    e.preventDefault();
-    modal.classList.remove('show');
-  });
-
-  document.getElementById('btnCancelAnnouncement')?.addEventListener('click', (e) => {
-    e.preventDefault();
-    modal.classList.remove('show');
-  });
-});
+})();
 </script>
+
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
@@ -558,33 +555,6 @@ document.addEventListener('DOMContentLoaded', () => {
       alert('Error de red / fetch. Revisa consola.');
     }
   });
-});
-
-// MODAL DE AVISO
-document.addEventListener('click', (e) => {
-  const openBtn = e.target.closest('[data-open-announcement]');
-  const modal = document.getElementById('announceModal');
-
-  if (openBtn) {
-    e.preventDefault();
-    if (!modal) return console.warn('No existe #announceModal en esta vista');
-    modal.classList.add('show');
-    return;
-  }
-
-  // cerrar por X o Cancel
-  const closeBtn = e.target.closest('[data-close-announcement],[data-cancel-announcement]');
-  if (closeBtn) {
-    e.preventDefault();
-    if (!modal) return;
-    modal.classList.remove('show');
-    return;
-  }
-
-  // cerrar clic fuera
-  if (modal && e.target === modal) {
-    modal.classList.remove('show');
-  }
 });
 
 function every(ms, fn){
@@ -677,45 +647,6 @@ function every(ms, fn){
     }).join('');
   }
 
-  // Click handler (delegado) para desactivar
-  document.addEventListener('click', async (e) => {
-    const btn = e.target.closest('[data-ann-disable]');
-    if (!btn) return;
-
-    const id = parseInt(btn.dataset.id || '0', 10);
-    if (!id) return;
-    if (!confirm('¿Desactivar este anuncio?')) return;
-
-    btn.disabled = true;
-
-    try {
-      const r = await fetch('/HelpDesk_EQF/modules/dashboard/admin/ajax/toggle_announcement.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id })
-      });
-
-      const data = await r.json().catch(()=>({}));
-      if (!r.ok || !data.ok) {
-        alert(data.msg || 'No se pudo desactivar.');
-        btn.disabled = false;
-        return;
-      }
-
-      // quita el anuncio de la UI
-      const card = btn.closest('.announcement');
-      if (card) card.remove();
-
-      // actualiza badge a ojo (sin esperar polling)
-      badge.textContent = String(Math.max(0, parseInt(badge.textContent||'0',10)-1));
-
-    } catch(err){
-      console.error(err);
-      alert('Error al desactivar.');
-      btn.disabled = false;
-    }
-  });
-
   let lastSig = '';
 
   async function poll(){
@@ -730,6 +661,7 @@ function every(ms, fn){
       render(j.items || []);
     }catch(e){}
   }
+window.__pollAnnouncementsNow = poll;
 
   poll();
   setInterval(poll, 4000);
@@ -740,7 +672,3 @@ function every(ms, fn){
 })();
 </script>
 <script src="/HelpDesk_EQF/assets/js/script.js?v=20251208a"></script>
-
-
-
-

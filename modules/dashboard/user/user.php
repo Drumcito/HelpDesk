@@ -61,15 +61,18 @@ $announcements = [];
 
 try {
     $sqlAnn = "
-    SELECT id, title, body, level, target_area, starts_at, ends_at, created_at
-    FROM announcements
-    WHERE target_area = :aud
-      AND is_active = 1
-    ORDER BY created_at DESC
-    LIMIT 10
+  SELECT id, title, body, level, target_area, starts_at, ends_at, created_at
+  FROM announcements
+  WHERE is_active = 1
+    AND (target_area = 'ALL' OR target_area = :aud)
+    AND (starts_at IS NULL OR starts_at <= NOW())
+    AND (ends_at   IS NULL OR ends_at   >= NOW())
+  ORDER BY created_at DESC
+  LIMIT 10
 ";
 $stmtAnn = $pdo->prepare($sqlAnn);
 $stmtAnn->execute([':aud' => $audience]);
+
 $announcements = $stmtAnn->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
 } catch (Throwable $e) {
@@ -334,13 +337,16 @@ foreach ($openTickets as $t) {
         <?php endif; ?>
       </div>
 
-      <?php if (!empty($announcements)): ?>
-        <div class="user-announcements__list" id="annList">
-          <?php foreach ($announcements as $a): ?>
-            <?php $lvl = strtoupper((string)($a['level'] ?? 'INFO')); ?>
-            <div class="announcement <?php echo annClass($lvl); ?>">
-              <div class="announcement__top">
-                <div>
+      <div class="user-announcements__list" id="annList">
+  <?php if (!empty($announcements)): ?>
+    <?php foreach ($announcements as $a): ?>
+      <!-- cards -->
+    <?php endforeach; ?>
+  <?php else: ?>
+    <p style="margin:0; color:#6b7280;">No hay avisos por el momento.</p>
+  <?php endif; ?>
+</div>
+
                   <p class="announcement__h"><?php echo h($a['title'] ?? ''); ?></p>
                   <p class="announcement__meta">
   <?php echo h('Dirigido a: ' . ($a['target_area'] ?? '')); ?>
@@ -1306,7 +1312,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let lastHash = '';
   async function poll(){
     try{
-      const r = await fetch('/HelpDesk_EQF/modules/dashboard/user/ajax/announcements_poll.php?_=' + Date.now(), {cache:'no-store'});
+      const r = await fetch('/HelpDesk_EQF/modules/dashboard/common/ajax/announcements_snapshot.php')
+
       const data = await r.json();
       if (!data.ok) return;
 
@@ -1470,8 +1477,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (wrap) wrap.style.display = on ? '' : 'none';
     if (inp) {
-      inp.required = on;        // si marca “no soy jefe”, obligas el nombre
-      if (!on) inp.value = '';  // si lo desmarca, limpias
+      inp.required = on;        
+      if (!on) inp.value = '';  
     }
   }
 

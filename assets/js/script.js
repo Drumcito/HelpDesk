@@ -760,3 +760,64 @@ document.addEventListener('click', (e) => {
     modal.classList.remove('show');
   }
 });
+
+document.addEventListener('click', async (e) => {
+  const btn = e.target.closest('#btnSendAnnouncement');
+  if (!btn) return;
+
+  e.preventDefault();
+
+  const payload = {
+    title: (document.getElementById('ann_title')?.value || '').trim(),
+    body: (document.getElementById('ann_body')?.value || '').trim(),
+    level: document.getElementById('ann_level')?.value || 'INFO',
+    target_area: document.getElementById('ann_area')?.value || 'ALL',
+    starts_at: document.getElementById('ann_starts')?.value || null,
+    ends_at: document.getElementById('ann_ends')?.value || null
+  };
+
+  if (!payload.title || !payload.body) {
+    alert('Título y descripción son obligatorios.');
+    return;
+  }
+
+  btn.disabled = true;
+  const prev = btn.textContent;
+  btn.textContent = 'Enviando...';
+
+  try {
+    const res = await fetch('/HelpDesk_EQF/modules/dashboard/admin/ajax/create_announcement.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json().catch(()=>({}));
+
+    if (!res.ok || !data.ok) {
+      alert(data.msg || ('No se pudo enviar. HTTP ' + res.status));
+      return;
+    }
+
+    alert('Aviso enviado ✅');
+
+    // cerrar modal
+    document.getElementById('announceModal')?.classList.remove('show');
+
+    // limpiar
+    document.getElementById('ann_title').value = '';
+    document.getElementById('ann_body').value  = '';
+    document.getElementById('ann_level').value = 'INFO';
+    document.getElementById('ann_area').value  = 'ALL';
+    document.getElementById('ann_starts').value = '';
+    document.getElementById('ann_ends').value   = '';
+
+  } catch (err) {
+    console.error(err);
+    alert('Error de red / fetch.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = prev || 'Enviar';
+  }
+});
+

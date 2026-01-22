@@ -50,6 +50,40 @@ try {
 $pdo->prepare("UPDATE tasks SET assigned_to_user_id=?, status='ASIGNADA' WHERE id=? LIMIT 1")
     ->execute([$newAid, $taskId]);
 
+// ===== NOTIFICACIONES (REASSIGN) =====
+$link = "/HelpDesk_EQF/modules/dashboard/tasks/view.php?id=" . (int)$taskId;
+
+// consigue título de tarea (para mensaje)
+$stmtT = $pdo->prepare("SELECT title FROM tasks WHERE id=? LIMIT 1");
+$stmtT->execute([$taskId]);
+$taskTitle = (string)($stmtT->fetchColumn() ?: '');
+
+// prepara inserción
+$stmtN = $pdo->prepare("
+  INSERT INTO notifications (user_ide, type, title, body, link, is_read, created_at)
+  VALUES (?, 'task_reassigned', ?, ?, ?, 0, NOW())
+");
+
+// notificar a los analistas anteriores (retirados)
+foreach ($olds as $o) {
+  $oldUid = (int)($o['analyst_id'] ?? 0);
+  if ($oldUid > 0 && $oldUid !== $newAid) {
+    $stmtN->execute([
+      $oldUid,
+      "Tarea reasignada (#{$taskId})",
+      "Te retiraron la tarea: " . ($taskTitle ?: 'Sin título'),
+      $link
+    ]);
+  }
+}
+
+// notificar al nuevo analista
+$stmtN->execute([
+  (int)$newAid,
+  "Tarea reasignada (#{$taskId})",
+  "Se te asignó la tarea: " . ($taskTitle ?: 'Sin título'),
+  $link
+]);
 
   // 3) crear o reactivar assignee para nuevo analista
   // si ya existe RETIRADA/CANCELADA/FINALIZADA, crea uno nuevo (más limpio)

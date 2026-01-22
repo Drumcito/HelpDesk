@@ -11,7 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-// Solo analistas (rol = 3)
+// Solo analistas
 if (!isset($_SESSION['user_id']) || (int)($_SESSION['user_rol'] ?? 0) !== 3) {
     http_response_code(403);
     echo json_encode(['ok' => false, 'msg' => 'No autorizado'], JSON_UNESCAPED_UNICODE);
@@ -78,6 +78,37 @@ try {
         ], JSON_UNESCAPED_UNICODE);
         exit;
     }
+// ===== NOTIFICACIÓN AL USUARIO: ticket asignado a analista =====
+
+$stmtT = $pdo->prepare("
+  SELECT id, user_id
+  FROM tickets
+  WHERE id = ?
+  LIMIT 1
+");
+$stmtT->execute([(int)$ticketId]);
+$tk = $stmtT->fetch(PDO::FETCH_ASSOC);
+
+$userTicketId = (int)($tk['user_id'] ?? 0);
+if ($userTicketId > 0) {
+
+  $stmtA = $pdo->prepare("SELECT CONCAT(name,' ',last_name) AS full_name FROM users WHERE id=? LIMIT 1");
+  $stmtA->execute([(int)$analystId]);
+  $analystName = (string)($stmtA->fetchColumn() ?: 'Analista');
+
+  $link = "/HelpDesk_EQF/modules/dashboard/user/user.php?open_ticket=" . (int)$ticketId;
+
+  $stmtN = $pdo->prepare("
+    INSERT INTO notifications (user_ide, type, title, body, link, is_read, created_at)
+    VALUES (?, 'ticket_assigned', ?, ?, ?, 0, NOW())
+  ");
+  $stmtN->execute([
+    $userTicketId,
+    "Ticket #{$ticketId} asignado",
+    "Tu ticket será atendido por: {$analystName}",
+    $link
+  ]);
+}
 
     // 2) Traer datos completos para devolver al frontend
     $stmtTicket = $pdo->prepare("

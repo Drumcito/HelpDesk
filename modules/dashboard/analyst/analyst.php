@@ -389,7 +389,7 @@ if (strcasecmp(trim($userArea), 'TI') !== 0) {
         <!-- MODAL NUEVO AVISO -->
         <?php if (in_array((int)($_SESSION['user_rol'] ?? 0), [2,3], true)): ?>
         <div class="eqf-modal-backdrop" id="announceModal">
-          <div class="eqf-modal eqf-announce-modal">
+          <div class="eqf-modal eqf-announce-modal" data-ann-modal>
             <div class="eqf-modal-header">
               <div>
                 <strong>Nuevo aviso</strong>
@@ -422,7 +422,7 @@ if (strcasecmp(trim($userArea), 'TI') !== 0) {
                 <div class="eqf-field">
                   <label>Área</label>
                   <select id="ann_area">
-                    <option value="ALL">ALL</option>
+                    <option value="ALL">Todos</option>
                     <option value="Sucursal">Sucursal</option>
                     <option value="Corporativo">Corporativo</option>
                   </select>
@@ -2394,74 +2394,47 @@ document.addEventListener('keydown', (e) => {
 
 <script>
 
-// MODAL AVISO
-document.addEventListener('click', (e) => {
-  const openBtn = e.target.closest('[data-open-announcement]');
+(() => {
   const modal = document.getElementById('announceModal');
+  if (!modal) return;
 
-  if (openBtn) {
-    e.preventDefault();
-    if (!modal) return console.warn('No existe #announceModal en esta vista');
-    modal.classList.add('show');
-    return;
-  }
+  function open() { modal.classList.add('show'); }
+  function close(){ modal.classList.remove('show'); }
 
-  const closeBtn = e.target.closest('[data-close-announcement],[data-cancel-announcement]');
-  if (closeBtn) {
-    e.preventDefault();
-    if (!modal) return;
-    modal.classList.remove('show');
-    return;
-  }
+  window.openAnnounceModal = open;
+  window.closeAnnounceModal = close;
 
-  if (modal && e.target === modal) {
-    modal.classList.remove('show');
-  }
-});
-
-document.addEventListener('click', async (e) => {
-  const sendBtn = e.target.closest('#btnSendAnnouncement');
-  if (!sendBtn) return;
-
-  e.preventDefault();
-
-  const payload = {
-    title: (document.getElementById('ann_title')?.value || '').trim(),
-    body: (document.getElementById('ann_body')?.value || '').trim(),
-    level: document.getElementById('ann_level')?.value || 'INFO',
-    target_area: document.getElementById('ann_area')?.value || 'ALL',
-    starts_at: document.getElementById('ann_starts')?.value || null,
-    ends_at: document.getElementById('ann_ends')?.value || null
-  };
-
-  if (!payload.title || !payload.body) {
-    alert('Título y descripción son obligatorios.');
-    return;
-  }
-
-  try {
-    const res = await fetch('/HelpDesk_EQF/modules/dashboard/admin/ajax/create_announcement.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-
-    const raw = await res.text();
-    let data = {};
-    try { data = JSON.parse(raw); } catch {}
-
-    if (!res.ok || !data.ok) {
-      alert(data.msg || ('No se pudo enviar el aviso. HTTP ' + res.status));
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('[data-open-announcement]') || e.target.closest('#btnOpenAnnouncement')) {
+      e.preventDefault();
+      open();
       return;
     }
 
-    alert('Aviso enviado ✅');
-    document.getElementById('announceModal')?.classList.remove('show');
-  } catch (err) {
-    console.error(err);
-    alert('Error de red / fetch. Revisa consola.');
-  }
-});
+    if (
+      e.target.closest('[data-close-announcement]') ||
+      e.target.closest('[data-cancel-announcement]') ||
+      e.target.closest('#btnCloseAnnouncement') ||
+      e.target.closest('#btnCancelAnnouncement')
+    ) {
+      e.preventDefault();
+      close();
+      return;
+    }
+
+    if (modal.classList.contains('show')) {
+      const inner = modal.querySelector('[data-ann-modal]');
+      if (inner && !inner.contains(e.target) && e.target.closest('#announceModal')) {
+        close();
+      }
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal.classList.contains('show')) close();
+  });
+})();
+
 </script>
 
 <script>
@@ -2533,7 +2506,6 @@ document.addEventListener('click', async (e) => {
     }).join('');
   }
 
-  // Click handler (delegado) para desactivar
   document.addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-ann-disable]');
     if (!btn) return;
@@ -2586,6 +2558,7 @@ document.addEventListener('click', async (e) => {
       render(j.items || []);
     }catch(e){}
   }
+window.__pollAnnouncementsNow = poll;
 
   poll();
   setInterval(poll, 4000);
@@ -2594,6 +2567,74 @@ document.addEventListener('click', async (e) => {
     if (!document.hidden) poll();
   });
 })();
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const sendBtn = document.getElementById('btnSendAnnouncement');
+  if (!sendBtn) return;
+
+  sendBtn.addEventListener('click', async (e) => {
+    e.preventDefault();
+
+    const payload = {
+      title: (document.getElementById('ann_title')?.value || '').trim(),
+      body: (document.getElementById('ann_body')?.value || '').trim(),
+      level: document.getElementById('ann_level')?.value || 'INFO',
+      target_area: document.getElementById('ann_area')?.value || 'ALL',
+      starts_at: document.getElementById('ann_starts')?.value || null,
+      ends_at: document.getElementById('ann_ends')?.value || null
+    };
+
+    if (!payload.title || !payload.body) {
+      alert('Título y descripción son obligatorios.');
+      return;
+    }
+
+    sendBtn.disabled = true;
+    const oldTxt = sendBtn.textContent;
+    sendBtn.textContent = 'Enviando...';
+
+    try {
+      const res = await fetch('/HelpDesk_EQF/modules/dashboard/admin/ajax/create_announcement.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const raw = await res.text();
+      let data = {}; try { data = JSON.parse(raw); } catch {}
+
+      if (!res.ok || !data.ok) {
+        alert(data.msg || ('No se pudo enviar el aviso. HTTP ' + res.status));
+        return;
+      }
+
+      alert('Aviso enviado ✅');
+
+      // cerrar modal
+      document.getElementById('announceModal')?.classList.remove('show');
+
+      // limpiar
+      document.getElementById('ann_title').value = '';
+      document.getElementById('ann_body').value  = '';
+      document.getElementById('ann_level').value = 'INFO';
+      document.getElementById('ann_area').value  = 'ALL';
+      document.getElementById('ann_starts').value = '';
+      document.getElementById('ann_ends').value   = '';
+
+      // forzar refresh de anuncios inmediatamente
+      if (typeof window.__pollAnnouncementsNow === 'function') window.__pollAnnouncementsNow();
+
+    } catch (err) {
+      console.error(err);
+      alert('Error de red / fetch. Revisa consola.');
+    } finally {
+      sendBtn.disabled = false;
+      sendBtn.textContent = oldTxt || 'Enviar';
+    }
+  });
+});
 </script>
 
 </body>

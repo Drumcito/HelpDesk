@@ -60,6 +60,20 @@ try {
 
   $taskId = (int)$pdo->lastInsertId();
 
+$link = "/HelpDesk_EQF/modules/dashboard/tasks/view.php?id=" . (int)$taskId;
+
+$stmtN = $pdo->prepare("
+  INSERT INTO notifications (user_ide, type, title, body, link, is_read, created_at)
+  VALUES (?, 'task_assigned', ?, ?, ?, 0, NOW())
+");
+$stmtN->execute([
+  (int)$assignedTo,
+  "Nueva tarea (#{$taskId})",
+  (string)$title,
+  $link
+]);
+
+
   // adjuntos admin (si vienen)
   if (!empty($_FILES['admin_files']) && !empty($_FILES['admin_files']['name'][0])) {
     $uploadDir = __DIR__ . '/../../../uploads/tasks/admin/';

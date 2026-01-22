@@ -52,6 +52,28 @@ try {
     LIMIT 1
   ");
   $upd->execute([$now, $taskId, $analystId]);
+// ===== NOTIFICACIÓN (FINISH) al admin creador =====
+$stmtInfo = $pdo->prepare("SELECT created_by_admin_id, title FROM tasks WHERE id=? LIMIT 1");
+$stmtInfo->execute([$taskId]);
+$info = $stmtInfo->fetch(PDO::FETCH_ASSOC) ?: [];
+
+$adminId = (int)($info['created_by_admin_id'] ?? 0);
+$taskTitle = (string)($info['title'] ?? '');
+
+if ($adminId > 0) {
+  $link = "/HelpDesk_EQF/modules/dashboard/tasks/view.php?id=" . (int)$taskId;
+
+  $stmtN = $pdo->prepare("
+    INSERT INTO notifications (user_ide, type, title, body, link, is_read, created_at)
+    VALUES (?, 'task_finished', ?, ?, ?, 0, NOW())
+  ");
+  $stmtN->execute([
+    $adminId,
+    "Tarea finalizada (#{$taskId})",
+    "El analista finalizó: " . ($taskTitle ?: 'Sin título'),
+    $link
+  ]);
+}
 
   if ($upd->rowCount() <= 0) {
     throw new RuntimeException('No se pudo finalizar la tarea.');

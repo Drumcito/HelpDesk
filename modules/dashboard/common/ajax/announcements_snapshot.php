@@ -5,54 +5,84 @@ header('Content-Type: application/json; charset=utf-8');
 
 if (!isset($_SESSION['user_id'])) {
   http_response_code(403);
-  echo json_encode(['ok'=>false,'msg'=>'No autenticado'], JSON_UNESCAPED_UNICODE);
+  echo json_encode(['ok'=>false,'msg'=>'No autenticado']);
   exit;
 }
 
 $pdo = Database::getConnection();
 
+$userId   = (int)($_SESSION['user_id'] ?? 0);
+$userRol  = (int)($_SESSION['user_rol'] ?? 0);
 $userArea = trim((string)($_SESSION['user_area'] ?? ''));
-$rol = (int)($_SESSION['user_rol'] ?? 0);
+
+// Para usuarios finales (rol 4) filtras por scope. Para staff (2/3) NO.
+$userScope = trim((string)($_SESSION['user_scope'] ?? ''));
+if ($userScope !== 'Sucursal' && $userScope !== 'Corporativo') $userScope = '';
 
 try {
-  $stmt = $pdo->query("
-    SELECT id, title, body, level, target_area, starts_at, ends_at, created_at, created_by_area
-    FROM announcements
-    WHERE is_active = 1
-    ORDER BY created_at DESC
+  $params = [];
+  $whereParts = [];
+  $whereParts[] = "a.is_active = 1";
+  $whereParts[] = "(a.starts_at IS NULL OR a.starts_at <= NOW())";
+  $whereParts[] = "(a.ends_at   IS NULL OR a.ends_at   >= NOW())";
+
+  // Staff ve TODO (ALL + Sucursal + Corporativo)
+  if (in_array($userRol, [2,3], true)) {
+    // nada extra
+  } else {
+    // Usuario final: ALL + su scope (si existe)
+    $scopeWhere = [];
+    $scopeWhere[] = "TRIM(a.target_area) = 'ALL'";
+    if ($userScope !== '') {
+      $scopeWhere[] = "TRIM(a.target_area) = :scope";
+      $params[':scope'] = $userScope;
+    }
+    $whereParts[] = "(" . implode(" OR ", $scopeWhere) . ")";
+  }
+
+  $where = implode(" AND ", $whereParts);
+
+  $stmt = $pdo->prepare("
+    SELECT
+      a.id, a.title, a.body, a.level, a.target_area,
+      a.starts_at, a.ends_at, a.created_at, a.created_by_area
+    FROM announcements a
+    WHERE $where
+    ORDER BY a.created_at DESC
     LIMIT 20
   ");
-  $items = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+  $stmt->execute($params);
+  $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-  // Agrega permiso por item (misma lógica que tu PHP)
-  foreach ($items as &$a) {
-    $createdByArea = trim((string)($a['created_by_area'] ?? ''));
-    $canDisable = ($rol === 2) || (strcasecmp($createdByArea, $userArea) === 0);
-    $a['can_disable'] = $canDisable ? 1 : 0;
+  foreach ($rows as &$r) {
+    $createdByArea = trim((string)($r['created_by_area'] ?? ''));
+    $can = 0;
+
+if ($userRol === 1 || $userRol === 2) $can = 1;
+else if ($createdByArea !== '' && strcasecmp($createdByArea, $userArea) === 0) $can = 1;
+
+    if ($createdByArea !== '' && $userArea !== '' && strcasecmp($createdByArea, $userArea) === 0) $can = 1;
+
+    $r['can_disable'] = $can ? '1' : '0';
   }
-  unset($a);
+  unset($r);
 
-  $sigBase = array_map(fn($a) => [
-    (int)$a['id'],
-    (string)($a['title'] ?? ''),
-    (string)($a['body'] ?? ''),
-    (string)($a['level'] ?? ''),
-    (string)($a['target_area'] ?? ''),
-    (string)($a['starts_at'] ?? ''),
-    (string)($a['ends_at'] ?? ''),
-    (string)($a['created_at'] ?? ''),
-    (string)($a['created_by_area'] ?? ''),
-    (int)($a['can_disable'] ?? 0),
-  ], $items);
+  $sigBase = '';
+  foreach ($rows as $r) {
+    $sigBase .= ($r['id'] ?? '') . '|'
+             . ($r['created_at'] ?? '') . '|'
+             . ($r['level'] ?? '') . '|'
+             . ($r['target_area'] ?? '') . '|'
+             . ($r['starts_at'] ?? '') . '|'
+             . ($r['ends_at'] ?? '') . '|'
+             . md5((string)($r['title'] ?? '') . '|' . (string)($r['body'] ?? ''))
+             . ';';
+  }
+  $signature = sha1($sigBase);
 
-  echo json_encode([
-    'ok' => true,
-    'items' => $items,
-    'signature' => sha1(json_encode($sigBase, JSON_UNESCAPED_UNICODE)),
-    'count' => count($items),
-  ], JSON_UNESCAPED_UNICODE);
+  echo json_encode(['ok'=>true,'signature'=>$signature,'items'=>$rows], JSON_UNESCAPED_UNICODE);
 
 } catch (Throwable $e) {
   http_response_code(500);
-  echo json_encode(['ok'=>false,'msg'=>'Error servidor'], JSON_UNESCAPED_UNICODE);
+  echo json_encode(['ok'=>false,'msg'=>'Error snapshot anuncios']);
 }
