@@ -15,73 +15,76 @@ $userId   = (int)($_SESSION['user_id'] ?? 0);
 $userRol  = (int)($_SESSION['user_rol'] ?? 0);
 $userArea = trim((string)($_SESSION['user_area'] ?? ''));
 
-// Para usuarios finales (rol 4) filtras por scope. Para staff (2/3) NO.
-$userScope = trim((string)($_SESSION['user_scope'] ?? ''));
-if ($userScope !== 'Sucursal' && $userScope !== 'Corporativo') $userScope = '';
+function scopeFromArea(string $area): string {
+  $a = mb_strtolower(trim($area));
+  if ($a === '') return 'Corporativo';
+  if (str_contains($a, 'sucursal')) return 'Sucursal';
+  return 'Corporativo';
+}
+
+$scope = scopeFromArea($userArea);
+$mode = trim((string)($_GET['mode'] ?? ''));
+$seeAll = ($mode === 'all' && in_array($userRol, [1,2,3], true)); // SA/Admin/Analista
 
 try {
-  $params = [];
-  $whereParts = [];
-  $whereParts[] = "a.is_active = 1";
-  $whereParts[] = "(a.starts_at IS NULL OR a.starts_at <= NOW())";
-  $whereParts[] = "(a.ends_at   IS NULL OR a.ends_at   >= NOW())";
-
-  // Staff ve TODO (ALL + Sucursal + Corporativo)
-  if (in_array($userRol, [2,3], true)) {
-    // nada extra
-  } else {
-    // Usuario final: ALL + su scope (si existe)
-    $scopeWhere = [];
-    $scopeWhere[] = "TRIM(a.target_area) = 'ALL'";
-    if ($userScope !== '') {
-      $scopeWhere[] = "TRIM(a.target_area) = :scope";
-      $params[':scope'] = $userScope;
-    }
-    $whereParts[] = "(" . implode(" OR ", $scopeWhere) . ")";
-  }
-
-  $where = implode(" AND ", $whereParts);
-
+  // NOTA: NO filtramos por starts_at/ends_at porque son “demostrativas”
+if ($seeAll) {
   $stmt = $pdo->prepare("
     SELECT
       a.id, a.title, a.body, a.level, a.target_area,
       a.starts_at, a.ends_at, a.created_at, a.created_by_area
     FROM announcements a
-    WHERE $where
+    WHERE a.is_active = 1
+    ORDER BY a.created_at DESC
+    LIMIT 50
+  ");
+  $stmt->execute();
+} else {
+  $stmt = $pdo->prepare("
+    SELECT
+      a.id, a.title, a.body, a.level, a.target_area,
+      a.starts_at, a.ends_at, a.created_at, a.created_by_area
+    FROM announcements a
+    WHERE a.is_active = 1
+      AND (a.target_area = 'ALL' OR a.target_area = :scope)
     ORDER BY a.created_at DESC
     LIMIT 20
   ");
-  $stmt->execute($params);
-  $rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+  $stmt->execute([':scope' => $scope]);
+}
 
-  foreach ($rows as &$r) {
-    $createdByArea = trim((string)($r['created_by_area'] ?? ''));
-    $can = 0;
+$rows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-if ($userRol === 1 || $userRol === 2) $can = 1;
-else if ($createdByArea !== '' && strcasecmp($createdByArea, $userArea) === 0) $can = 1;
 
-    if ($createdByArea !== '' && $userArea !== '' && strcasecmp($createdByArea, $userArea) === 0) $can = 1;
+function normArea(string $s): string {
+  $s = mb_strtolower(trim($s));
+  $s = preg_replace('/\s+/', ' ', $s);
+  return $s;
+}
 
-    $r['can_disable'] = $can ? '1' : '0';
+foreach ($rows as &$r) {
+  $createdByArea = trim((string)($r['created_by_area'] ?? ''));
+  $can = 0;
+
+  if (in_array($userRol, [2,3], true)
+      && $createdByArea !== ''
+      && $userArea !== ''
+      && normArea($createdByArea) === normArea($userArea)) {
+    $can = 1;
   }
-  unset($r);
+
+  $r['can_disable'] = $can ? '1' : '0';
+}
+unset($r);
+
 
   $sigBase = '';
   foreach ($rows as $r) {
-    $sigBase .= ($r['id'] ?? '') . '|'
-             . ($r['created_at'] ?? '') . '|'
-             . ($r['level'] ?? '') . '|'
-             . ($r['target_area'] ?? '') . '|'
-             . ($r['starts_at'] ?? '') . '|'
-             . ($r['ends_at'] ?? '') . '|'
-             . md5((string)($r['title'] ?? '') . '|' . (string)($r['body'] ?? ''))
-             . ';';
+    $sigBase .= ($r['id'] ?? '') . '|' . ($r['created_at'] ?? '') . '|' . ($r['target_area'] ?? '') . '|' . ($r['level'] ?? '') . ';';
   }
   $signature = sha1($sigBase);
 
   echo json_encode(['ok'=>true,'signature'=>$signature,'items'=>$rows], JSON_UNESCAPED_UNICODE);
-
 } catch (Throwable $e) {
   http_response_code(500);
   echo json_encode(['ok'=>false,'msg'=>'Error snapshot anuncios']);

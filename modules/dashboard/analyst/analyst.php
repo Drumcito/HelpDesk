@@ -338,49 +338,50 @@ if (strcasecmp(trim($userArea), 'TI') !== 0) {
               <?php if (empty($annCards)): ?>
                 <p style="margin:0; color:#6b7280;">No hay anuncios activos.</p>
               <?php else: ?>
-                <?php foreach ($annCards as $a): ?>
-                  <div class="announcement <?php echo annClass((string)($a['level'] ?? 'INFO')); ?>">
-                    <div class="announcement__top">
-                      <div>
-                        <p class="announcement__h"><?php echo h($a['title'] ?? ''); ?></p>
-                        <p class="announcement__meta">
-                          <?php echo h('Dirigido a: ' . ($a['target_area'] ?? '')); ?>
-                          <?php if (!empty($a['starts_at'])): ?>
-                            <br><?php echo h('Hora de inicio: ' . $a['starts_at']); ?>
-                          <?php endif; ?>
-                          <?php if (!empty($a['ends_at'])): ?>
-                            <br><?php echo h('Hora estimada fin: ' . $a['ends_at']); ?>
-                          <?php endif; ?>
-                        </p>
-                      </div>
+<?php foreach ($annCards as $a): ?>
+  <?php $lvl = strtoupper(trim((string)($a['level'] ?? 'INFO'))); ?>
+  <div class="announcement <?php echo annClass($lvl); ?>">
+    <div class="announcement__top">
+      <div>
+        <p class="announcement__h"><?php echo h($a['title'] ?? ''); ?></p>
+        <p class="announcement__meta">
+          <?php echo h('Dirigido a: ' . ($a['target_area'] ?? '')); ?>
+          <?php if (!empty($a['starts_at'])): ?>
+            <br><?php echo h('Hora de inicio: ' . $a['starts_at']); ?>
+          <?php endif; ?>
+          <?php if (!empty($a['ends_at'])): ?>
+            <br><?php echo h('Hora estimada fin: ' . $a['ends_at']); ?>
+          <?php endif; ?>
+        </p>
+      </div>
 
-                      <div style="display:flex; gap:10px; align-items:center;">
-                        <span class="announcement__pill"><?php echo annLabel((string)($a['level'] ?? 'INFO')); ?></span>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <span class="announcement__pill"><?php echo annLabel($lvl); ?></span>
 
-                        <?php
-                          $rol = (int)($_SESSION['user_rol'] ?? 0);
-                          $canDisable = (
-                            $rol === 2
-                            || (strcasecmp(trim((string)($a['created_by_area'] ?? '')), trim($userArea)) === 0)
-                          );
-                        ?>
-                        <?php if ($canDisable): ?>
-                          <button type="button"
-                                  class="btn-secondary"
-                                  data-ann-disable
-                                  data-id="<?php echo (int)($a['id'] ?? 0); ?>">
-                            Desactivar
-                          </button>
-                        <?php endif; ?>
+        <?php
+          // Regla FINAL: Admin y Analista = MISMA regla → solo su misma área
+          $createdArea = trim((string)($a['created_by_area'] ?? ''));
+          $canDisable  = ($createdArea !== '' && strcasecmp($createdArea, trim((string)$userArea)) === 0);
+        ?>
 
-                      </div>
-                    </div>
+        <?php if ($canDisable): ?>
+          <button type="button"
+                  class="task-cancel-link"
+                  data-ann-disable
+                  data-id="<?php echo (int)($a['id'] ?? 0); ?>">
+            Desactivar
+          </button>
+        <?php endif; ?>
 
-                    <div class="announcement__body">
-                      <?php echo nl2br(h($a['body'] ?? '')); ?>
-                    </div>
-                  </div>
-                <?php endforeach; ?>
+      </div>
+    </div>
+
+    <div class="announcement__body">
+      <?php echo nl2br(h($a['body'] ?? '')); ?>
+    </div>
+  </div>
+<?php endforeach; ?>
+
               <?php endif; ?>
             </div>
           </div>
@@ -2437,205 +2438,66 @@ document.addEventListener('keydown', (e) => {
 
 </script>
 
+
 <script>
-(function(){
-  const list  = document.getElementById('annList');
-  const badge = document.getElementById('annBadge');
-  if (!list || !badge) return;
+document.getElementById('btnSendAnnouncement')?.addEventListener('click', async () => {
 
-  function esc(s){
-    return String(s ?? '')
-      .replaceAll('&','&amp;')
-      .replaceAll('<','&lt;')
-      .replaceAll('>','&gt;')
-      .replaceAll('"','&quot;')
-      .replaceAll("'","&#039;");
+  // Agarra valores (si tus IDs cambian entre admin/analyst, esto te salva)
+  const getVal = (id) => (document.getElementById(id)?.value ?? '').trim();
+
+  const title = getVal('ann_title');
+  const body  = getVal('ann_body');
+
+  if (!title || !body) {
+    alert('Faltan campos obligatorios');
+    return;
   }
 
-  function annClass(level){
-    level = String(level || 'INFO').toUpperCase().trim();
-    if (level === 'CRITICAL') return 'announcement--critical';
-    if (level === 'WARN') return 'announcement--warn';
-    return 'announcement--info';
-  }
-  function annLabel(level){
-    level = String(level || 'INFO').toUpperCase().trim();
-    if (level === 'CRITICAL') return 'Crítico';
-    if (level === 'WARN') return 'Aviso';
-    return 'Info';
-  }
+  const fd = new FormData();
+  fd.append('title', title);
+  fd.append('body', body);
 
-  function render(items){
-    badge.textContent = String((items || []).length);
+  // level/area tal cual, el backend ya los normaliza si son ENUM
+  fd.append('level', (document.getElementById('ann_level')?.value ?? '').trim());
+  fd.append('target_area', (document.getElementById('ann_area')?.value ?? '').trim());
 
-    if (!items || !items.length){
-      list.innerHTML = `<p style="margin:0; color:#6b7280;">No hay anuncios activos.</p>`;
+  fd.append('starts_at', (document.getElementById('ann_starts')?.value ?? '').trim());
+  fd.append('ends_at', (document.getElementById('ann_ends')?.value ?? '').trim());
+
+  try {
+    const res = await fetch('/HelpDesk_EQF/modules/dashboard/admin/ajax/create_announcement.php', {
+      method: 'POST',
+      body: fd
+    });
+
+    const data = await res.json().catch(() => null);
+    if (!data || !data.ok) {
+      alert((data && data.msg) ? data.msg : 'Error al guardar aviso');
       return;
     }
 
-    list.innerHTML = items.map(a => {
-      const id = parseInt(a.id,10) || 0;
+    alert('Aviso creado correctamente ✅');
 
-      const btnDisable = (String(a.can_disable) === '1')
-        ? `<button type="button" class="btn-secondary" data-ann-disable data-id="${id}">Desactivar</button>`
-        : ``;
+    // cerrar modal
+    document.getElementById('announceModal')?.classList.remove('show');
 
-      return `
-        <div class="announcement ${annClass(a.level)}" data-ann-id="${id}">
-          <div class="announcement__top">
-            <div>
-              <p class="announcement__h">${esc(a.title || '')}</p>
-              <p class="announcement__meta">
-                ${esc('Dirigido a: ' + (a.target_area || ''))}
-                ${a.starts_at ? '<br>' + esc('Hora de inicio: ' + a.starts_at) : ''}
-                ${a.ends_at ? '<br>' + esc('Hora estimada fin: ' + a.ends_at) : ''}
-              </p>
-            </div>
+    // limpiar campos
+    ['ann_title','ann_body','ann_starts','ann_ends'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
 
-            <div style="display:flex; gap:10px; align-items:center;">
-              <span class="announcement__pill">${annLabel(a.level)}</span>
-              ${btnDisable}
-            </div>
-          </div>
-
-          <div class="announcement__body">
-            ${esc(a.body || '').replaceAll('\n','<br>')}
-          </div>
-        </div>
-      `;
-    }).join('');
+  } catch (e) {
+    console.error(e);
+    alert('Error de red al crear aviso');
   }
-
-  document.addEventListener('click', async (e) => {
-    const btn = e.target.closest('[data-ann-disable]');
-    if (!btn) return;
-
-    const id = parseInt(btn.dataset.id || '0', 10);
-    if (!id) return;
-    if (!confirm('¿Desactivar este anuncio?')) return;
-
-    btn.disabled = true;
-
-    try {
-      const r = await fetch('/HelpDesk_EQF/modules/dashboard/admin/ajax/toggle_announcement.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id })
-      });
-
-      const data = await r.json().catch(()=>({}));
-      if (!r.ok || !data.ok) {
-        alert(data.msg || 'No se pudo desactivar.');
-        btn.disabled = false;
-        return;
-      }
-
-      // quita el anuncio de la UI
-      const card = btn.closest('.announcement');
-      if (card) card.remove();
-
-      // actualiza badge a ojo (sin esperar polling)
-      badge.textContent = String(Math.max(0, parseInt(badge.textContent||'0',10)-1));
-
-    } catch(err){
-      console.error(err);
-      alert('Error al desactivar.');
-      btn.disabled = false;
-    }
-  });
-
-  let lastSig = '';
-
-  async function poll(){
-    try{
-      const r = await fetch('/HelpDesk_EQF/modules/dashboard/common/ajax/announcements_snapshot.php', {cache:'no-store'});
-      const j = await r.json();
-      if (!r.ok || !j || !j.ok) return;
-
-      if (j.signature && j.signature === lastSig) return;
-      lastSig = j.signature || '';
-
-      render(j.items || []);
-    }catch(e){}
-  }
-window.__pollAnnouncementsNow = poll;
-
-  poll();
-  setInterval(poll, 4000);
-
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) poll();
-  });
-})();
-</script>
-
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-  const sendBtn = document.getElementById('btnSendAnnouncement');
-  if (!sendBtn) return;
-
-  sendBtn.addEventListener('click', async (e) => {
-    e.preventDefault();
-
-    const payload = {
-      title: (document.getElementById('ann_title')?.value || '').trim(),
-      body: (document.getElementById('ann_body')?.value || '').trim(),
-      level: document.getElementById('ann_level')?.value || 'INFO',
-      target_area: document.getElementById('ann_area')?.value || 'ALL',
-      starts_at: document.getElementById('ann_starts')?.value || null,
-      ends_at: document.getElementById('ann_ends')?.value || null
-    };
-
-    if (!payload.title || !payload.body) {
-      alert('Título y descripción son obligatorios.');
-      return;
-    }
-
-    sendBtn.disabled = true;
-    const oldTxt = sendBtn.textContent;
-    sendBtn.textContent = 'Enviando...';
-
-    try {
-      const res = await fetch('/HelpDesk_EQF/modules/dashboard/admin/ajax/create_announcement.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      const raw = await res.text();
-      let data = {}; try { data = JSON.parse(raw); } catch {}
-
-      if (!res.ok || !data.ok) {
-        alert(data.msg || ('No se pudo enviar el aviso. HTTP ' + res.status));
-        return;
-      }
-
-      alert('Aviso enviado ✅');
-
-      // cerrar modal
-      document.getElementById('announceModal')?.classList.remove('show');
-
-      // limpiar
-      document.getElementById('ann_title').value = '';
-      document.getElementById('ann_body').value  = '';
-      document.getElementById('ann_level').value = 'INFO';
-      document.getElementById('ann_area').value  = 'ALL';
-      document.getElementById('ann_starts').value = '';
-      document.getElementById('ann_ends').value   = '';
-
-      // forzar refresh de anuncios inmediatamente
-      if (typeof window.__pollAnnouncementsNow === 'function') window.__pollAnnouncementsNow();
-
-    } catch (err) {
-      console.error(err);
-      alert('Error de red / fetch. Revisa consola.');
-    } finally {
-      sendBtn.disabled = false;
-      sendBtn.textContent = oldTxt || 'Enviar';
-    }
-  });
 });
 </script>
+
+<script>
+  window.EQF_CAN_DEACTIVATE_ANN = true;
+</script>
+<script src="/HelpDesk_EQF/assets/js/announcements_live.js?v=1"></script>
 
 </body>
 </html>

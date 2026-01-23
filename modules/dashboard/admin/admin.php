@@ -228,43 +228,52 @@ include __DIR__ . '/../../../template/sidebar.php';
       <?php if (empty($annCards)): ?>
         <p style="margin:0; color:#6b7280;">No hay anuncios activos.</p>
       <?php else: ?>
-        <?php foreach ($annCards as $a): ?>
-          <div class="announcement <?php echo annClass($a['level']); ?>">
-            <div class="announcement__top">
-              <div>
-                <p class="announcement__h"><?php echo h($a['title']); ?></p>
-                <p class="announcement__meta">
-                  <?php echo h('Dirigido a: ' . ($a['target_area'] ?? '')); ?>
-                  <?php if (!empty($a['starts_at'])): ?>
-                    <br><?php echo h('Hora de inicio: ' . $a['starts_at']); ?>
-                  <?php endif; ?>
-                  <?php if (!empty($a['ends_at'])): ?>
-                    <br><?php echo h('Hora estimada fin: ' . $a['ends_at']); ?>
-                  <?php endif; ?>
-                </p>
-              </div>
+<?php foreach ($annCards as $a): ?>
+  <?php $lvl = strtoupper(trim((string)($a['level'] ?? 'INFO'))); ?>
 
-              <div style="display:flex; gap:10px; align-items:center;">
-                <span class="announcement__pill"><?php echo annLabel($a['level']); ?></span>
-<?php $canDisable = (strcasecmp(trim($a['created_by_area'] ?? ''), trim($areaAdmin ?? '')) === 0); ?>
+  <div class="announcement <?php echo annClass($lvl); ?>">
+    <div class="announcement__top">
+      <div>
+        <p class="announcement__h"><?php echo h($a['title'] ?? ''); ?></p>
+        <p class="announcement__meta">
+          <?php echo h('Dirigido a: ' . ($a['target_area'] ?? '')); ?>
+          <?php if (!empty($a['starts_at'])): ?>
+            <br><?php echo h('Hora de inicio: ' . $a['starts_at']); ?>
+          <?php endif; ?>
+          <?php if (!empty($a['ends_at'])): ?>
+            <br><?php echo h('Hora estimada fin: ' . $a['ends_at']); ?>
+          <?php endif; ?>
+        </p>
+      </div>
 
-<?php if ($canDisable): ?>
-  <button type="button"
-          class="btn-secondary"
-                    data-ann-disable
-          data-id="<?php echo (int)$a['id']; ?>">
-    Desactivar
-  </button>
-<?php endif; ?>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <span class="announcement__pill"><?php echo annLabel($lvl); ?></span>
 
-              </div>
-            </div>
+        <?php
+          // Regla FINAL: Admin y Analista = MISMA regla → solo su misma área
+          $createdArea = trim((string)($a['created_by_area'] ?? ''));
+          $myArea      = trim((string)($areaAdmin ?? ''));
+          $canDisable  = ($createdArea !== '' && $myArea !== '' && strcasecmp($createdArea, $myArea) === 0);
+        ?>
 
-            <div class="announcement__body">
-              <?php echo nl2br(h($a['body'])); ?>
-            </div>
-          </div>
-        <?php endforeach; ?>
+        <?php if ($canDisable): ?>
+          <button type="button"
+                  class="task-cancel-link"
+                  data-ann-disable
+                  data-id="<?php echo (int)($a['id'] ?? 0); ?>">
+            Desactivar
+          </button>
+        <?php endif; ?>
+
+      </div>
+    </div>
+
+    <div class="announcement__body">
+      <?php echo nl2br(h($a['body'] ?? '')); ?>
+    </div>
+  </div>
+<?php endforeach; ?>
+
       <?php endif; ?>
     </div>
   </div>
@@ -500,175 +509,65 @@ document.addEventListener('DOMContentLoaded', function () {
 
 
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-  const sendBtn = document.getElementById('btnSendAnnouncement');
-  if (!sendBtn) return;
+document.getElementById('btnSendAnnouncement')?.addEventListener('click', async () => {
 
-  sendBtn.addEventListener('click', async (e) => {
-    e.preventDefault();
+  // Agarra valores (si tus IDs cambian entre admin/analyst, esto te salva)
+  const getVal = (id) => (document.getElementById(id)?.value ?? '').trim();
 
-    const payload = {
-      title: (document.getElementById('ann_title')?.value || '').trim(),
-      body: (document.getElementById('ann_body')?.value || '').trim(),
-      level: document.getElementById('ann_level')?.value || 'INFO',
-      target_area: document.getElementById('ann_area')?.value || 'ALL',
-      starts_at: document.getElementById('ann_starts')?.value || null,
-      ends_at: document.getElementById('ann_ends')?.value || null
-    };
+  const title = getVal('ann_title');
+  const body  = getVal('ann_body');
 
-    if (!payload.title || !payload.body) {
-      alert('Título y descripción son obligatorios.');
+  if (!title || !body) {
+    alert('Faltan campos obligatorios');
+    return;
+  }
+
+  const fd = new FormData();
+  fd.append('title', title);
+  fd.append('body', body);
+
+  // level/area tal cual, el backend ya los normaliza si son ENUM
+  fd.append('level', (document.getElementById('ann_level')?.value ?? '').trim());
+  fd.append('target_area', (document.getElementById('ann_area')?.value ?? '').trim());
+
+  fd.append('starts_at', (document.getElementById('ann_starts')?.value ?? '').trim());
+  fd.append('ends_at', (document.getElementById('ann_ends')?.value ?? '').trim());
+
+  try {
+    const res = await fetch('/HelpDesk_EQF/modules/dashboard/admin/ajax/create_announcement.php', {
+      method: 'POST',
+      body: fd
+    });
+
+    const data = await res.json().catch(() => null);
+    if (!data || !data.ok) {
+      alert((data && data.msg) ? data.msg : 'Error al guardar aviso');
       return;
     }
 
-    try {
-      const res = await fetch('/HelpDesk_EQF/modules/dashboard/admin/ajax/create_announcement.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+    alert('Aviso creado correctamente ✅');
 
-      const raw = await res.text();
-      console.log('RESP RAW:', raw);
+    // cerrar modal
+    document.getElementById('announceModal')?.classList.remove('show');
 
-      let data = {};
-      try { data = JSON.parse(raw); } catch {}
+    // limpiar campos
+    ['ann_title','ann_body','ann_starts','ann_ends'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
 
-      if (!res.ok || !data.ok) {
-        alert(data.msg || ('No se pudo enviar el aviso. HTTP ' + res.status));
-        return;
-      }
-
-      alert('Aviso enviado ✅');
-      document.getElementById('announceModal')?.classList.remove('show');
-
-      // opcional: limpiar campos
-      document.getElementById('ann_title').value = '';
-      document.getElementById('ann_body').value  = '';
-      document.getElementById('ann_level').value = 'INFO';
-      document.getElementById('ann_area').value  = 'ALL';
-      document.getElementById('ann_starts').value = '';
-      document.getElementById('ann_ends').value   = '';
-
-    } catch (err) {
-      console.error(err);
-      alert('Error de red / fetch. Revisa consola.');
-    }
-  });
+  } catch (e) {
+    console.error(e);
+    alert('Error de red al crear aviso');
+  }
 });
-
-function every(ms, fn){
-  let t = null;
-
-  const start = () => { if (!t) t = setInterval(fn, ms); };
-  const stop  = () => { if (t) { clearInterval(t); t = null; } };
-
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) stop();
-    else { fn(); start(); }
-  });
-
-  fn(); start();
-  return { start, stop };
-}
-
-
-
 </script>
 
 
 
 <script>
-(function(){
-  const list  = document.getElementById('annList');
-  const badge = document.getElementById('annBadge');
-  if (!list || !badge) return;
-
-  function esc(s){
-    return String(s ?? '')
-      .replaceAll('&','&amp;')
-      .replaceAll('<','&lt;')
-      .replaceAll('>','&gt;')
-      .replaceAll('"','&quot;')
-      .replaceAll("'","&#039;");
-  }
-
-  function annClass(level){
-    level = String(level || 'INFO').toUpperCase().trim();
-    if (level === 'CRITICAL') return 'announcement--critical';
-    if (level === 'WARN') return 'announcement--warn';
-    return 'announcement--info';
-  }
-  function annLabel(level){
-    level = String(level || 'INFO').toUpperCase().trim();
-    if (level === 'CRITICAL') return 'Crítico';
-    if (level === 'WARN') return 'Aviso';
-    return 'Info';
-  }
-
-  function render(items){
-    badge.textContent = String((items || []).length);
-
-    if (!items || !items.length){
-      list.innerHTML = `<p style="margin:0; color:#6b7280;">No hay anuncios activos.</p>`;
-      return;
-    }
-
-    list.innerHTML = items.map(a => {
-      const id = parseInt(a.id,10) || 0;
-
-      const btnDisable = (String(a.can_disable) === '1')
-        ? `<button type="button" class="btn-secondary" data-ann-disable data-id="${id}">Desactivar</button>`
-        : ``;
-
-      return `
-        <div class="announcement ${annClass(a.level)}" data-ann-id="${id}">
-          <div class="announcement__top">
-            <div>
-              <p class="announcement__h">${esc(a.title || '')}</p>
-              <p class="announcement__meta">
-                ${esc('Dirigido a: ' + (a.target_area || ''))}
-                ${a.starts_at ? '<br>' + esc('Hora de inicio: ' + a.starts_at) : ''}
-                ${a.ends_at ? '<br>' + esc('Hora estimada fin: ' + a.ends_at) : ''}
-              </p>
-            </div>
-
-            <div style="display:flex; gap:10px; align-items:center;">
-              <span class="announcement__pill">${annLabel(a.level)}</span>
-              ${btnDisable}
-            </div>
-          </div>
-
-          <div class="announcement__body">
-            ${esc(a.body || '').replaceAll('\n','<br>')}
-          </div>
-        </div>
-      `;
-    }).join('');
-  }
-
-  let lastSig = '';
-
-  async function poll(){
-    try{
-      const r = await fetch('/HelpDesk_EQF/modules/dashboard/common/ajax/announcements_snapshot.php', {cache:'no-store'});
-      const j = await r.json();
-      if (!r.ok || !j || !j.ok) return;
-
-      if (j.signature && j.signature === lastSig) return;
-      lastSig = j.signature || '';
-
-      render(j.items || []);
-    }catch(e){}
-  }
-window.__pollAnnouncementsNow = poll;
-
-  poll();
-  setInterval(poll, 4000);
-
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) poll();
-  });
-})();
+  window.EQF_CAN_DEACTIVATE_ANN = true;
 </script>
+<script src="/HelpDesk_EQF/assets/js/announcements_live.js?v=1"></script>
+
 <script src="/HelpDesk_EQF/assets/js/script.js?v=20251208a"></script>

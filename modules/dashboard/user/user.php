@@ -65,8 +65,6 @@ try {
   FROM announcements
   WHERE is_active = 1
     AND (target_area = 'ALL' OR target_area = :aud)
-    AND (starts_at IS NULL OR starts_at <= NOW())
-    AND (ends_at   IS NULL OR ends_at   >= NOW())
   ORDER BY created_at DESC
   LIMIT 10
 ";
@@ -321,65 +319,55 @@ foreach ($openTickets as $t) {
     </p>
 
     <div class="user-announcements" id="annWrap">
-      <div class="user-announcements__head">
-        <h3 class="user-announcements__title">
-          Avisos
-          <span class="user-announcements__badge" id="annBadge">
-            <?php echo isset($announcements) ? count($announcements) : 0; ?>
-          </span>
-        </h3>
+  <div class="user-announcements__head">
+    <h3 class="user-announcements__title">
+      Avisos
+      <span class="user-announcements__badge" id="annBadge">
+        <?php echo count($announcements ?? []); ?>
+      </span>
+    </h3>
 
-        <!-- Opcional: muestra audiencia detectada -->
-        <?php if (isset($audience)): ?>
-          <p class="user-announcements__hint">
-            Mostrando: <?php echo h($audience); ?>
-          </p>
-        <?php endif; ?>
-      </div>
-
-      <div class="user-announcements__list" id="annList">
-  <?php if (!empty($announcements)): ?>
-    <?php foreach ($announcements as $a): ?>
-      <!-- cards -->
-    <?php endforeach; ?>
-  <?php else: ?>
-    <p style="margin:0; color:#6b7280;">No hay avisos por el momento.</p>
-  <?php endif; ?>
-</div>
-
-                  <p class="announcement__h"><?php echo h($a['title'] ?? ''); ?></p>
-                  <p class="announcement__meta">
-  <?php echo h('Dirigido a: ' . ($a['target_area'] ?? '')); ?>
-  <?php if (!empty($a['starts_at'])): ?>
-    <br>
-    <?php echo h('Hora de inicio: ' . date('d/m/Y H:i', strtotime($a['starts_at']))); ?>
-  <?php endif; ?>
-  <?php if (!empty($a['ends_at'])): ?>
-    <br>
-    <?php echo h('Hora estimada fin: ' . date('d/m/Y H:i', strtotime($a['ends_at']))); ?>
-  <?php endif; ?>
-</p>
-
-                </div>
+       <?php if (isset($audience)): ?>
+      <p class="user-announcements__hint">
+        Mostrando: <?php echo h($audience); ?>
+      </p>
+    <?php endif; ?>
+  </div>
+<div class="user-announcements__list" id="annList">
+    <?php if (!empty($announcements)): ?>
+      <?php foreach ($announcements as $a): ?>
+        <?php $lvl = strtoupper((string)($a['level'] ?? 'INFO')); ?>
+        <div class="announcement <?php echo annClass($lvl); ?>">
+          <div class="announcement__top">
+            <div>
+              <p class="announcement__h"><?php echo h($a['title'] ?? ''); ?></p>
+              <p class="announcement__meta">
+                <?php echo h('Dirigido a: ' . ($a['target_area'] ?? '')); ?>
+                
+                <?php if (!empty($a['starts_at'])): ?>
+                  <br><?php echo h('Hora de inicio: ' . date('d/m/Y H:i', strtotime($a['starts_at']))); ?>
+                <?php endif; ?>
+                <?php if (!empty($a['ends_at'])): ?>
+                  <br><?php echo h('Hora estimada fin: ' . date('d/m/Y H:i', strtotime($a['ends_at']))); ?>
+                <?php endif; ?>
+              </p>
+            </div>
+      
                 <span class="announcement__pill">
-                  <?php echo annLabel($lvl); ?>
-                </span>
-              </div>
+              <?php echo annLabel($lvl); ?>
+            </span>
+          </div>
 
               <div class="announcement__body">
-                <?php echo nl2br(h($a['body'] ?? '')); ?>
-              </div>
-            </div>
-          <?php endforeach; ?>
+            <?php echo nl2br(h($a['body'] ?? '')); ?>
+          </div>
         </div>
-      <?php else: ?>
-        <div class="user-announcements__empty">
-          No hay avisos por el momento.
-        </div>
-      <?php endif; ?>
-
-    </div>
+      <?php endforeach; ?>
+    <?php else: ?>
+      <p style="margin:0; color:#6b7280;">No hay avisos por el momento.</p>
+    <?php endif; ?>
   </div>
+</div>
 </section>
 
 
@@ -893,36 +881,6 @@ document.addEventListener('DOMContentLoaded', function () {
     if ('Notification' in window && Notification.permission === 'default') {
         Notification.requestPermission();
     }
-
-    function pollUserNotifications() {
-        fetch('/HelpDesk_EQF/modules/ticket/check_user_notifications.php')
-        .then(r => r.json())
-            .then(data => {
-
-                if (!data.ok || !data.has) return;
-                if (!Array.isArray(data.notifications)) return;
-
-                data.notifications.forEach(n => {
-                    const msg = n.body || 'Tienes una actualización de tu ticket.';
-                    const title = n.title || 'HelpDesk EQF';
-
-                    showUserToast(msg);
-
-                    if ('Notification' in window && Notification.permission === 'granted') {
-                        new Notification(title, {
-                            body: msg,
-                            icon: '/HelpDesk_EQF/assets/img/icon_helpdesk.png'
-                        });
-                    }
-                });
-                    if (typeof pollUserSnapshot === 'function') {
-                        pollUserSnapshot();               // inmediato
-                        setTimeout(pollUserSnapshot, 900); //  “segundo jalón” para agarrar cerrado+token
-                    }
-            })
-            .catch(err => console.error('Error consultando notificaciones de usuario:', err));
-    }
-    setInterval(pollUserNotifications, 10000);
 });
 </script>
 
@@ -1229,242 +1187,9 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 
-<script>
-  window.HELPDESK_VAPID_PUBLIC_KEY = "<?php echo h($vapidPublicKey); ?>";
-</script>
-<script>
-  document.addEventListener('DOMContentLoaded', () => {
-    registerHelpDeskPush();
-  });
-</script>
 
-<script>
-(function(){
-  function esc(s){
-    return String(s ?? '')
-      .replaceAll('&','&amp;')
-      .replaceAll('<','&lt;')
-      .replaceAll('>','&gt;')
-      .replaceAll('"','&quot;')
-      .replaceAll("'","&#039;");
-  }
+<script src="/HelpDesk_EQF/assets/js/noti_push.js?v=1"></script>
 
-  function fmt(dt){
-    if(!dt) return '';
-    const d = new Date(dt.replace(' ', 'T'));
-    if (isNaN(d.getTime())) return dt;
-    const dd = String(d.getDate()).padStart(2,'0');
-    const mm = String(d.getMonth()+1).padStart(2,'0');
-    const yy = d.getFullYear();
-    const hh = String(d.getHours()).padStart(2,'0');
-    const mi = String(d.getMinutes()).padStart(2,'0');
-    return `${dd}/${mm}/${yy} ${hh}:${mi}`;
-  }
-
-  function levelClass(lvl){
-    lvl = String(lvl||'INFO').toUpperCase();
-    if (lvl === 'CRITICAL') return 'announcement--critical';
-    if (lvl === 'WARN') return 'announcement--warn';
-    return 'announcement--info';
-  }
-
-  function levelLabel(lvl){
-    lvl = String(lvl||'INFO').toUpperCase();
-    if (lvl === 'CRITICAL') return 'Crítico';
-    if (lvl === 'WARN') return 'Aviso';
-    return 'Info';
-  }
-
-  function render(items){
-    const list = document.getElementById('annList');
-    const badge = document.getElementById('annBadge');
-    if (!list || !badge) return;
-
-    badge.textContent = items.length;
-
-    if (!items.length){
-      list.innerHTML = `<p style="margin:0; color:#6b7280;">No hay avisos por el momento.</p>`;
-      return;
-    }
-
-    list.innerHTML = items.map(a => {
-      const starts = a.starts_at ? `<br>Hora de inicio: ${esc(fmt(a.starts_at))}` : '';
-      const ends   = a.ends_at   ? `<br>Hora estimada fin: ${esc(fmt(a.ends_at))}` : '';
-      return `
-        <div class="announcement ${levelClass(a.level)}">
-          <div class="announcement__top">
-            <div>
-              <p class="announcement__h">${esc(a.title)}</p>
-              <p class="announcement__meta">
-                Dirigido a: ${esc(a.target_area || '')}
-                ${starts}
-                ${ends}
-              </p>
-            </div>
-            <span class="announcement__pill">${esc(levelLabel(a.level))}</span>
-          </div>
-          <div class="announcement__body">${esc(a.body).replaceAll('\\n','<br>')}</div>
-        </div>
-      `;
-    }).join('');
-  }
-
-  let lastHash = '';
-  async function poll(){
-    try{
-      const r = await fetch('/HelpDesk_EQF/modules/dashboard/common/ajax/announcements_snapshot.php')
-
-      const data = await r.json();
-      if (!data.ok) return;
-
-      const items = Array.isArray(data.items) ? data.items : [];
-      const hash = JSON.stringify(items.map(x => [x.id, x.updated_at || x.created_at]));
-      if (hash !== lastHash){
-        lastHash = hash;
-        render(items);
-      }
-    }catch(e){}
-  }
-
-  document.addEventListener('DOMContentLoaded', () => {
-    poll();
-    setInterval(poll, 6000);
-  });
-})();
-</script>
-
-
-<script>
-(function(){
-  const list  = document.getElementById('annList');
-  const badge = document.getElementById('annBadge');
-  if (!list || !badge) return;
-
-  function esc(s){
-    return String(s ?? '')
-      .replaceAll('&','&amp;')
-      .replaceAll('<','&lt;')
-      .replaceAll('>','&gt;')
-      .replaceAll('"','&quot;')
-      .replaceAll("'","&#039;");
-  }
-
-  function annClass(level){
-    level = String(level || 'INFO').toUpperCase().trim();
-    if (level === 'CRITICAL') return 'announcement--critical';
-    if (level === 'WARN') return 'announcement--warn';
-    return 'announcement--info';
-  }
-  function annLabel(level){
-    level = String(level || 'INFO').toUpperCase().trim();
-    if (level === 'CRITICAL') return 'Crítico';
-    if (level === 'WARN') return 'Aviso';
-    return 'Info';
-  }
-
-  function render(items){
-    badge.textContent = String((items || []).length);
-
-    if (!items || !items.length){
-      list.innerHTML = `<p style="margin:0; color:#6b7280;">No hay anuncios activos.</p>`;
-      return;
-    }
-
-    list.innerHTML = items.map(a => {
-      const id = parseInt(a.id,10) || 0;
-
-      const btnDisable = (String(a.can_disable) === '1')
-        ? `<button type="button" class="btn-secondary" data-ann-disable data-id="${id}">Desactivar</button>`
-        : ``;
-
-      return `
-        <div class="announcement ${annClass(a.level)}" data-ann-id="${id}">
-          <div class="announcement__top">
-            <div>
-              <p class="announcement__h">${esc(a.title || '')}</p>
-              <p class="announcement__meta">
-                ${esc('Dirigido a: ' + (a.target_area || ''))}
-                ${a.starts_at ? '<br>' + esc('Hora de inicio: ' + a.starts_at) : ''}
-                ${a.ends_at ? '<br>' + esc('Hora estimada fin: ' + a.ends_at) : ''}
-              </p>
-            </div>
-
-            <div style="display:flex; gap:10px; align-items:center;">
-              <span class="announcement__pill">${annLabel(a.level)}</span>
-              ${btnDisable}
-            </div>
-          </div>
-
-          <div class="announcement__body">
-            ${esc(a.body || '').replaceAll('\n','<br>')}
-          </div>
-        </div>
-      `;
-    }).join('');
-  }
-
-  // Click handler (delegado) para desactivar
-  document.addEventListener('click', async (e) => {
-    const btn = e.target.closest('[data-ann-disable]');
-    if (!btn) return;
-
-    const id = parseInt(btn.dataset.id || '0', 10);
-    if (!id) return;
-    if (!confirm('¿Desactivar este anuncio?')) return;
-
-    btn.disabled = true;
-
-    try {
-      const r = await fetch('/HelpDesk_EQF/modules/dashboard/admin/ajax/toggle_announcement.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id })
-      });
-
-      const data = await r.json().catch(()=>({}));
-      if (!r.ok || !data.ok) {
-        alert(data.msg || 'No se pudo desactivar.');
-        btn.disabled = false;
-        return;
-      }
-
-      // quita el anuncio de la UI
-      const card = btn.closest('.announcement');
-      if (card) card.remove();
-
-      // actualiza badge a ojo (sin esperar polling)
-      badge.textContent = String(Math.max(0, parseInt(badge.textContent||'0',10)-1));
-
-    } catch(err){
-      console.error(err);
-      alert('Error al desactivar.');
-      btn.disabled = false;
-    }
-  });
-
-  let lastSig = '';
-
-  async function poll(){
-    try{
-      const r = await fetch('/HelpDesk_EQF/modules/dashboard/common/ajax/announcements_snapshot.php', {cache:'no-store'});
-      const j = await r.json();
-      if (!r.ok || !j || !j.ok) return;
-
-      if (j.signature && j.signature === lastSig) return;
-      lastSig = j.signature || '';
-
-      render(j.items || []);
-    }catch(e){}
-  }
-
-  poll();
-  setInterval(poll, 4000);
-
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) poll();
-  });
-})();
-</script>
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
@@ -1486,6 +1211,7 @@ document.addEventListener('DOMContentLoaded', () => {
   toggleNombreJefe();
 });
 </script>
+<script src="/HelpDesk_EQF/assets/js/announcements_live.js?v=1"></script>
 
 </body>
 </html>

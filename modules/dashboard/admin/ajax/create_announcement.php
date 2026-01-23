@@ -4,132 +4,97 @@ require_once __DIR__ . '/../../../../config/connectionBD.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
-// ============================
-// AUTH
-// ============================
-if (!isset($_SESSION['user_id'])) {
-  http_response_code(403);
-  echo json_encode(['ok' => false, 'msg' => 'No autenticado']);
+// evitar que notices rompan JSON
+ini_set('display_errors', '0');
+error_reporting(E_ALL);
+
+function json_out(array $data, int $code = 200): void {
+  http_response_code($code);
+  echo json_encode($data, JSON_UNESCAPED_UNICODE);
   exit;
+}
+
+if (!isset($_SESSION['user_id'])) {
+  json_out(['ok' => false, 'msg' => 'No autenticado'], 200);
 }
 
 $rol = (int)($_SESSION['user_rol'] ?? 0);
-if (!in_array($rol, [2, 3], true)) {
-  http_response_code(403);
-  echo json_encode(['ok' => false, 'msg' => 'No autorizado']);
-  exit;
+if (!in_array($rol, [2, 3], true)) { // Admin o Analista
+  json_out(['ok' => false, 'msg' => 'Sin permisos'], 200);
 }
 
-$pdo = Database::getConnection();
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+  json_out(['ok' => false, 'msg' => 'Método no permitido'], 200);
+}
 
-// ============================
-// INPUT
-// ============================
-$raw = file_get_contents('php://input');
-$in  = json_decode($raw, true);
-if (!is_array($in)) $in = [];
+/**
+ * Aceptar input como:
+ * - JSON (fetch con application/json)
+ * - FormData (multipart/form-data)
+ */
+$ct = strtolower((string)($_SERVER['CONTENT_TYPE'] ?? ''));
+$in = [];
+
+if (str_contains($ct, 'application/json')) {
+  $raw = file_get_contents('php://input');
+  $in = json_decode($raw, true) ?: [];
+} else {
+  // FormData normal
+  $in = $_POST ?: [];
+}
 
 $title = trim((string)($in['title'] ?? ''));
 $body  = trim((string)($in['body'] ?? ''));
+$target_area = trim((string)($in['target_area'] ?? 'ALL'));      // ALL / Sucursal / Corporativo
+$rawLevel = trim((string)($in['level'] ?? 'INFO'));
+$lv = strtoupper($rawLevel);
 
-if ($title === '' || $body === '') {
-  http_response_code(400);
-  echo json_encode(['ok' => false, 'msg' => 'Título y descripción son obligatorios']);
-  exit;
-}
+// Mapea variantes típicas del frontend a tu ENUM real
+$map = [
+  'INFO' => 'INFO', 'INFORMATION' => 'INFO', 'LOW' => 'INFO', 'BAJA' => 'INFO',
 
-$level = strtoupper(trim((string)($in['level'] ?? 'INFO')));
-$allowedLevel = ['INFO', 'WARN', 'CRITICAL'];
-if (!in_array($level, $allowedLevel, true)) $level = 'INFO';
+  'WARN' => 'WARN', 'WARNING' => 'WARN', 'MED' => 'WARN', 'MEDIUM' => 'WARN', 'MEDIA' => 'WARN',
 
-$target_area = strtoupper(trim((string)($in['target_area'] ?? '')));
-if ($target_area === '') $target_area = 'ALL';
-
-$mapTarget = [
-  'ALL'         => 'ALL',
-  'SUCURSAL'    => 'Sucursal',
-  'CORPORATIVO' => 'Corporativo',
+  'CRITICAL' => 'CRITICAL', 'DANGER' => 'CRITICAL', 'HIGH' => 'CRITICAL', 'ALTA' => 'CRITICAL',
 ];
 
-if (!isset($mapTarget[$target_area])) {
-  http_response_code(400);
-  echo json_encode(['ok' => false, 'msg' => 'Área inválida. Usa ALL, Sucursal o Corporativo.']);
-  exit;
+$level = $map[$lv] ?? 'INFO';
+
+if ($title === '' || $body === '') {
+  json_out(['ok' => false, 'msg' => 'Faltan campos obligatorios'], 200);
 }
-$target_area = $mapTarget[$target_area];
 
-$starts_at = $in['starts_at'] ?? null;
-$ends_at   = $in['ends_at'] ?? null;
+$starts_at = trim((string)($in['starts_at'] ?? ''));
+$ends_at   = trim((string)($in['ends_at'] ?? ''));
 
-$starts_at = (is_string($starts_at) && trim($starts_at) !== '') ? trim($starts_at) : null;
-$ends_at   = (is_string($ends_at)   && trim($ends_at)   !== '') ? trim($ends_at)   : null;
-
-$normalizeDT = function ($v) {
-  if (!$v) return null;
-  $v = str_replace('T', ' ', $v);
-  if (preg_match('/^\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}$/', $v)) $v .= ':00';
-  return $v;
-};
-
-$starts_at = $normalizeDT($starts_at);
-$ends_at   = $normalizeDT($ends_at);
-
-// ============================
-// INSERT
-// ============================
 try {
-  $createdByUserId = (int)($_SESSION['user_id'] ?? 0);
-  $createdByArea   = trim((string)($_SESSION['user_area'] ?? ''));
+  $pdo = Database::getConnection();
 
-  $stmt = $pdo->prepare("
-    INSERT INTO announcements (
-      title, body, level, target_area,
-      starts_at, ends_at,
-      created_by_user_id, created_by_area
-    )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  ");
+  // OJO: TU TABLA ES: created_by_user_id y created_by_area (no "created_by")
+  $sql = "
+    INSERT INTO announcements
+      (title, body, level, target_area, starts_at, ends_at, is_active, created_at, created_by_user_id, created_by_area)
+    VALUES
+      (:title, :body, :level, :target_area,
+       NULLIF(:starts_at,''), NULLIF(:ends_at,''), 1, NOW(), :created_by_user_id, :created_by_area)
+  ";
 
+  $stmt = $pdo->prepare($sql);
   $stmt->execute([
-    $title,
-    $body,
-    $level,
-    $target_area,
-    $starts_at,
-    $ends_at,
-    $createdByUserId,
-    $createdByArea
+    ':title'              => $title,
+    ':body'               => $body,
+    ':level'              => $level,
+    ':target_area'        => $target_area,
+    ':starts_at'          => $starts_at,
+    ':ends_at'            => $ends_at,
+    ':created_by_user_id' => (int)$_SESSION['user_id'],
+    ':created_by_area'    => trim((string)($_SESSION['user_area'] ?? '')),
   ]);
-  $annId = (int)$pdo->lastInsertId();
 
-  $target = $target_area; // 'ALL'|'Sucursal'|'Corporativo'
+  $newId = (int)$pdo->lastInsertId();
+  json_out(['ok' => true, 'id' => $newId], 200);
 
-  if ($target === 'ALL') {
-    $uStmt = $pdo->query("SELECT id FROM users WHERE rol IN (3,4)"); // analistas+usuarios (ajusta)
-  } else {
-  $uStmt = $pdo->query("SELECT id FROM users WHERE rol IN (3,4)");
-  }
-
-  $userIds = $uStmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
-
-  if ($userIds) {
-    $n = $pdo->prepare("
-      INSERT INTO notifications (user_id, title, body, link, is_read, created_at)
-      VALUES (?, ?, ?, ?, 0, NOW())
-    ");
-
-    $link = '/HelpDesk_EQF/modules/dashboard/user/user.php#announcements'; // ajusta ruta real
-    $ntitle = '📣 Aviso: ' . $title;
-
-    foreach ($userIds as $uid) {
-      $n->execute([(int)$uid, $ntitle, $body, $link]);
-    }
-  }
-
-  echo json_encode(['ok' => true, 'id' => $annId]);
-
-  echo json_encode(['ok' => true, 'id' => (int)$pdo->lastInsertId()]);
 } catch (Throwable $e) {
-  http_response_code(500);
-  echo json_encode(['ok' => false, 'msg' => 'Error al guardar anuncio']);
+  // no 500 para no romper tu frontend
+  json_out(['ok' => false, 'msg' => 'Error al guardar anuncio'], 200);
 }
